@@ -108,7 +108,7 @@ def select_video_quality(video_formats):
             print("Invalid selection. Try again.")
             
 def download_media(url, platform, media_type='video', quality=None, start_time=None, end_time=None, audio_format="mp3"):
-    "download the media with all avalible quality and audio codec"
+    "download the media with all available quality and audio codec"
     ydl_opts = {
         'outtmpl': '%(title)s.%(ext)s',
         'cookiefile': 'cookies.txt' if os.path.exists('cookies.txt') else None,
@@ -120,14 +120,14 @@ def download_media(url, platform, media_type='video', quality=None, start_time=N
         start = parse_time(start_time)
         end = parse_time(end_time)
         
-        # ⬇️ Modify this block to ensure correct FFmpeg use
         ydl_opts['postprocessors'] = [{
             'key': 'FFmpegVideoConvertor',
             'preferedformat': 'mp4'
         }]
         ydl_opts['postprocessor_args'] += [
             '-ss', str(start), '-to', str(end),
-            '-c:v', 'libx264', '-preset', 'fast', '-crf', '23'
+            '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+            '-c:a', 'aac'  # Convert audio to AAC during trimming
         ]
         ydl_opts['outtmpl'] = f'%(title)s_Trimmed_{start}s_{end}s.%(ext)s'
 
@@ -141,6 +141,8 @@ def download_media(url, platform, media_type='video', quality=None, start_time=N
     else:
         ydl_opts['format'] = quality or 'bestvideo+bestaudio/best'
         ydl_opts['merge_output_format'] = 'mp4'
+        # Convert audio to AAC for better compatibility
+        ydl_opts['postprocessor_args'] += ['-c:a', 'aac']  # Added line for AAC audio
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
