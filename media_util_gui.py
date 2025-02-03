@@ -1,0 +1,845 @@
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+import os
+import sys
+import subprocess
+from yt_dlp import YoutubeDL
+from PIL import Image, ExifTags
+import threading
+from media_util import convert_images
+# Import all the necessary functions from the original script
+def install(package):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+def check_dependencies():
+    try:
+        import yt_dlp
+    except ImportError:
+        print("Installing yt-dlp...")
+        install("yt-dlp")
+
+    try:
+        subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("\nFFmpeg not found! Required for media processing.")
+        sys.exit(1)
+
+    try:
+        import pillow_heif
+    except ImportError:
+        print("\nInstalling pillow-heif for HEIC support...")
+        install("pillow-heif")
+        import pillow_heif
+        pillow_heif.register_heif_opener()
+
+def get_platform(url):
+    domains = {
+        'youtube': ['youtube.com', 'youtu.be'],
+        'facebook': ['facebook.com', 'fb.watch'],
+        'instagram': ['instagram.com', 'instagr.am'],
+        'tiktok': ['tiktok.com'],
+        'twitter': ['twitter.com', 'x.com']
+    }
+    for platform, urls in domains.items():
+        if any(domain in url for domain in urls):
+            return platform
+    return 'generic'
+
+def parse_time(time_str):
+    parts = list(map(int, time_str.split(':')))
+    if len(parts) == 1:
+        return parts[0]
+    elif len(parts) == 2:
+        return parts[0] * 60 + parts[1]
+    elif len(parts) == 3:
+        return parts[0] * 3600 + parts[1] * 60 + parts[2]
+    else:
+        raise ValueError("Invalid time format. Use H:MM:SS, M:SS, or S")
+
+def download_media(url, platform, media_type='video', quality=None, start_time=None, end_time=None, audio_format="mp3"):
+    ydl_opts = {
+        'outtmpl': '%(title)s.%(ext)s',
+        'cookiefile': 'cookies.txt' if os.path.exists('cookies.txt') else None,
+        'postprocessor_args': ['-loglevel', 'error'],
+        'force_keyframes_at_cuts': True
+    }
+
+    if start_time and end_time:
+        start = parse_time(start_time)
+        end = parse_time(end_time)
+        
+        ydl_opts['postprocessors'] = [{
+            'key': 'FFmpegVideoConvertor',
+            'preferedformat': 'mp4'
+        }]
+        ydl_opts['postprocessor_args'] += [
+            '-ss', str(start), '-to', str(end),
+            '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+            '-c:a', 'aac'
+        ]
+        ydl_opts['outtmpl'] = f'%(title)s_Trimmed_{start}s_{end}s.%(ext)s'
+
+    if media_type == 'audio':
+        ydl_opts['format'] = 'bestaudio/best'
+        ydl_opts['postprocessors'] = [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': audio_format,
+            'preferredquality': '320'
+        }]
+    else:
+        ydl_opts['format'] = quality or 'bestvideo+bestaudio/best'
+        ydl_opts['merge_output_format'] = 'mp4'
+        ydl_opts['postprocessor_args'] += ['-c:a', 'aac']
+
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+        return True
+    except Exception as e:
+        print(f"Error downloading: {str(e)}")
+        return False
+
+def convert_images(file_paths, target_format):
+    try:
+        import pillow_heif
+        pillow_heif.register_heif_opener()
+    except ImportError:
+        install("pillow-heif")
+        import pillow_heif
+        pillow_heif.register_heif_opener()
+
+    format_mapping = {
+        "jpg": "JPEG",
+        "jpeg": "JPEG",
+        "png": "PNG",
+        "bmp": "BMP",
+        "gif": "GIF",
+        "webp": "WEBP",
+        "heic": "HEIF",
+        "heif": "HEIF"
+    }
+
+    target_format = format_mapping.get(target_format.lower(), target_format.upper())
+    if target_format not in format_mapping.values():
+        print(f"Unsupported target format: {target_format}")
+        return False
+
+    success_count = 0
+    for file_path in file_paths:
+        try:
+            image = Image.open(file_path)
+            exif_data = image.info.get("exif")
+            output_path = file_path.rsplit(".", 1)[0] + f".{target_format.lower()}"
+
+            if target_format == "HEIF":
+                heif_options = {
+                    "quality": 90,
+                    "compression": "hevc",
+                    "bit_depth": 8,
+                    "chroma_subsampling": "420",
+                    "save_all": False,
+                }
+                image.save(output_path, format="HEIF", exif=exif_data, **heif_options)
+            else:
+                image.save(output_path, format=target_format, quality=95)
+
+            success_count += 1
+        except Exception as e:
+            print(f"Conversion failed for {file_path}: {e}")
+
+    return success_count > 0
+
+def convert_media(file_path):
+    if not os.path.exists(file_path):
+        return False
+
+    supported_formats = {
+        'audio': {'mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'},
+        'video': {'mp4', 'mkv', 'avi', 'mov', 'webm', 'flv'},
+        'image': {'jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'heic', 'heif'}
+    }
+
+    ext = os.path.splitext(file_path)[1][1:].lower()
+    media_type = None
+    for category, exts in supported_formats.items():
+        if ext in exts:
+            media_type = category
+            break
+
+    if not media_type:
+        return False
+
+    if media_type == "image":
+        return convert_images([file_path], ext)
+
+    base = os.path.splitext(file_path)[0]
+    output_path = f"{base}_converted.{ext}"
+
+    try:
+        cmd = ['ffmpeg', '-y', '-i', file_path, output_path]
+        subprocess.run(cmd, check=True, capture_output=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+def trim_media(file_path, start_time, end_time):
+    supported_formats = {
+        'audio': {'mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'},
+        'video': {'mp4', 'mkv', 'avi', 'mov', 'webm', 'flv'}
+    }
+
+    ext = os.path.splitext(file_path)[1][1:].lower()
+    media_type = None
+    for category, exts in supported_formats.items():
+        if ext in exts:
+            media_type = category
+            break
+
+    if media_type not in ['audio', 'video']:
+        return False
+
+    try:
+        start = parse_time(start_time)
+        end = parse_time(end_time)
+    except ValueError:
+        return False
+
+    base, ext = os.path.splitext(file_path)
+    output_path = f"{base}_trimmed{ext}"
+
+    cmd = [
+        'ffmpeg', '-y',
+        '-i', file_path,
+        '-ss', str(start),
+        '-to', str(end),
+    ]
+
+    if media_type == 'video':
+        cmd += [
+            '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+            '-c:a', 'aac', '-b:a', '192k'
+        ]
+    elif media_type == 'audio':
+        codec_map = {
+            'mp3': 'libmp3lame',
+            'wav': 'pcm_s16le',
+            'aac': 'aac',
+            'flac': 'flac',
+            'ogg': 'libvorbis',
+            'm4a': 'aac'
+        }
+        cmd += ['-c:a', codec_map.get(ext[1:], 'copy')]
+
+    cmd.append(output_path)
+
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+def get_available_formats(url):
+    with YoutubeDL({'quiet': True}) as ydl:
+        try:
+            info = ydl.extract_info(url, download=False)
+            formats = []
+            for fmt in info.get('formats', []):
+                if fmt.get('vcodec') != 'none':  # Video formats only
+                    res = fmt.get('resolution', 'unknown')
+                    fps = fmt.get('fps', '?')
+                    ext = fmt.get('ext', '?')
+                    format_id = fmt.get('format_id', '')
+                    size = fmt.get('filesize') or fmt.get('filesize_approx')
+                    size_mb = f"{size/(1024*1024):.1f}MB" if size else "unknown size"
+                    formats.append({
+                        'format_id': format_id,
+                        'resolution': res,
+                        'fps': fps,
+                        'ext': ext,
+                        'size': size_mb,
+                        'display': f"{res} {fps}fps | {ext.upper()} | {size_mb}"
+                    })
+            return formats
+        except Exception as e:
+            print(f"Error getting formats: {str(e)}")
+            return []
+        
+class MediaUtilityGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Media Utility")
+        self.root.geometry("800x600")
+        self.video_quality = None  # Add this line
+        # Create main notebook for tabs
+        self.notebook = ttk.Notebook(root)
+        self.notebook.pack(fill='both', expand=True, padx=10, pady=5)
+        
+        # Create tabs
+        self.download_tab = ttk.Frame(self.notebook)
+        self.convert_tab = ttk.Frame(self.notebook)
+        self.batch_convert_tab = ttk.Frame(self.notebook)
+        self.trim_tab = ttk.Frame(self.notebook)
+        
+        self.notebook.add(self.download_tab, text='Download Media')
+        self.notebook.add(self.convert_tab, text='Convert Media')
+        self.notebook.add(self.batch_convert_tab, text='Batch Convert')
+        self.notebook.add(self.trim_tab, text='Trim Media')
+        
+        # Initialize tabs
+        self.setup_download_tab()
+        self.setup_convert_tab()
+        self.setup_batch_convert_tab()
+        self.setup_trim_tab()
+        
+        # Progress bar and status
+        self.status_frame = ttk.Frame(root)
+        self.status_frame.pack(fill='x', padx=10, pady=5)
+        
+        self.progress = ttk.Progressbar(self.status_frame, mode='indeterminate')
+        self.progress.pack(fill='x', pady=5)
+        
+        self.status_label = ttk.Label(self.status_frame, text="Ready")
+        self.status_label.pack(pady=5)
+
+    def setup_download_tab(self):
+        # URL Entry
+        url_frame = ttk.Frame(self.download_tab)
+        url_frame.pack(fill='x', padx=10, pady=5)
+        
+        ttk.Label(url_frame, text="Enter URL:").pack(side='left', padx=5)
+        self.url_entry = ttk.Entry(url_frame, width=60)
+        self.url_entry.pack(side='left', padx=5, expand=True, fill='x')
+        
+        # Check Formats Button
+        ttk.Button(url_frame, text="Check Available Formats", 
+                  command=self.check_formats).pack(side='left', padx=5)
+        
+        # Quality Selection Frame
+        quality_frame = ttk.LabelFrame(self.download_tab, text="Video Quality")
+        quality_frame.pack(pady=10, padx=10, fill='both', expand=True)
+        
+        # Scrolled Frame for qualities
+        self.quality_container = ttk.Frame(quality_frame)
+        self.quality_container.pack(fill='both', expand=True)
+        
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(self.quality_container)
+        scrollbar.pack(side='right', fill='y')
+        
+        # Listbox for qualities
+        self.quality_listbox = tk.Listbox(self.quality_container, 
+                                        yscrollcommand=scrollbar.set,
+                                        height=6)
+        self.quality_listbox.pack(side='left', fill='both', expand=True)
+        scrollbar.config(command=self.quality_listbox.yview)
+        
+        # Media Type Frame
+        media_frame = ttk.LabelFrame(self.download_tab, text="Media Type")
+        media_frame.pack(pady=10, padx=10, fill='x')
+        
+        self.media_type = tk.StringVar(value="video")
+        ttk.Radiobutton(media_frame, text="Video", variable=self.media_type, 
+                       value="video", command=self.update_format_visibility).pack(side='left', padx=20)
+        ttk.Radiobutton(media_frame, text="Audio", variable=self.media_type,
+                       value="audio", command=self.update_format_visibility).pack(side='left', padx=20)
+        
+        # Audio Format Frame
+        self.audio_frame = ttk.LabelFrame(self.download_tab, text="Audio Format")
+        self.audio_frame.pack(pady=10, padx=10, fill='x')
+        
+        self.audio_format = tk.StringVar(value="mp3")
+        formats = ['mp3', 'aac', 'flac', 'wav', 'opus', 'm4a']
+        for fmt in formats:
+            ttk.Radiobutton(self.audio_frame, text=fmt.upper(), variable=self.audio_format,
+                           value=fmt).pack(side='left', padx=10)
+        
+        # Time Range Frame
+        time_frame = ttk.LabelFrame(self.download_tab, text="Time Range (Optional)")
+        time_frame.pack(pady=10, padx=10, fill='x')
+        
+        ttk.Label(time_frame, text="Start Time:").pack(side='left', padx=5)
+        self.start_time = ttk.Entry(time_frame, width=10)
+        self.start_time.pack(side='left', padx=5)
+        
+        ttk.Label(time_frame, text="End Time:").pack(side='left', padx=5)
+        self.end_time = ttk.Entry(time_frame, width=10)
+        self.end_time.pack(side='left', padx=5)
+        
+        # Download Button
+        ttk.Button(self.download_tab, text="Download", 
+                  command=self.start_download).pack(pady=20)
+    def check_formats(self):
+        url = self.url_entry.get().strip()
+        if not url:
+            messagebox.showerror("Error", "Please enter a URL")
+            return
+        
+        self.quality_listbox.delete(0, tk.END)  # Clear existing items
+        self.quality_listbox.insert(tk.END, "Checking available formats...")
+        self.root.update()
+        def check_formats_thread():
+            try:
+                formats = get_available_formats(url)
+                self.root.after(0, self.update_quality_list, formats)
+            except Exception as e:
+                self.root.after(0, self.update_status, f"Error checking formats: {str(e)}", True)
+        
+        threading.Thread(target=check_formats_thread, daemon=True).start()
+    
+    def update_quality_list(self, formats):
+        self.quality_listbox.delete(0, tk.END)
+        self.quality_listbox.insert(tk.END, "Best Quality (Automatic)")
+        self.formats = formats
+        for fmt in formats:
+            self.quality_listbox.insert(tk.END, fmt['display'])
+    def update_format_visibility(self):
+        if self.media_type.get() == 'audio':
+            self.quality_container.pack_forget()
+            self.audio_frame.pack(pady=10, padx=10, fill='x')
+        else:
+            self.quality_container.pack(fill='both', expand=True)
+            self.audio_frame.pack(pady=10, padx=10, fill='x')
+            
+    def setup_convert_tab(self):
+        # File Selection
+        file_frame = ttk.Frame(self.convert_tab)
+        file_frame.pack(pady=10, fill='x')
+        
+        self.convert_path = ttk.Entry(file_frame, width=60)
+        self.convert_path.pack(side='left', padx=5)
+        
+        ttk.Button(file_frame, text="Browse", 
+                command=lambda: self.browse_file(self.convert_path)).pack(side='left')
+        
+        # Media Type Display
+        self.media_type_label = ttk.Label(self.convert_tab, text="Media Type: None")
+        self.media_type_label.pack(pady=5)
+        
+        # Format Selection Frame
+        self.format_notebook = ttk.Notebook(self.convert_tab)
+        self.format_notebook.pack(pady=10, padx=10, fill='both', expand=True)
+        
+        # Create tabs for each media type
+        self.audio_frame = ttk.Frame(self.format_notebook)
+        self.video_frame = ttk.Frame(self.format_notebook)
+        self.image_frame = ttk.Frame(self.format_notebook)
+        
+        self.format_notebook.add(self.audio_frame, text='Audio Formats')
+        self.format_notebook.add(self.video_frame, text='Video Formats')
+        self.format_notebook.add(self.image_frame, text='Image Formats')
+        
+        # Audio Formats
+        self.audio_format = tk.StringVar()
+        audio_formats = ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a']
+        self.setup_format_grid(self.audio_frame, audio_formats, self.audio_format)
+        
+        # Video Formats
+        self.video_format = tk.StringVar()
+        video_formats = ['mp4', 'mkv', 'avi', 'mov', 'webm', 'flv']
+        self.setup_format_grid(self.video_frame, video_formats, self.video_format)
+        
+        # Image Formats
+        self.image_format = tk.StringVar()
+        image_formats = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'heic', 'heif']
+        self.setup_format_grid(self.image_frame, image_formats, self.image_format)
+        
+        # Convert Button
+        self.convert_button = ttk.Button(self.convert_tab, text="Convert", 
+                                    command=self.start_conversion)
+        self.convert_button.pack(pady=20)
+        
+        # Bind file selection to update media type
+        self.convert_path.bind('<KeyRelease>', self.update_media_type)
+    def setup_format_grid(self, parent, formats, var):
+        row = 0
+        col = 0
+        for fmt in formats:
+            ttk.Radiobutton(parent, text=fmt.upper(), 
+                        variable=var, value=fmt).grid(
+                            row=row, column=col, padx=10, pady=5)
+            col += 1
+            if col > 3:  # 4 columns maximum
+                col = 0
+                row += 1
+    def update_media_type(self, event=None):
+        file_path = self.convert_path.get()
+        if not file_path or not os.path.exists(file_path):
+            self.media_type_label.config(text="Media Type: None")
+            return
+        
+        ext = os.path.splitext(file_path)[1][1:].lower()
+        supported_formats = {
+            'audio': {'mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'},
+            'video': {'mp4', 'mkv', 'avi', 'mov', 'webm', 'flv'},
+            'image': {'jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'heic', 'heif'}
+        }
+        
+        media_type = None
+        for category, exts in supported_formats.items():
+            if ext in exts:
+                media_type = category
+                break
+        
+        if media_type:
+            self.media_type_label.config(text=f"Media Type: {media_type.capitalize()}")
+            # Show appropriate format tab
+            tab_index = {'audio': 0, 'video': 1, 'image': 2}.get(media_type, 0)
+            self.format_notebook.select(tab_index)
+        else:
+            self.media_type_label.config(text="Media Type: Unsupported format")
+    def get_current_format_var(self):
+        current_tab = self.format_notebook.select()
+        tab_index = self.format_notebook.index(current_tab)
+        return {
+            0: self.audio_format,
+            1: self.video_format,
+            2: self.image_format
+        }.get(tab_index)
+    
+    def setup_batch_convert_tab(self):
+        # File Selection
+        file_frame = ttk.Frame(self.batch_convert_tab)
+        file_frame.pack(pady=10, fill='x')
+        
+        self.batch_files = ttk.Entry(file_frame, width=60)
+        self.batch_files.pack(side='left', padx=5)
+        
+        ttk.Button(file_frame, text="Browse", 
+                command=self.browse_multiple_files).pack(side='left')
+        
+        # Selected Files Display
+        self.files_frame = ttk.LabelFrame(self.batch_convert_tab, text="Selected Files")
+        self.files_frame.pack(pady=10, padx=10, fill='both', expand=True)
+        
+        # Create scrolled text widget for file list
+        self.files_text = tk.Text(self.files_frame, height=5, width=50)
+        scrollbar = ttk.Scrollbar(self.files_frame, command=self.files_text.yview)
+        self.files_text.configure(yscrollcommand=scrollbar.set)
+        self.files_text.pack(side='left', fill='both', expand=True)
+        scrollbar.pack(side='right', fill='y')
+        self.files_text.config(state='disabled')
+        
+        # Media Type Display
+        self.batch_type_label = ttk.Label(self.batch_convert_tab, text="Media Type: None")
+        self.batch_type_label.pack(pady=5)
+        
+        # Format Selection Frame
+        self.batch_format_notebook = ttk.Notebook(self.batch_convert_tab)
+        self.batch_format_notebook.pack(pady=10, padx=10, fill='both', expand=True)
+        
+        # Create tabs for each media type
+        self.batch_audio_frame = ttk.Frame(self.batch_format_notebook)
+        self.batch_video_frame = ttk.Frame(self.batch_format_notebook)
+        self.batch_image_frame = ttk.Frame(self.batch_format_notebook)
+        
+        self.batch_format_notebook.add(self.batch_audio_frame, text='Audio Formats')
+        self.batch_format_notebook.add(self.batch_video_frame, text='Video Formats')
+        self.batch_format_notebook.add(self.batch_image_frame, text='Image Formats')
+        
+        # Audio Formats
+        self.batch_audio_format = tk.StringVar()
+        audio_formats = ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a']
+        self.setup_format_grid(self.batch_audio_frame, audio_formats, self.batch_audio_format)
+        
+        # Video Formats
+        self.batch_video_format = tk.StringVar()
+        video_formats = ['mp4', 'mkv', 'avi', 'mov', 'webm', 'flv']
+        self.setup_format_grid(self.batch_video_frame, video_formats, self.batch_video_format)
+        
+        # Image Formats
+        self.batch_image_format = tk.StringVar()
+        image_formats = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'heic', 'heif']
+        self.setup_format_grid(self.batch_image_frame, image_formats, self.batch_image_format)
+        
+        # Convert Button
+        self.batch_convert_button = ttk.Button(self.batch_convert_tab, text="Convert All", 
+                                            command=self.start_batch_conversion)
+        self.batch_convert_button.pack(pady=20)
+    def browse_multiple_files(self):
+        filenames = filedialog.askopenfilenames()
+        if filenames:
+            self.batch_files.delete(0, tk.END)
+            self.batch_files.insert(0, ';'.join(filenames))
+            
+            # Update files display
+            self.files_text.config(state='normal')
+            self.files_text.delete(1.0, tk.END)
+            for file in filenames:
+                self.files_text.insert(tk.END, f"{os.path.basename(file)}\n")
+            self.files_text.config(state='disabled')
+            
+            # Determine media type
+            self.update_batch_media_type(filenames)
+    def update_batch_media_type(self, filenames):
+        if not filenames:
+            self.batch_type_label.config(text="Media Type: None")
+            return
+        
+        supported_formats = {
+            'audio': {'mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'},
+            'video': {'mp4', 'mkv', 'avi', 'mov', 'webm', 'flv'},
+            'image': {'jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'heic', 'heif'}
+        }
+        
+        # Get extensions of all files
+        extensions = {os.path.splitext(f)[1][1:].lower() for f in filenames}
+        
+        # Determine media type based on extensions
+        media_types = set()
+        for ext in extensions:
+            for media_type, formats in supported_formats.items():
+                if ext in formats:
+                    media_types.add(media_type)
+                    break
+        
+        if len(media_types) > 1:
+            self.batch_type_label.config(text="Media Type: Mixed (not supported)")
+            messagebox.showwarning("Warning", 
+                                "Mixed media types detected. Please select files of the same type.")
+        elif len(media_types) == 1:
+            media_type = media_types.pop()
+            self.batch_type_label.config(text=f"Media Type: {media_type.capitalize()}")
+            # Show appropriate format tab
+            tab_index = {'audio': 0, 'video': 1, 'image': 2}.get(media_type, 0)
+            self.batch_format_notebook.select(tab_index)
+        else:
+            self.batch_type_label.config(text="Media Type: Unsupported format")
+
+    def get_current_batch_format_var(self):
+        current_tab = self.batch_format_notebook.select()
+        tab_index = self.batch_format_notebook.index(current_tab)
+        return {
+            0: self.batch_audio_format,
+            1: self.batch_video_format,
+            2: self.batch_image_format
+        }.get(tab_index)
+    def setup_trim_tab(self):
+        # File Selection
+        file_frame = ttk.Frame(self.trim_tab)
+        file_frame.pack(pady=10, fill='x')
+        
+        self.trim_path = ttk.Entry(file_frame, width=60)
+        self.trim_path.pack(side='left', padx=5)
+        
+        ttk.Button(file_frame, text="Browse", 
+                  command=lambda: self.browse_file(self.trim_path)).pack(side='left')
+        
+        # Time Range
+        time_frame = ttk.LabelFrame(self.trim_tab, text="Time Range")
+        time_frame.pack(pady=10, padx=10, fill='x')
+        
+        ttk.Label(time_frame, text="Start Time:").pack(side='left', padx=5)
+        self.trim_start = ttk.Entry(time_frame, width=10)
+        self.trim_start.pack(side='left', padx=5)
+        
+        ttk.Label(time_frame, text="End Time:").pack(side='left', padx=5)
+        self.trim_end = ttk.Entry(time_frame, width=10)
+        self.trim_end.pack(side='left', padx=5)
+        
+        # Trim Button
+        ttk.Button(self.trim_tab, text="Trim Media", 
+                  command=self.start_trim).pack(pady=20)
+
+    def browse_file(self, entry_widget):
+        filename = filedialog.askopenfilename()
+        if filename:
+            entry_widget.delete(0, tk.END)
+            entry_widget.insert(0, filename)
+
+    def browse_multiple_files(self):
+        filenames = filedialog.askopenfilenames()
+        if filenames:
+            self.batch_files.delete(0, tk.END)
+            self.batch_files.insert(0, ';'.join(filenames))
+
+    def update_status(self, message, is_error=False):
+        self.status_label.config(text=message, 
+                               foreground='red' if is_error else 'black')
+        self.root.update()
+
+    def start_progress(self):
+        self.progress.start(10)
+        self.root.update()
+
+    def stop_progress(self):
+        self.progress.stop()
+        self.root.update()
+
+    def start_download(self):
+        url = self.url_entry.get().strip()
+        if not url:
+            messagebox.showerror("Error", "Please enter a URL")
+            return
+        
+        # Get selected quality
+        quality = None
+        if self.media_type.get() == 'video':
+            selected_idx = self.quality_listbox.curselection()
+            if selected_idx:
+                if selected_idx[0] == 0:  # Best Quality
+                    quality = 'bestvideo+bestaudio/best'
+                elif hasattr(self, 'formats') and self.formats:
+                    fmt = self.formats[selected_idx[0] - 1]  # -1 because of "Best Quality" option
+                    quality = f"{fmt['format_id']}+bestaudio/best"
+        
+        def download_thread():
+            self.start_progress()
+            self.update_status("Downloading...")
+            try:
+                success = download_media(
+                    url=url,
+                    platform=get_platform(url),
+                    media_type=self.media_type.get(),
+                    quality=quality,
+                    start_time=self.start_time.get() if self.start_time.get() else None,
+                    end_time=self.end_time.get() if self.end_time.get() else None,
+                    audio_format=self.audio_format.get()
+                )
+                if success:
+                    self.update_status("Download completed successfully!")
+                else:
+                    self.update_status("Download failed!", True)
+            except Exception as e:
+                self.update_status(f"Error: {str(e)}", True)
+            finally:
+                self.stop_progress()
+        
+        threading.Thread(target=download_thread, daemon=True).start()
+
+    def start_batch_conversion(self):
+        files = self.batch_files.get().split(';')
+        if not files or not files[0]:
+            messagebox.showerror("Error", "Please select files to convert")
+            return
+
+        format_var = self.get_current_batch_format_var()
+        if not format_var or not format_var.get():
+            messagebox.showerror("Error", "Please select a target format")
+            return
+
+        target_format = format_var.get()
+
+        def batch_convert_thread():
+            self.start_progress()
+            self.update_status("Converting files...")
+            try:
+                # Call the convert_images function from media_util.py
+                success = convert_images(files, target_format)
+                if success:
+                    self.update_status(f"Successfully converted {len(files)} files!")
+                else:
+                    self.update_status("Batch conversion failed!", True)
+            except Exception as e:
+                self.update_status(f"Error: {str(e)}", True)
+            finally:
+                self.stop_progress()
+
+        threading.Thread(target=batch_convert_thread, daemon=True).start()
+
+
+    def start_conversion(self):
+        file_path = self.convert_path.get()
+        if not file_path or not os.path.exists(file_path):
+            messagebox.showerror("Error", "Please select a valid file")
+            return
+        
+        # Get the current format variable based on media type
+        format_var = self.get_current_format_var()
+        if not format_var or not format_var.get():
+            messagebox.showerror("Error", "Please select a target format")
+            return
+
+        target_format = format_var.get()
+        
+        def convert_thread():
+            self.start_progress()
+            self.update_status("Converting...")
+            try:
+                # Get file extension and media type
+                ext = os.path.splitext(file_path)[1][1:].lower()
+                if ext == target_format:
+                    self.update_status("Source and target formats are the same!", True)
+                    return
+
+                supported_formats = {
+                    'audio': {'mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'},
+                    'video': {'mp4', 'mkv', 'avi', 'mov', 'webm', 'flv'},
+                    'image': {'jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'heic', 'heif'}
+                }
+                
+                # Determine media type
+                media_type = None
+                for category, formats in supported_formats.items():
+                    if ext in formats:
+                        media_type = category
+                        break
+
+                if media_type == "image":
+                    success = convert_images([file_path], target_format)
+                else:
+                    # For audio/video, create output path
+                    base = os.path.splitext(file_path)[0]
+                    output_path = f"{base}_converted.{target_format}"
+                    
+                    if media_type == 'video' and target_format in supported_formats['audio']:
+                        # Audio extraction from video
+                        cmd = [
+                            'ffmpeg', '-y',
+                            '-i', file_path,
+                            '-vn',  # Disable video
+                            '-acodec', 'libmp3lame' if target_format == 'mp3' else target_format,
+                            output_path
+                        ]
+                    else:
+                        # Default conversion
+                        cmd = ['ffmpeg', '-y', '-i', file_path, output_path]
+                    
+                    # Execute conversion
+                    result = subprocess.run(cmd, capture_output=True)
+                    success = result.returncode == 0
+
+                if success and os.path.exists(output_path if media_type != "image" else file_path.rsplit(".", 1)[0] + f".{target_format}"):
+                    self.update_status("Conversion completed successfully!")
+                else:
+                    self.update_status("Conversion failed!", True)
+                    
+            except Exception as e:
+                self.update_status(f"Error: {str(e)}", True)
+            finally:
+                self.stop_progress()
+        
+        threading.Thread(target=convert_thread, daemon=True).start()
+
+    def start_trim(self):
+        file_path = self.trim_path.get()
+        if not file_path or not os.path.exists(file_path):
+            messagebox.showerror("Error", "Please select a valid file")
+            return
+        
+        def trim_thread():
+            self.start_progress()
+            self.update_status("Trimming media...")
+            try:
+                success = trim_media(
+                    file_path,
+                    self.trim_start.get(),
+                    self.trim_end.get()
+                )
+                if success:
+                    self.update_status("Trimming completed successfully!")
+                else:
+                    self.update_status("Trimming failed!", True)
+            except Exception as e:
+                self.update_status(f"Error: {str(e)}", True)
+            finally:
+                self.stop_progress()
+        
+        threading.Thread(target=trim_thread, daemon=True).start()
+
+def main():
+    check_dependencies()
+    root = tk.Tk()
+    app = MediaUtilityGUI(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
