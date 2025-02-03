@@ -6,11 +6,9 @@ import subprocess
 from yt_dlp import YoutubeDL
 from PIL import Image, ExifTags
 import threading
-from media_util import convert_images
-# Import all the necessary functions from the original script
+
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-
 def check_dependencies():
     try:
         import yt_dlp
@@ -243,7 +241,7 @@ def get_available_formats(url):
             info = ydl.extract_info(url, download=False)
             formats = []
             for fmt in info.get('formats', []):
-                if fmt.get('vcodec') != 'none':  # Video formats only
+                if fmt.get('vcodec') != 'none':
                     res = fmt.get('resolution', 'unknown')
                     fps = fmt.get('fps', '?')
                     ext = fmt.get('ext', '?')
@@ -268,40 +266,29 @@ class MediaUtilityGUI:
         self.root = root
         self.root.title("Media Utility")
         self.root.geometry("800x600")
-        self.video_quality = None  # Add this line
-        # Create main notebook for tabs
+        self.video_quality = None
         self.notebook = ttk.Notebook(root)
         self.notebook.pack(fill='both', expand=True, padx=10, pady=5)
-        
-        # Create tabs
         self.download_tab = ttk.Frame(self.notebook)
         self.convert_tab = ttk.Frame(self.notebook)
         self.batch_convert_tab = ttk.Frame(self.notebook)
         self.trim_tab = ttk.Frame(self.notebook)
-        
         self.notebook.add(self.download_tab, text='Download Media')
         self.notebook.add(self.convert_tab, text='Convert Media')
         self.notebook.add(self.batch_convert_tab, text='Batch Convert')
         self.notebook.add(self.trim_tab, text='Trim Media')
-        
-        # Initialize tabs
         self.setup_download_tab()
         self.setup_convert_tab()
         self.setup_batch_convert_tab()
         self.setup_trim_tab()
-        
-        # Progress bar and status
         self.status_frame = ttk.Frame(root)
         self.status_frame.pack(fill='x', padx=10, pady=5)
-        
         self.progress = ttk.Progressbar(self.status_frame, mode='indeterminate')
         self.progress.pack(fill='x', pady=5)
-        
         self.status_label = ttk.Label(self.status_frame, text="Ready")
         self.status_label.pack(pady=5)
 
     def setup_download_tab(self):
-        # URL Entry
         url_frame = ttk.Frame(self.download_tab)
         url_frame.pack(fill='x', padx=10, pady=5)
         
@@ -309,30 +296,24 @@ class MediaUtilityGUI:
         self.url_entry = ttk.Entry(url_frame, width=60)
         self.url_entry.pack(side='left', padx=5, expand=True, fill='x')
         
-        # Check Formats Button
         ttk.Button(url_frame, text="Check Available Formats", 
                   command=self.check_formats).pack(side='left', padx=5)
         
-        # Quality Selection Frame
         quality_frame = ttk.LabelFrame(self.download_tab, text="Video Quality")
         quality_frame.pack(pady=10, padx=10, fill='both', expand=True)
         
-        # Scrolled Frame for qualities
         self.quality_container = ttk.Frame(quality_frame)
         self.quality_container.pack(fill='both', expand=True)
         
-        # Scrollbar
         scrollbar = ttk.Scrollbar(self.quality_container)
         scrollbar.pack(side='right', fill='y')
         
-        # Listbox for qualities
         self.quality_listbox = tk.Listbox(self.quality_container, 
                                         yscrollcommand=scrollbar.set,
                                         height=6)
         self.quality_listbox.pack(side='left', fill='both', expand=True)
         scrollbar.config(command=self.quality_listbox.yview)
         
-        # Media Type Frame
         media_frame = ttk.LabelFrame(self.download_tab, text="Media Type")
         media_frame.pack(pady=10, padx=10, fill='x')
         
@@ -342,7 +323,6 @@ class MediaUtilityGUI:
         ttk.Radiobutton(media_frame, text="Audio", variable=self.media_type,
                        value="audio", command=self.update_format_visibility).pack(side='left', padx=20)
         
-        # Audio Format Frame
         self.audio_frame = ttk.LabelFrame(self.download_tab, text="Audio Format")
         self.audio_frame.pack(pady=10, padx=10, fill='x')
         
@@ -352,7 +332,6 @@ class MediaUtilityGUI:
             ttk.Radiobutton(self.audio_frame, text=fmt.upper(), variable=self.audio_format,
                            value=fmt).pack(side='left', padx=10)
         
-        # Time Range Frame
         time_frame = ttk.LabelFrame(self.download_tab, text="Time Range (Optional)")
         time_frame.pack(pady=10, padx=10, fill='x')
         
@@ -364,7 +343,6 @@ class MediaUtilityGUI:
         self.end_time = ttk.Entry(time_frame, width=10)
         self.end_time.pack(side='left', padx=5)
         
-        # Download Button
         ttk.Button(self.download_tab, text="Download", 
                   command=self.start_download).pack(pady=20)
     def check_formats(self):
@@ -457,7 +435,7 @@ class MediaUtilityGUI:
                         variable=var, value=fmt).grid(
                             row=row, column=col, padx=10, pady=5)
             col += 1
-            if col > 3:  # 4 columns maximum
+            if col > 3: 
                 col = 0
                 row += 1
     def update_media_type(self, event=None):
@@ -481,7 +459,6 @@ class MediaUtilityGUI:
         
         if media_type:
             self.media_type_label.config(text=f"Media Type: {media_type.capitalize()}")
-            # Show appropriate format tab
             tab_index = {'audio': 0, 'video': 1, 'image': 2}.get(media_type, 0)
             self.format_notebook.select(tab_index)
         else:
@@ -496,7 +473,6 @@ class MediaUtilityGUI:
         }.get(tab_index)
     
     def setup_batch_convert_tab(self):
-        # File Selection
         file_frame = ttk.Frame(self.batch_convert_tab)
         file_frame.pack(pady=10, fill='x')
         
@@ -506,11 +482,9 @@ class MediaUtilityGUI:
         ttk.Button(file_frame, text="Browse", 
                 command=self.browse_multiple_files).pack(side='left')
         
-        # Selected Files Display
         self.files_frame = ttk.LabelFrame(self.batch_convert_tab, text="Selected Files")
         self.files_frame.pack(pady=10, padx=10, fill='both', expand=True)
         
-        # Create scrolled text widget for file list
         self.files_text = tk.Text(self.files_frame, height=5, width=50)
         scrollbar = ttk.Scrollbar(self.files_frame, command=self.files_text.yview)
         self.files_text.configure(yscrollcommand=scrollbar.set)
@@ -518,15 +492,12 @@ class MediaUtilityGUI:
         scrollbar.pack(side='right', fill='y')
         self.files_text.config(state='disabled')
         
-        # Media Type Display
         self.batch_type_label = ttk.Label(self.batch_convert_tab, text="Media Type: None")
         self.batch_type_label.pack(pady=5)
         
-        # Format Selection Frame
         self.batch_format_notebook = ttk.Notebook(self.batch_convert_tab)
         self.batch_format_notebook.pack(pady=10, padx=10, fill='both', expand=True)
         
-        # Create tabs for each media type
         self.batch_audio_frame = ttk.Frame(self.batch_format_notebook)
         self.batch_video_frame = ttk.Frame(self.batch_format_notebook)
         self.batch_image_frame = ttk.Frame(self.batch_format_notebook)
@@ -550,7 +521,6 @@ class MediaUtilityGUI:
         image_formats = ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'heic', 'heif']
         self.setup_format_grid(self.batch_image_frame, image_formats, self.batch_image_format)
         
-        # Convert Button
         self.batch_convert_button = ttk.Button(self.batch_convert_tab, text="Convert All", 
                                             command=self.start_batch_conversion)
         self.batch_convert_button.pack(pady=20)
@@ -560,14 +530,12 @@ class MediaUtilityGUI:
             self.batch_files.delete(0, tk.END)
             self.batch_files.insert(0, ';'.join(filenames))
             
-            # Update files display
             self.files_text.config(state='normal')
             self.files_text.delete(1.0, tk.END)
             for file in filenames:
                 self.files_text.insert(tk.END, f"{os.path.basename(file)}\n")
             self.files_text.config(state='disabled')
             
-            # Determine media type
             self.update_batch_media_type(filenames)
     def update_batch_media_type(self, filenames):
         if not filenames:
@@ -580,10 +548,8 @@ class MediaUtilityGUI:
             'image': {'jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'heic', 'heif'}
         }
         
-        # Get extensions of all files
         extensions = {os.path.splitext(f)[1][1:].lower() for f in filenames}
         
-        # Determine media type based on extensions
         media_types = set()
         for ext in extensions:
             for media_type, formats in supported_formats.items():
@@ -598,7 +564,6 @@ class MediaUtilityGUI:
         elif len(media_types) == 1:
             media_type = media_types.pop()
             self.batch_type_label.config(text=f"Media Type: {media_type.capitalize()}")
-            # Show appropriate format tab
             tab_index = {'audio': 0, 'video': 1, 'image': 2}.get(media_type, 0)
             self.batch_format_notebook.select(tab_index)
         else:
@@ -613,7 +578,6 @@ class MediaUtilityGUI:
             2: self.batch_image_format
         }.get(tab_index)
     def setup_trim_tab(self):
-        # File Selection
         file_frame = ttk.Frame(self.trim_tab)
         file_frame.pack(pady=10, fill='x')
         
@@ -623,7 +587,6 @@ class MediaUtilityGUI:
         ttk.Button(file_frame, text="Browse", 
                   command=lambda: self.browse_file(self.trim_path)).pack(side='left')
         
-        # Time Range
         time_frame = ttk.LabelFrame(self.trim_tab, text="Time Range")
         time_frame.pack(pady=10, padx=10, fill='x')
         
@@ -635,7 +598,6 @@ class MediaUtilityGUI:
         self.trim_end = ttk.Entry(time_frame, width=10)
         self.trim_end.pack(side='left', padx=5)
         
-        # Trim Button
         ttk.Button(self.trim_tab, text="Trim Media", 
                   command=self.start_trim).pack(pady=20)
 
@@ -670,7 +632,6 @@ class MediaUtilityGUI:
             messagebox.showerror("Error", "Please enter a URL")
             return
         
-        # Get selected quality
         quality = None
         if self.media_type.get() == 'video':
             selected_idx = self.quality_listbox.curselection()
@@ -678,7 +639,7 @@ class MediaUtilityGUI:
                 if selected_idx[0] == 0:  # Best Quality
                     quality = 'bestvideo+bestaudio/best'
                 elif hasattr(self, 'formats') and self.formats:
-                    fmt = self.formats[selected_idx[0] - 1]  # -1 because of "Best Quality" option
+                    fmt = self.formats[selected_idx[0] - 1]
                     quality = f"{fmt['format_id']}+bestaudio/best"
         
         def download_thread():
@@ -721,8 +682,7 @@ class MediaUtilityGUI:
         def batch_convert_thread():
             self.start_progress()
             self.update_status("Converting files...")
-            try:
-                # Call the convert_images function from media_util.py
+            try:             
                 success = convert_images(files, target_format)
                 if success:
                     self.update_status(f"Successfully converted {len(files)} files!")
@@ -742,7 +702,6 @@ class MediaUtilityGUI:
             messagebox.showerror("Error", "Please select a valid file")
             return
         
-        # Get the current format variable based on media type
         format_var = self.get_current_format_var()
         if not format_var or not format_var.get():
             messagebox.showerror("Error", "Please select a target format")
@@ -754,7 +713,6 @@ class MediaUtilityGUI:
             self.start_progress()
             self.update_status("Converting...")
             try:
-                # Get file extension and media type
                 ext = os.path.splitext(file_path)[1][1:].lower()
                 if ext == target_format:
                     self.update_status("Source and target formats are the same!", True)
@@ -766,7 +724,6 @@ class MediaUtilityGUI:
                     'image': {'jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'heic', 'heif'}
                 }
                 
-                # Determine media type
                 media_type = None
                 for category, formats in supported_formats.items():
                     if ext in formats:
@@ -776,12 +733,10 @@ class MediaUtilityGUI:
                 if media_type == "image":
                     success = convert_images([file_path], target_format)
                 else:
-                    # For audio/video, create output path
                     base = os.path.splitext(file_path)[0]
                     output_path = f"{base}_converted.{target_format}"
                     
                     if media_type == 'video' and target_format in supported_formats['audio']:
-                        # Audio extraction from video
                         cmd = [
                             'ffmpeg', '-y',
                             '-i', file_path,
@@ -790,10 +745,8 @@ class MediaUtilityGUI:
                             output_path
                         ]
                     else:
-                        # Default conversion
                         cmd = ['ffmpeg', '-y', '-i', file_path, output_path]
                     
-                    # Execute conversion
                     result = subprocess.run(cmd, capture_output=True)
                     success = result.returncode == 0
 
