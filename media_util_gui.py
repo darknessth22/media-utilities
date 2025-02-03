@@ -267,6 +267,8 @@ class MediaUtilityGUI:
         self.root.title("Media Utility")
         self.root.geometry("800x600")
         self.video_quality = None
+        self.current_thread = None
+        self.cancel_requested = False
         self.notebook = ttk.Notebook(root)
         self.notebook.pack(fill='both', expand=True, padx=10, pady=5)
         self.download_tab = ttk.Frame(self.notebook)
@@ -283,11 +285,16 @@ class MediaUtilityGUI:
         self.setup_trim_tab()
         self.status_frame = ttk.Frame(root)
         self.status_frame.pack(fill='x', padx=10, pady=5)
-        self.progress = ttk.Progressbar(self.status_frame, mode='indeterminate')
-        self.progress.pack(fill='x', pady=5)
+        self.progress_frame = ttk.Frame(self.status_frame)
+        self.progress_frame.pack(fill='x', pady=5)
+        self.progress = ttk.Progressbar(self.progress_frame, mode='indeterminate')
+        self.progress.pack(side='left', fill='x', expand=True, padx=(0, 5))
+        self.cancel_button = ttk.Button(self.progress_frame, text="Cancel", 
+                                      command=self.cancel_operation, state='disabled')
+        self.cancel_button.pack(side='right')
         self.status_label = ttk.Label(self.status_frame, text="Ready")
         self.status_label.pack(pady=5)
-
+    
     def setup_download_tab(self):
         url_frame = ttk.Frame(self.download_tab)
         url_frame.pack(fill='x', padx=10, pady=5)
@@ -345,23 +352,57 @@ class MediaUtilityGUI:
         
         ttk.Button(self.download_tab, text="Download", 
                   command=self.start_download).pack(pady=20)
+    def cancel_operation(self):
+        if self.current_thread and self.current_thread.is_alive():
+            self.cancel_requested = True
+            self.update_status("Cancelling operation...")
+            self.cancel_button.config(state='disabled')
+
+    def start_progress(self):
+        self.progress.start(10)
+        self.cancel_button.config(state='normal')
+        self.cancel_requested = False
+        self.root.update()
+
+    def stop_progress(self):
+        self.progress.stop()
+        self.cancel_button.config(state='disabled')
+        self.current_thread = None
+        self.root.update()
+
+    def update_status(self, message, is_error=False):
+        self.status_label.config(text=message, 
+                               foreground='red' if is_error else 'black')
+        self.root.update()
+
     def check_formats(self):
         url = self.url_entry.get().strip()
         if not url:
             messagebox.showerror("Error", "Please enter a URL")
             return
         
-        self.quality_listbox.delete(0, tk.END)  # Clear existing items
+        self.quality_listbox.delete(0, tk.END)
         self.quality_listbox.insert(tk.END, "Checking available formats...")
         self.root.update()
+
         def check_formats_thread():
+            self.start_progress()
             try:
-                formats = get_available_formats(url)
-                self.root.after(0, self.update_quality_list, formats)
+                if not self.cancel_requested:
+                    formats = get_available_formats(url)
+                    if not self.cancel_requested:
+                        self.root.after(0, self.update_quality_list, formats)
+                    else:
+                        self.root.after(0, self.update_status, "Format check cancelled.")
             except Exception as e:
-                self.root.after(0, self.update_status, f"Error checking formats: {str(e)}", True)
+                if not self.cancel_requested:
+                    self.root.after(0, self.update_status, f"Error checking formats: {str(e)}", True)
+            finally:
+                self.stop_progress()
         
-        threading.Thread(target=check_formats_thread, daemon=True).start()
+        self.current_thread = threading.Thread(target=check_formats_thread, daemon=True)
+        self.current_thread.start()
+
     
     def update_quality_list(self, formats):
         self.quality_listbox.delete(0, tk.END)
@@ -613,19 +654,6 @@ class MediaUtilityGUI:
             self.batch_files.delete(0, tk.END)
             self.batch_files.insert(0, ';'.join(filenames))
 
-    def update_status(self, message, is_error=False):
-        self.status_label.config(text=message, 
-                               foreground='red' if is_error else 'black')
-        self.root.update()
-
-    def start_progress(self):
-        self.progress.start(10)
-        self.root.update()
-
-    def stop_progress(self):
-        self.progress.stop()
-        self.root.update()
-
     def start_download(self):
         url = self.url_entry.get().strip()
         if not url:
@@ -646,25 +674,30 @@ class MediaUtilityGUI:
             self.start_progress()
             self.update_status("Downloading...")
             try:
-                success = download_media(
-                    url=url,
-                    platform=get_platform(url),
-                    media_type=self.media_type.get(),
-                    quality=quality,
-                    start_time=self.start_time.get() if self.start_time.get() else None,
-                    end_time=self.end_time.get() if self.end_time.get() else None,
-                    audio_format=self.audio_format.get()
-                )
-                if success:
-                    self.update_status("Download completed successfully!")
-                else:
-                    self.update_status("Download failed!", True)
+                if not self.cancel_requested:
+                    success = download_media(
+                        url=url,
+                        platform=get_platform(url),
+                        media_type=self.media_type.get(),
+                        quality=quality,
+                        start_time=self.start_time.get() if self.start_time.get() else None,
+                        end_time=self.end_time.get() if self.end_time.get() else None,
+                        audio_format=self.audio_format.get()
+                    )
+                    if success and not self.cancel_requested:
+                        self.update_status("Download completed successfully!")
+                    elif self.cancel_requested:
+                        self.update_status("Download cancelled.")
+                    else:
+                        self.update_status("Download failed!", True)
             except Exception as e:
-                self.update_status(f"Error: {str(e)}", True)
+                if not self.cancel_requested:
+                    self.update_status(f"Error: {str(e)}", True)
             finally:
                 self.stop_progress()
         
-        threading.Thread(target=download_thread, daemon=True).start()
+        self.current_thread = threading.Thread(target=download_thread, daemon=True)
+        self.current_thread.start()
 
     def start_batch_conversion(self):
         files = self.batch_files.get().split(';')
@@ -682,18 +715,31 @@ class MediaUtilityGUI:
         def batch_convert_thread():
             self.start_progress()
             self.update_status("Converting files...")
-            try:             
-                success = convert_images(files, target_format)
-                if success:
+            try:
+                for i, file_path in enumerate(files):
+                    if self.cancel_requested:
+                        self.update_status("Batch conversion cancelled.")
+                        return
+                    
+                    self.update_status(f"Converting file {i+1} of {len(files)}...")
+                    success = convert_images([file_path], target_format)
+                    
+                    if not success and not self.cancel_requested:
+                        self.update_status(f"Failed to convert {os.path.basename(file_path)}", True)
+                        return
+
+                if not self.cancel_requested:
                     self.update_status(f"Successfully converted {len(files)} files!")
-                else:
-                    self.update_status("Batch conversion failed!", True)
+                
             except Exception as e:
-                self.update_status(f"Error: {str(e)}", True)
+                if not self.cancel_requested:
+                    self.update_status(f"Error: {str(e)}", True)
             finally:
                 self.stop_progress()
 
-        threading.Thread(target=batch_convert_thread, daemon=True).start()
+        self.current_thread = threading.Thread(target=batch_convert_thread, daemon=True)
+        self.current_thread.start()
+
 
 
     def start_conversion(self):
@@ -713,6 +759,10 @@ class MediaUtilityGUI:
             self.start_progress()
             self.update_status("Converting...")
             try:
+                if self.cancel_requested:
+                    self.update_status("Conversion cancelled.")
+                    return
+
                 ext = os.path.splitext(file_path)[1][1:].lower()
                 if ext == target_format:
                     self.update_status("Source and target formats are the same!", True)
@@ -729,6 +779,10 @@ class MediaUtilityGUI:
                     if ext in formats:
                         media_type = category
                         break
+
+                if self.cancel_requested:
+                    self.update_status("Conversion cancelled.")
+                    return
 
                 if media_type == "image":
                     success = convert_images([file_path], target_format)
@@ -747,20 +801,29 @@ class MediaUtilityGUI:
                     else:
                         cmd = ['ffmpeg', '-y', '-i', file_path, output_path]
                     
-                    result = subprocess.run(cmd, capture_output=True)
-                    success = result.returncode == 0
+                    if not self.cancel_requested:
+                        result = subprocess.run(cmd, capture_output=True)
+                        success = result.returncode == 0
+                    else:
+                        self.update_status("Conversion cancelled.")
+                        return
 
-                if success and os.path.exists(output_path if media_type != "image" else file_path.rsplit(".", 1)[0] + f".{target_format}"):
+                if success and not self.cancel_requested:
                     self.update_status("Conversion completed successfully!")
+                elif self.cancel_requested:
+                    self.update_status("Conversion cancelled.")
                 else:
                     self.update_status("Conversion failed!", True)
                     
             except Exception as e:
-                self.update_status(f"Error: {str(e)}", True)
+                if not self.cancel_requested:
+                    self.update_status(f"Error: {str(e)}", True)
             finally:
                 self.stop_progress()
         
-        threading.Thread(target=convert_thread, daemon=True).start()
+        self.current_thread = threading.Thread(target=convert_thread, daemon=True)
+        self.current_thread.start()
+
 
     def start_trim(self):
         file_path = self.trim_path.get()
@@ -772,21 +835,26 @@ class MediaUtilityGUI:
             self.start_progress()
             self.update_status("Trimming media...")
             try:
-                success = trim_media(
-                    file_path,
-                    self.trim_start.get(),
-                    self.trim_end.get()
-                )
-                if success:
-                    self.update_status("Trimming completed successfully!")
-                else:
-                    self.update_status("Trimming failed!", True)
+                if not self.cancel_requested:
+                    success = trim_media(
+                        file_path,
+                        self.trim_start.get(),
+                        self.trim_end.get()
+                    )
+                    if success and not self.cancel_requested:
+                        self.update_status("Trimming completed successfully!")
+                    elif self.cancel_requested:
+                        self.update_status("Trimming cancelled.")
+                    else:
+                        self.update_status("Trimming failed!", True)
             except Exception as e:
-                self.update_status(f"Error: {str(e)}", True)
+                if not self.cancel_requested:
+                    self.update_status(f"Error: {str(e)}", True)
             finally:
                 self.stop_progress()
         
-        threading.Thread(target=trim_thread, daemon=True).start()
+        self.current_thread = threading.Thread(target=trim_thread, daemon=True)
+        self.current_thread.start()
 
 def main():
     check_dependencies()
