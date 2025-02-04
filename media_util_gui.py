@@ -6,6 +6,11 @@ import subprocess
 from yt_dlp import YoutubeDL
 from PIL import Image, ExifTags
 import threading
+import fitz  # PyMuPDF
+from docx import Document
+from openpyxl import Workbook, load_workbook
+from pptx import Presentation
+import io
 
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
@@ -180,6 +185,145 @@ def convert_media(file_path):
     except subprocess.CalledProcessError:
         return False
 
+def convert_document(input_path, output_format):
+    """Convert documents between different formats"""
+    input_ext = os.path.splitext(input_path)[1].lower()
+    base_name = os.path.splitext(input_path)[0]
+    output_path = f"{base_name}_converted.{output_format}"
+    
+    # PDF to other formats
+    if input_ext == '.pdf':
+        doc = fitz.open(input_path)
+        
+        if output_format == 'docx':
+            word_doc = Document()
+            for page in doc:
+                text = page.get_text()
+                word_doc.add_paragraph(text)
+            word_doc.save(output_path)
+            
+        elif output_format == 'pptx':
+            prs = Presentation()
+            for page in doc:
+                slide = prs.slides.add_slide(prs.slide_layouts[5])
+                text = page.get_text()
+                txBox = slide.shapes.add_textbox(0, 0, prs.slide_width, prs.slide_height)
+                tf = txBox.text_frame
+                tf.text = text
+            prs.save(output_path)
+            
+        elif output_format == 'xlsx':
+            wb = Workbook()
+            ws = wb.active
+            for i, page in enumerate(doc):
+                text = page.get_text()
+                ws.cell(row=i+1, column=1, value=text)
+            wb.save(output_path)
+    
+    # Word to other formats
+    elif input_ext == '.docx':
+        doc = Document(input_path)
+        
+        if output_format == 'pdf':
+            # Since direct conversion isn't available, we'll save text content
+            pdf_doc = fitz.open()
+            page = pdf_doc.new_page()
+            text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+            page.insert_text((50, 50), text)
+            pdf_doc.save(output_path)
+            
+        elif output_format == 'xlsx':
+            wb = Workbook()
+            ws = wb.active
+            for i, paragraph in enumerate(doc.paragraphs):
+                ws.cell(row=i+1, column=1, value=paragraph.text)
+            wb.save(output_path)
+            
+        elif output_format == 'pptx':
+            prs = Presentation()
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    slide = prs.slides.add_slide(prs.slide_layouts[5])
+                    txBox = slide.shapes.add_textbox(0, 0, prs.slide_width, prs.slide_height)
+                    tf = txBox.text_frame
+                    tf.text = paragraph.text
+            prs.save(output_path)
+    
+    # Excel to other formats
+    elif input_ext == '.xlsx':
+        wb = load_workbook(input_path)
+        ws = wb.active
+        
+        if output_format == 'pdf':
+            pdf_doc = fitz.open()
+            page = pdf_doc.new_page()
+            text = "\n".join([f"{cell.value}" for row in ws.rows for cell in row if cell.value])
+            page.insert_text((50, 50), text)
+            pdf_doc.save(output_path)
+            
+        elif output_format == 'docx':
+            doc = Document()
+            for row in ws.rows:
+                text = " ".join([str(cell.value) for cell in row if cell.value])
+                if text.strip():
+                    doc.add_paragraph(text)
+            doc.save(output_path)
+            
+        elif output_format == 'pptx':
+            prs = Presentation()
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+            txBox = slide.shapes.add_textbox(0, 0, prs.slide_width, prs.slide_height)
+            tf = txBox.text_frame
+            text = "\n".join([f"{cell.value}" for row in ws.rows for cell in row if cell.value])
+            tf.text = text
+            prs.save(output_path)
+    
+    # PowerPoint to other formats
+    elif input_ext == '.pptx':
+        prs = Presentation(input_path)
+        
+        if output_format == 'pdf':
+            pdf_doc = fitz.open()
+            for slide in prs.slides:
+                page = pdf_doc.new_page()
+                text = "\n".join([shape.text for shape in slide.shapes if hasattr(shape, "text")])
+                page.insert_text((50, 50), text)
+            pdf_doc.save(output_path)
+            
+        elif output_format == 'docx':
+            doc = Document()
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        doc.add_paragraph(shape.text)
+            doc.save(output_path)
+            
+        elif output_format == 'xlsx':
+            wb = Workbook()
+            ws = wb.active
+            row_num = 1
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, "text"):
+                        ws.cell(row=row_num, column=1, value=shape.text)
+                        row_num += 1
+            wb.save(output_path)
+    
+    # Image to PDF
+    elif input_ext.lower() in ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp']:
+        if output_format == 'pdf':
+            image = Image.open(input_path)
+            pdf_doc = fitz.open()
+            img_bytes = io.BytesIO()
+            image.save(img_bytes, format='PNG')
+            img_bytes.seek(0)
+            page = pdf_doc.new_page()
+            page.insert_image(page.rect, stream=img_bytes.getvalue())
+            pdf_doc.save(output_path)
+            
+    return True
+
+
 def trim_media(file_path, start_time, end_time):
     supported_formats = {
         'audio': {'mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'},
@@ -269,20 +413,33 @@ class MediaUtilityGUI:
         self.video_quality = None
         self.current_thread = None
         self.cancel_requested = False
+        
+        # Initialize notebook
         self.notebook = ttk.Notebook(root)
         self.notebook.pack(fill='both', expand=True, padx=10, pady=5)
+        
+        # Create all tabs
         self.download_tab = ttk.Frame(self.notebook)
         self.convert_tab = ttk.Frame(self.notebook)
         self.batch_convert_tab = ttk.Frame(self.notebook)
         self.trim_tab = ttk.Frame(self.notebook)
+        self.document_tab = ttk.Frame(self.notebook)  # Add document tab
+        
+        # Add all tabs to notebook
         self.notebook.add(self.download_tab, text='Download Media')
         self.notebook.add(self.convert_tab, text='Convert Media')
         self.notebook.add(self.batch_convert_tab, text='Batch Convert')
         self.notebook.add(self.trim_tab, text='Trim Media')
+        self.notebook.add(self.document_tab, text='Document Convert')
+        
+        # Setup all tabs
         self.setup_download_tab()
         self.setup_convert_tab()
         self.setup_batch_convert_tab()
         self.setup_trim_tab()
+        self.setup_document_tab()  # Setup document tab
+        
+        # Setup status frame
         self.status_frame = ttk.Frame(root)
         self.status_frame.pack(fill='x', padx=10, pady=5)
         self.progress_frame = ttk.Frame(self.status_frame)
@@ -294,7 +451,7 @@ class MediaUtilityGUI:
         self.cancel_button.pack(side='right')
         self.status_label = ttk.Label(self.status_frame, text="Ready")
         self.status_label.pack(pady=5)
-    
+        
     def setup_download_tab(self):
         url_frame = ttk.Frame(self.download_tab)
         url_frame.pack(fill='x', padx=10, pady=5)
@@ -642,6 +799,62 @@ class MediaUtilityGUI:
         ttk.Button(self.trim_tab, text="Trim Media", 
                   command=self.start_trim).pack(pady=20)
 
+    def setup_document_tab(self):
+        # File Selection
+        file_frame = ttk.Frame(self.document_tab)
+        file_frame.pack(pady=10, fill='x')
+        
+        self.doc_path = ttk.Entry(file_frame, width=60)
+        self.doc_path.pack(side='left', padx=5)
+        
+        ttk.Button(file_frame, text="Browse", 
+                command=lambda: self.browse_file(self.doc_path)).pack(side='left')
+        
+        # Format Selection
+        format_frame = ttk.LabelFrame(self.document_tab, text="Target Format")
+        format_frame.pack(pady=10, padx=10, fill='x')
+        
+        self.doc_format = tk.StringVar()
+        formats = ['pdf', 'docx', 'xlsx', 'pptx']
+        for fmt in formats:
+            ttk.Radiobutton(format_frame, text=fmt.upper(), 
+                        variable=self.doc_format, value=fmt).pack(side='left', padx=10)
+        
+        # Convert Button
+        ttk.Button(self.document_tab, text="Convert", 
+                command=self.start_doc_conversion).pack(pady=20)
+    
+    def start_doc_conversion(self):
+        file_path = self.doc_path.get()
+        if not file_path or not os.path.exists(file_path):
+            messagebox.showerror("Error", "Please select a valid file")
+            return
+        
+        if not self.doc_format.get():
+            messagebox.showerror("Error", "Please select a target format")
+            return
+            
+        def convert_thread():
+            self.start_progress()
+            self.update_status("Converting document...")
+            try:
+                if not self.cancel_requested:
+                    success = convert_document(file_path, self.doc_format.get())
+                    if success and not self.cancel_requested:
+                        self.update_status("Conversion completed successfully!")
+                    elif self.cancel_requested:
+                        self.update_status("Conversion cancelled.")
+                    else:
+                        self.update_status("Conversion failed!", True)
+            except Exception as e:
+                if not self.cancel_requested:
+                    self.update_status(f"Error: {str(e)}", True)
+            finally:
+                self.stop_progress()
+        
+        self.current_thread = threading.Thread(target=convert_thread, daemon=True)
+        self.current_thread.start()
+    
     def browse_file(self, entry_widget):
         filename = filedialog.askopenfilename()
         if filename:
