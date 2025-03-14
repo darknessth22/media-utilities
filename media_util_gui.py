@@ -11,7 +11,7 @@ from docx import Document
 from openpyxl import Workbook, load_workbook
 from pptx import Presentation
 import io
-
+# glitch 
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 def check_dependencies():
@@ -22,7 +22,7 @@ def check_dependencies():
         install("yt-dlp")
 
     try:
-        subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
+        subprocess.run([ffmpeg_path, "-version"], capture_output=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("\nFFmpeg not found! Required for media processing.")
         sys.exit(1)
@@ -34,7 +34,20 @@ def check_dependencies():
         install("pillow-heif")
         import pillow_heif
         pillow_heif.register_heif_opener()
+import sys
+import os
 
+def get_ffmpeg_path():
+    if hasattr(sys, '_MEIPASS'):
+        # When bundled, ffmpeg.exe is extracted to the temporary folder.
+        return os.path.join(sys._MEIPASS, "ffmpeg.exe")
+    else:
+        # When running from source, assume ffmpeg.exe is in the current directory (or adjust as needed).
+        return os.path.join(os.getcwd(), "ffmpeg.exe")
+
+# Use this function to get the ffmpeg path
+ffmpeg_path = get_ffmpeg_path()
+print(f"FFmpeg path: {ffmpeg_path}")
 def get_platform(url):
     domains = {
         'youtube': ['youtube.com', 'youtu.be'],
@@ -59,9 +72,12 @@ def parse_time(time_str):
     else:
         raise ValueError("Invalid time format. Use H:MM:SS, M:SS, or S")
 
-def download_media(url, platform, media_type='video', quality=None, start_time=None, end_time=None, audio_format="mp3"):
+def download_media(url, platform, save_dir=None, media_type='video', quality=None, start_time=None, end_time=None, audio_format="mp3"):
+    # Set output template with directory if provided
+    output_template = os.path.join(save_dir, '%(title)s.%(ext)s') if save_dir else '%(title)s.%(ext)s'
+    
     ydl_opts = {
-        'outtmpl': '%(title)s.%(ext)s',
+        'outtmpl': output_template,
         'cookiefile': 'cookies.txt' if os.path.exists('cookies.txt') else None,
         'postprocessor_args': ['-loglevel', 'error'],
         'force_keyframes_at_cuts': True
@@ -80,7 +96,8 @@ def download_media(url, platform, media_type='video', quality=None, start_time=N
             '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
             '-c:a', 'aac'
         ]
-        ydl_opts['outtmpl'] = f'%(title)s_Trimmed_{start}s_{end}s.%(ext)s'
+        # Also update the trimmed file output template with directory
+        ydl_opts['outtmpl'] = os.path.join(save_dir, f'%(title)s_Trimmed_{start}s_{end}s.%(ext)s') if save_dir else f'%(title)s_Trimmed_{start}s_{end}s.%(ext)s'
 
     if media_type == 'audio':
         ydl_opts['format'] = 'bestaudio/best'
@@ -179,7 +196,7 @@ def convert_media(file_path):
     output_path = f"{base}_converted.{ext}"
 
     try:
-        cmd = ['ffmpeg', '-y', '-i', file_path, output_path]
+        cmd = [ffmpeg_path, '-y', '-i', file_path, output_path]
         subprocess.run(cmd, check=True, capture_output=True)
         return True
     except subprocess.CalledProcessError:
@@ -350,7 +367,7 @@ def trim_media(file_path, start_time, end_time):
     output_path = f"{base}_trimmed{ext}"
 
     cmd = [
-        'ffmpeg', '-y',
+        ffmpeg_path, '-y',
         '-i', file_path,
         '-ss', str(start),
         '-to', str(end),
@@ -461,7 +478,20 @@ class MediaUtilityGUI:
         self.url_entry.pack(side='left', padx=5, expand=True, fill='x')
         
         ttk.Button(url_frame, text="Check Available Formats", 
-                  command=self.check_formats).pack(side='left', padx=5)
+                command=self.check_formats).pack(side='left', padx=5)
+        
+        # Add save location frame
+        save_frame = ttk.Frame(self.download_tab)
+        save_frame.pack(fill='x', padx=10, pady=5)
+        
+        ttk.Label(save_frame, text="Save to:").pack(side='left', padx=5)
+        self.save_location = ttk.Entry(save_frame, width=60)
+        self.save_location.pack(side='left', padx=5, expand=True, fill='x')
+        # Set default location to current directory
+        self.save_location.insert(0, os.getcwd())
+        
+        ttk.Button(save_frame, text="Browse", 
+                command=self.browse_save_location).pack(side='left', padx=5)
         
         quality_frame = ttk.LabelFrame(self.download_tab, text="Video Quality")
         quality_frame.pack(pady=10, padx=10, fill='both', expand=True)
@@ -483,18 +513,17 @@ class MediaUtilityGUI:
         
         self.media_type = tk.StringVar(value="video")
         ttk.Radiobutton(media_frame, text="Video", variable=self.media_type, 
-                       value="video", command=self.update_format_visibility).pack(side='left', padx=20)
+                    value="video", command=self.update_format_visibility).pack(side='left', padx=20)
         ttk.Radiobutton(media_frame, text="Audio", variable=self.media_type,
-                       value="audio", command=self.update_format_visibility).pack(side='left', padx=20)
+                    value="audio", command=self.update_format_visibility).pack(side='left', padx=20)
         
         self.audio_frame = ttk.LabelFrame(self.download_tab, text="Audio Format")
         self.audio_frame.pack(pady=10, padx=10, fill='x')
         
-        self.audio_format = tk.StringVar(value="mp3")
+        self.download_audio_format = tk.StringVar(value="mp3")
         formats = ['mp3', 'aac', 'flac', 'wav', 'opus', 'm4a']
         for fmt in formats:
-            ttk.Radiobutton(self.audio_frame, text=fmt.upper(), variable=self.audio_format,
-                           value=fmt).pack(side='left', padx=10)
+            ttk.Radiobutton(self.audio_frame, text=fmt.upper(), variable=self.download_audio_format, value=fmt).pack(side='left', padx=10)
         
         time_frame = ttk.LabelFrame(self.download_tab, text="Time Range (Optional)")
         time_frame.pack(pady=10, padx=10, fill='x')
@@ -508,7 +537,15 @@ class MediaUtilityGUI:
         self.end_time.pack(side='left', padx=5)
         
         ttk.Button(self.download_tab, text="Download", 
-                  command=self.start_download).pack(pady=20)
+                command=self.start_download).pack(pady=20)
+    
+    # Add the browse_save_location method to the MediaUtilityGUI class:
+    def browse_save_location(self):
+        directory = filedialog.askdirectory()
+        if directory:
+            self.save_location.delete(0, tk.END)
+            self.save_location.insert(0, directory)
+    
     def cancel_operation(self):
         if self.current_thread and self.current_thread.is_alive():
             self.cancel_requested = True
@@ -771,9 +808,9 @@ class MediaUtilityGUI:
         current_tab = self.batch_format_notebook.select()
         tab_index = self.batch_format_notebook.index(current_tab)
         return {
-            0: self.batch_audio_format,
-            1: self.batch_video_format,
-            2: self.batch_image_format
+            0: self.convert_audio_format,
+            1: self.video_format,
+            2: self.image_format
         }.get(tab_index)
     def setup_trim_tab(self):
         file_frame = ttk.Frame(self.trim_tab)
@@ -873,6 +910,16 @@ class MediaUtilityGUI:
             messagebox.showerror("Error", "Please enter a URL")
             return
         
+        # Get the save location
+        save_dir = self.save_location.get().strip()
+        if not save_dir:
+            save_dir = os.getcwd()  # Default to current directory if empty
+        
+        # Validate the directory exists
+        if not os.path.isdir(save_dir):
+            messagebox.showerror("Error", "Invalid save location. Please select a valid directory.")
+            return
+        
         quality = None
         if self.media_type.get() == 'video':
             selected_idx = self.quality_listbox.curselection()
@@ -891,14 +938,15 @@ class MediaUtilityGUI:
                     success = download_media(
                         url=url,
                         platform=get_platform(url),
+                        save_dir=save_dir,  # Pass the save directory
                         media_type=self.media_type.get(),
                         quality=quality,
                         start_time=self.start_time.get() if self.start_time.get() else None,
                         end_time=self.end_time.get() if self.end_time.get() else None,
-                        audio_format=self.audio_format.get()
+                        audio_format=self.download_audio_format.get()
                     )
                     if success and not self.cancel_requested:
-                        self.update_status("Download completed successfully!")
+                        self.update_status(f"Download completed successfully to {save_dir}!")
                     elif self.cancel_requested:
                         self.update_status("Download cancelled.")
                     else:
@@ -1005,14 +1053,14 @@ class MediaUtilityGUI:
                     
                     if media_type == 'video' and target_format in supported_formats['audio']:
                         cmd = [
-                            'ffmpeg', '-y',
+                            ffmpeg_path, '-y',
                             '-i', file_path,
                             '-vn',  # Disable video
                             '-acodec', 'libmp3lame' if target_format == 'mp3' else target_format,
                             output_path
                         ]
                     else:
-                        cmd = ['ffmpeg', '-y', '-i', file_path, output_path]
+                        cmd = [ffmpeg_path, '-y', '-i', file_path, output_path]
                     
                     if not self.cancel_requested:
                         result = subprocess.run(cmd, capture_output=True)
