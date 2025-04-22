@@ -198,38 +198,6 @@ The command-line script offers four main modes of operation:
    - Supports multiple time formats
    - Preserves original quality
 
-## 💡 Examples
-
-1. **Downloading a YouTube video**
-   ```bash
-   # Select mode 1
-   # Enter URL: https://youtube.com/watch?v=example
-   # Choose quality
-   # Optionally set time range
-   ```
-
-2. **Converting an image**
-   ```bash
-   # Select mode 2
-   # Enter path: image.jpg
-   # Select target format (e.g., PNG)
-   ```
-
-3. **Batch converting images**
-   ```bash
-   # Select mode 3
-   # Enter paths: image1.jpg,image2.jpg,image3.jpg
-   # Select target format
-   ```
-
-4. **Trimming a video**
-   ```bash
-   # Select mode 4
-   # Enter path: video.mp4
-   # Start time: 1:30
-   # End time: 2:45
-   ```
-
 ## ⚙️ Optional Configuration
 
 - Create a `cookies.txt` file in the same directory for authenticated downloads
