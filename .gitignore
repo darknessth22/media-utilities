@@ -1,11 +1,45 @@
+# Python cache files
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# Virtual environments
 .venv/
-.venv/
+venv/
+env/
 .env
 *.env
+
+# OS specific files
 .DS_Store
+Thumbs.db
+
+# IDE files
 .idea/
 .vscode/
+*.sublime-*
+
+# Media files (to avoid large files in repo)
+*.mp4
+*.mp3
+*.avi
+*.mkv
+*.mov
+*.flv
+*.webm
+*.wav
+*.aac
+*.flac
+*.ogg
+*.m4a
+
+# Downloaded files
+downloads/
+
+# Cookies file (contains sensitive information)
+cookies.txt
+
+# FFmpeg executable (should be downloaded by user)
+ffmpeg.exe
+ffprobe.exe
