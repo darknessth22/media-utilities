@@ -38,13 +38,16 @@ import sys
 import os
 
 def get_ffmpeg_path():
-    if hasattr(sys, '_MEIPASS'):
-        # When bundled, ffmpeg.exe is extracted to the temporary folder.
-        return os.path.join(sys._MEIPASS, "ffmpeg.exe")
+    if sys.platform == "win32":
+        if hasattr(sys, '_MEIPASS'):
+            # When bundled, ffmpeg.exe is extracted to the temporary folder.
+            return os.path.join(sys._MEIPASS, "ffmpeg.exe")
+        else:
+            # When running from source, assume ffmpeg.exe is in the current directory
+            return os.path.join(os.getcwd(), "ffmpeg.exe")
     else:
-        # When running from source, assume ffmpeg.exe is in the current directory (or adjust as needed).
-        return os.path.join(os.getcwd(), "ffmpeg.exe")
-
+        # For Linux/Mac, use the system-installed ffmpeg
+        return "ffmpeg"
 # Use this function to get the ffmpeg path
 ffmpeg_path = get_ffmpeg_path()
 print(f"FFmpeg path: {ffmpeg_path}")
