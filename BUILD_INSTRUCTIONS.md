@@ -47,17 +47,24 @@ The build script performs these steps automatically:
 ### 2. Install Dependencies
 - Installs all Python packages from `requirements.txt`
 - Includes PyInstaller for creating the executable
+- Installs spotdl for Spotify support
 
-### 3. Create Application Icon
+### 3. Setup Spotify Support
+- Verifies spotdl installation for Spotify downloads
+- Configures spotdl for the executable environment
+- Ensures Spotify functionality works in the built application
+
+### 4. Create Application Icon
 - Generates a simple icon file (`icon.ico`)
 - You can replace this with your custom icon
 
-### 4. Build Executable
+### 5. Build Executable
 - Uses PyInstaller to create a standalone executable
-- Bundles all dependencies into a single file
+- Bundles all dependencies including spotdl into a single file
+- Includes enhanced document conversion with image support
 - Output: `dist/MediaUtility.exe`
 
-### 5. Create Installer Script
+### 6. Create Installer Script
 - Generates Inno Setup script (`media_utility_installer.iss`)
 - Ready to compile into a Windows installer
 

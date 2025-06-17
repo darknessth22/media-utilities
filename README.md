@@ -5,7 +5,7 @@ A comprehensive toolkit for media downloading, conversion, and manipulation with
 ## ✨ Features
 
 - **Media Download**
-  - Support for multiple platforms: YouTube, Facebook, Instagram, TikTok, Twitter
+  - Support for multiple platforms: YouTube, Facebook, Instagram, TikTok, Twitter, Spotify
   - Quality selection for video downloads
   - Audio-only extraction with multiple format options
   - Time-based clip extraction
@@ -18,7 +18,7 @@ A comprehensive toolkit for media downloading, conversion, and manipulation with
   - Convert between audio formats (MP3, WAV, AAC, FLAC, OGG, M4A)
   - Image format conversion including HEIC support (JPG, PNG, BMP, GIF, WEBP, HEIC)
   - Batch conversion for images
-  - **NEW**: Document conversion (PDF, DOCX, XLSX, PPTX)
+  - **NEW**: Document conversion (PDF, DOCX, XLSX, PPTX) with image preservation
 
 - **Media Trimming**
   - Trim audio and video files using timestamp ranges
@@ -36,7 +36,7 @@ A comprehensive toolkit for media downloading, conversion, and manipulation with
 
 ### Python Dependencies
 ```bash
-pip install yt-dlp Pillow pillow-heif PyMuPDF python-docx openpyxl python-pptx
+pip install yt-dlp Pillow pillow-heif PyMuPDF python-docx openpyxl python-pptx spotdl
 ```
 
 ## 🚀 Installation
@@ -66,7 +66,7 @@ The GUI provides access to all features through a user-friendly tabbed interface
 
 
 **Features:**
-- **URL Input**: Enter a URL from YouTube, Facebook, Instagram, TikTok, Twitter, or other supported platforms
+- **URL Input**: Enter a URL from YouTube, Facebook, Instagram, TikTok, Twitter, Spotify, or other supported platforms
 - **Format Checking**: Click "Check Available Formats" to see all available quality options
 - **Quality Selection**: Choose from available video qualities in the list
 - **Media Type**: Select between video or audio-only download
@@ -139,8 +139,9 @@ The GUI provides access to all features through a user-friendly tabbed interface
 
 **Features:**
 - **Document Format Conversion**: Convert between PDF, DOCX, XLSX, and PPTX formats
+- **Enhanced Image Support**: Preserves images when converting between formats
 - **Image to PDF**: Convert images to PDF documents
-- **Text Extraction**: Preserve text content during conversions
+- **Content Preservation**: Maintains both text and images during conversions
 
 **How to use:**
 1. Click "Browse" to select a document file (PDF, DOCX, XLSX, PPTX) or image
@@ -165,7 +166,7 @@ The GUI provides access to all features through a user-friendly tabbed interface
 - You can drag and drop files into the file path fields
 - The application remembers your last used directories
 - For video downloads, always check available formats first for best results
-- When converting documents, text formatting may not be preserved perfectly
+- When converting documents, complex formatting may not be preserved perfectly, but images are maintained
 - For batch operations, ensure all files are of the same type
 
 ### Command Line Interface
@@ -212,6 +213,26 @@ The script includes comprehensive error handling for:
 - Download failures
 - Conversion errors
 
+## 🎵 Spotify Support
+
+This application supports Spotify downloads using a smart workaround:
+
+**How it works:**
+- Uses `spotdl` to get track metadata from Spotify API
+- Downloads audio from YouTube (or other public sources)
+- Tags the MP3 with correct Spotify metadata (artist, album, etc.)
+
+**What you get:**
+- ✅ Proper metadata (artist, title, album, artwork)
+- ✅ High-quality audio (up to 320kbps)
+- ✅ Legal approach (no DRM circumvention)
+- ⚠️ Audio source is YouTube, not Spotify directly
+
+**Supported Spotify URLs:**
+- Individual tracks: `https://open.spotify.com/track/...`
+- Albums: `https://open.spotify.com/album/...`
+- Playlists: `https://open.spotify.com/playlist/...`
+
 ## 🚧 Limitations
 
 - HEIC conversion requires additional system libraries
@@ -219,6 +240,7 @@ The script includes comprehensive error handling for:
 - Some video platforms may require authentication
 - Quality loss may occur in some format conversions
 - Not all format combinations are supported
+- Spotify downloads depend on YouTube availability of tracks
 
 ## 🆕 New Features
 
@@ -260,12 +282,21 @@ The application allows you to choose exactly where your downloaded media will be
 - File naming follows the pattern: `[title].[extension]` or `[title]_Trimmed_[start]s_[end]s.[extension]` for trimmed media
 
 ### Document Conversion
-Convert between various document formats:
-- PDF to DOCX, XLSX, PPTX
-- DOCX to PDF, XLSX, PPTX
-- XLSX to PDF, DOCX, PPTX
-- PPTX to PDF, DOCX, XLSX
-- Images to PDF
+Convert between various document formats with enhanced image support:
+
+**Supported Conversions:**
+- PDF to DOCX, XLSX, PPTX (preserves images and text)
+- DOCX to PDF, XLSX, PPTX (includes embedded images)
+- XLSX to PDF, DOCX, PPTX (maintains data and formatting)
+- PPTX to PDF, DOCX, XLSX (preserves slide images and content)
+- Images to PDF (direct image-to-document conversion)
+
+**Key Features:**
+- ✅ **Image Preservation**: Images are extracted and embedded in target formats
+- ✅ **Layout Maintenance**: Attempts to preserve document structure
+- ✅ **Error Handling**: Graceful fallback when image extraction fails
+- ✅ **Multiple Formats**: Supports the most common document formats
+- ✅ **Batch Processing**: Convert multiple documents at once
 
 ### GUI Interface
 - **Intuitive Tabbed Interface**: Five specialized tabs for different operations

@@ -9,7 +9,6 @@ import subprocess
 import urllib.request
 import zipfile
 import shutil
-from pathlib import Path
 
 def print_step(step_name):
     """Print a formatted step header"""
@@ -47,7 +46,7 @@ def download_ffmpeg():
             zip_ref.extractall("ffmpeg_temp")
 
         # Find the ffmpeg.exe in the extracted files
-        for root, dirs, files in os.walk("ffmpeg_temp"):
+        for root, _, files in os.walk("ffmpeg_temp"):
             if "ffmpeg.exe" in files:
                 shutil.copy2(os.path.join(root, "ffmpeg.exe"), "ffmpeg.exe")
                 break
@@ -67,7 +66,7 @@ def download_ffmpeg():
 def install_dependencies():
     """Install required dependencies"""
     print_step("Installing Dependencies")
-    
+
     try:
         print("📦 Installing Python dependencies...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
@@ -76,6 +75,45 @@ def install_dependencies():
     except subprocess.CalledProcessError as e:
         print(f"❌ Failed to install dependencies: {e}")
         return False
+
+def setup_spotdl():
+    """Setup spotdl for Spotify support"""
+    print_step("Setting up Spotify Support (spotdl)")
+
+    try:
+        # Check if spotdl is available
+        result = subprocess.run([sys.executable, "-m", "spotdl", "--version"],
+                              capture_output=True, text=True)
+        if result.returncode == 0:
+            print("✅ spotdl is available and working!")
+            print(f"   Version: {result.stdout.strip()}")
+
+            # Check if we can find the spotdl executable for bundling
+            import spotdl
+            spotdl_path = spotdl.__file__
+            print(f"   spotdl location: {spotdl_path}")
+
+            return True
+        else:
+            print("⚠️ spotdl is installed but not working properly")
+            print("   Spotify downloads may not work in the executable")
+            return True  # Don't fail the build for this
+
+    except subprocess.CalledProcessError:
+        print("⚠️ spotdl not found or not working")
+        print("   Installing spotdl...")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "spotdl"])
+            print("✅ spotdl installed successfully!")
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to install spotdl: {e}")
+            print("   Spotify support will not be available")
+            return True  # Don't fail the build for this
+    except Exception as e:
+        print(f"⚠️ Error checking spotdl: {e}")
+        print("   Spotify support may not work in the executable")
+        return True  # Don't fail the build for this
 
 def create_icon():
     """Create a simple icon file if none exists"""
@@ -110,23 +148,23 @@ def create_icon():
 def build_executable():
     """Build the executable using PyInstaller"""
     print_step("Building Executable")
-    
+
     try:
         print("🔨 Building executable with PyInstaller...")
-        
+
         # Clean previous builds
         if os.path.exists('dist'):
             shutil.rmtree('dist')
         if os.path.exists('build'):
             shutil.rmtree('build')
-        
+
         # Build using spec file
         subprocess.check_call([sys.executable, "-m", "PyInstaller", "media_util_gui.spec", "--clean"])
-        
+
         print("✅ Executable built successfully!")
         print(f"📁 Executable location: {os.path.abspath('dist/MediaUtility.exe')}")
         return True
-        
+
     except subprocess.CalledProcessError as e:
         print(f"❌ Failed to build executable: {e}")
         return False
@@ -200,6 +238,7 @@ def main():
     steps = [
         ("Download FFmpeg", download_ffmpeg),
         ("Install Dependencies", install_dependencies),
+        ("Setup Spotify Support", setup_spotdl),
         ("Create Icon", create_icon),
         ("Build Executable", build_executable),
         ("Create Installer Script", create_installer_script)

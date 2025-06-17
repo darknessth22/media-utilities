@@ -6,3 +6,4 @@ python-docx>=0.8.11
 openpyxl>=3.1.2
 python-pptx>=0.6.21
 pyinstaller>=5.13.0
+spotdl>=4.2.0

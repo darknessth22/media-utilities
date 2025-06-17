@@ -34,6 +34,13 @@ def check_dependencies():
         install("pillow-heif")
         import pillow_heif
         pillow_heif.register_heif_opener()
+
+    # Check for spotdl for Spotify support
+    try:
+        subprocess.run(["spotdl", "--version"], capture_output=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("\nspotdl not found! Installing for Spotify support...")
+        install("spotdl")
 import sys
 import os
 
@@ -57,7 +64,8 @@ def get_platform(url):
         'facebook': ['facebook.com', 'fb.watch'],
         'instagram': ['instagram.com', 'instagr.am'],
         'tiktok': ['tiktok.com'],
-        'twitter': ['twitter.com', 'x.com']
+        'twitter': ['twitter.com', 'x.com'],
+        'spotify': ['spotify.com', 'open.spotify.com']
     }
     for platform, urls in domains.items():
         if any(domain in url for domain in urls):
@@ -75,7 +83,57 @@ def parse_time(time_str):
     else:
         raise ValueError("Invalid time format. Use H:MM:SS, M:SS, or S")
 
+def download_spotify(url, audio_format="mp3", output_dir=None):
+    """Download Spotify tracks using spotdl (gets metadata from Spotify, audio from YouTube)"""
+    try:
+        # Build spotdl command
+        cmd = ["spotdl", "download", url]
+
+        # Set output directory if specified
+        if output_dir:
+            cmd.extend(["--output", output_dir])
+
+        # Set audio format
+        if audio_format in ["mp3", "flac", "ogg", "opus", "m4a"]:
+            cmd.extend(["--format", audio_format])
+        else:
+            cmd.extend(["--format", "mp3"])  # Default to mp3
+
+        # Set audio quality
+        cmd.extend(["--bitrate", "320k"])
+
+        # Add other useful options
+        cmd.extend([
+            "--threads", "4",  # Use 4 threads for faster download
+            "--sponsor-block",  # Skip sponsor segments
+        ])
+
+        print(f"Running spotdl command: {' '.join(cmd)}")
+
+        # Run spotdl
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+
+        print("Spotify download completed successfully!")
+        print("Note: Audio sourced from YouTube with Spotify metadata")
+
+        return True
+
+    except subprocess.CalledProcessError as e:
+        print(f"spotdl error: {e}")
+        if e.stderr:
+            print(f"Error details: {e.stderr}")
+        return False
+    except Exception as e:
+        print(f"Error downloading from Spotify: {str(e)}")
+        return False
+
 def download_media(url, platform, media_type='video', quality=None, start_time=None, end_time=None, audio_format="mp3", output_dir=None, video_codec="libx264", force_codec=True):
+    # Handle Spotify URLs with spotdl
+    if platform == 'spotify':
+        print("Detected Spotify URL - using spotdl for download")
+        print("Note: This will get metadata from Spotify and audio from YouTube")
+        return download_spotify(url, audio_format, output_dir)
+
     # Set output template based on output directory
     output_template = os.path.join(output_dir, '%(title)s.%(ext)s') if output_dir else '%(title)s.%(ext)s'
     ydl_opts = {
@@ -316,7 +374,7 @@ def convert_media(file_path):
         return False
 
 def convert_document(input_path, output_format):
-    """Convert documents between different formats"""
+    """Convert documents between different formats with enhanced layout and formatting preservation"""
     input_ext = os.path.splitext(input_path)[1].lower()
     base_name = os.path.splitext(input_path)[0]
     output_path = f"{base_name}_converted.{output_format}"
@@ -327,19 +385,232 @@ def convert_document(input_path, output_format):
 
         if output_format == 'docx':
             word_doc = Document()
-            for page in doc:
-                text = page.get_text()
-                word_doc.add_paragraph(text)
+
+            for page_num, page in enumerate(doc):
+                # Get structured text with formatting information
+                text_dict = page.get_text("dict")
+
+                # Get image information with positions
+                image_list = page.get_images()
+                image_rects = []
+
+                # Extract image data (simplified approach)
+                for img_index, img in enumerate(image_list):
+                    try:
+                        # Get image data
+                        xref = img[0]
+                        pix = fitz.Pixmap(doc, xref)
+
+                        if pix.n - pix.alpha < 4:  # GRAY or RGB
+                            img_data = pix.tobytes("png")
+
+                            # Store image info (without complex positioning for now)
+                            image_rects.append({
+                                'data': img_data,
+                                'index': img_index,
+                                'page': page_num,
+                                'width': pix.width,
+                                'height': pix.height
+                            })
+
+                        pix = None  # Free memory
+                    except Exception as e:
+                        print(f"Warning: Could not process image {img_index} from page {page_num}: {e}")
+                        continue
+
+                # Process text blocks with formatting
+                for block in text_dict.get("blocks", []):
+                    if "lines" in block:  # Text block
+                        block_text = ""
+                        block_font_size = 12  # Default
+                        block_alignment = None
+
+                        for line in block["lines"]:
+                            line_text = ""
+                            for span in line.get("spans", []):
+                                text = span.get("text", "")
+                                font_size = span.get("size", 12)
+                                font_flags = span.get("flags", 0)
+
+                                # Update block font size (use largest in block)
+                                if font_size > block_font_size:
+                                    block_font_size = font_size
+
+                                line_text += text
+
+                            if line_text.strip():
+                                block_text += line_text + "\n"
+
+                        if block_text.strip():
+                            # Determine alignment based on block position
+                            block_rect = fitz.Rect(block["bbox"])
+                            page_width = page.rect.width
+
+                            # Simple alignment detection
+                            if block_rect.x0 > page_width * 0.4 and block_rect.x1 < page_width * 0.6:
+                                block_alignment = 'center'
+                            elif block_rect.x0 > page_width * 0.7:
+                                block_alignment = 'right'
+                            else:
+                                block_alignment = 'left'
+
+                            # Add paragraph with formatting
+                            paragraph = word_doc.add_paragraph(block_text.strip())
+
+                            # Apply alignment
+                            from docx.enum.text import WD_ALIGN_PARAGRAPH
+                            if block_alignment == 'center':
+                                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            elif block_alignment == 'right':
+                                paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                            else:
+                                paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+                            # Apply font size (approximate conversion)
+                            for run in paragraph.runs:
+                                from docx.shared import Pt
+                                run.font.size = Pt(max(8, min(block_font_size, 24)))
+
+                        # Add images after each text block (simplified approach)
+                        # Process one image per text block if available
+                        if image_rects and not any(img.get('processed', False) for img in image_rects):
+                            # Get the first unprocessed image
+                            for img_info in image_rects:
+                                if not img_info.get('processed', False):
+                                    try:
+                                        # Create temporary image file
+                                        temp_img_path = f"temp_img_{img_info['page']}_{img_info['index']}.png"
+                                        with open(temp_img_path, "wb") as img_file:
+                                            img_file.write(img_info['data'])
+
+                                        # Calculate appropriate size (maintain aspect ratio)
+                                        from docx.shared import Inches
+                                        original_width = img_info['width']
+                                        original_height = img_info['height']
+
+                                        # Scale to fit page width (max 6 inches)
+                                        max_width = 6.0
+                                        if original_width > 0:
+                                            scale_factor = min(max_width * 72 / original_width, 1.0)
+                                            img_width = Inches(original_width * scale_factor / 72)
+                                            img_height = Inches(original_height * scale_factor / 72)
+                                        else:
+                                            img_width = Inches(4)
+                                            img_height = None
+
+                                        # Add image to document
+                                        img_paragraph = word_doc.add_paragraph()
+                                        run = img_paragraph.add_run()
+
+                                        if img_height:
+                                            run.add_picture(temp_img_path, width=img_width, height=img_height)
+                                        else:
+                                            run.add_picture(temp_img_path, width=img_width)
+
+                                        # Center align images by default
+                                        from docx.enum.text import WD_ALIGN_PARAGRAPH
+                                        img_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                                        # Clean up temporary file
+                                        os.remove(temp_img_path)
+
+                                        # Mark image as processed
+                                        img_info['processed'] = True
+                                        break  # Process only one image per text block
+
+                                    except Exception as e:
+                                        print(f"Warning: Could not add image {img_info['index']}: {e}")
+                                        break
+
+                # Add any remaining unprocessed images at the end of the page
+                for img_info in image_rects:
+                    if not img_info.get('processed', False):
+                        try:
+                            temp_img_path = f"temp_img_{img_info['page']}_{img_info['index']}.png"
+                            with open(temp_img_path, "wb") as img_file:
+                                img_file.write(img_info['data'])
+
+                            from docx.shared import Inches
+                            paragraph = word_doc.add_paragraph()
+                            run = paragraph.add_run()
+
+                            # Calculate size maintaining aspect ratio
+                            original_width = img_info['width']
+                            original_height = img_info['height']
+                            if original_width > 0:
+                                scale_factor = min(6.0 * 72 / original_width, 1.0)
+                                img_width = Inches(original_width * scale_factor / 72)
+                                img_height = Inches(original_height * scale_factor / 72)
+                                run.add_picture(temp_img_path, width=img_width, height=img_height)
+                            else:
+                                run.add_picture(temp_img_path, width=Inches(4))
+
+                            os.remove(temp_img_path)
+
+                        except Exception as e:
+                            print(f"Warning: Could not add remaining image {img_info['index']}: {e}")
+
+                # Add page break if not the last page
+                if page_num < len(doc) - 1:
+                    word_doc.add_page_break()
+
             word_doc.save(output_path)
 
         elif output_format == 'pptx':
             prs = Presentation()
-            for page in doc:
-                slide = prs.slides.add_slide(prs.slide_layouts[5])
+
+            for page_num, page in enumerate(doc):
+                # Create new slide
+                slide = prs.slides.add_slide(prs.slide_layouts[6])  # Blank layout
+
+                # Add text if present
                 text = page.get_text()
-                txBox = slide.shapes.add_textbox(0, 0, prs.slide_width, prs.slide_height)
-                tf = txBox.text_frame
-                tf.text = text
+                if text.strip():
+                    # Add text box for content
+                    from pptx.util import Inches
+                    left = Inches(0.5)
+                    top = Inches(0.5)
+                    width = prs.slide_width - Inches(1)
+                    height = Inches(2)
+
+                    txBox = slide.shapes.add_textbox(left, top, width, height)
+                    tf = txBox.text_frame
+                    tf.text = text
+
+                # Add images
+                image_list = page.get_images()
+                img_top = Inches(3)  # Start images below text
+
+                for img_index, img in enumerate(image_list):
+                    try:
+                        # Get image data
+                        xref = img[0]
+                        pix = fitz.Pixmap(doc, xref)
+
+                        if pix.n - pix.alpha < 4:  # GRAY or RGB
+                            img_data = pix.tobytes("png")
+
+                            # Create temporary image file
+                            temp_img_path = f"temp_img_{page_num}_{img_index}.png"
+                            with open(temp_img_path, "wb") as img_file:
+                                img_file.write(img_data)
+
+                            # Add image to slide
+                            left = Inches(1)
+                            width = Inches(6)
+                            slide.shapes.add_picture(temp_img_path, left, img_top, width=width)
+
+                            # Move next image down
+                            img_top += Inches(2)
+
+                            # Clean up temporary file
+                            os.remove(temp_img_path)
+
+                        pix = None  # Free memory
+                    except Exception as e:
+                        print(f"Warning: Could not add image {img_index} to slide {page_num}: {e}")
+                        continue
+
             prs.save(output_path)
 
         elif output_format == 'xlsx':
@@ -355,11 +626,106 @@ def convert_document(input_path, output_format):
         doc = Document(input_path)
 
         if output_format == 'pdf':
-            # Since direct conversion isn't available, we'll save text content
+            # Enhanced Word to PDF conversion with proper image extraction and formatting
             pdf_doc = fitz.open()
             page = pdf_doc.new_page()
-            text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
-            page.insert_text((50, 50), text)
+            y_position = 50
+            page_width = page.rect.width
+            margin = 50
+
+            for paragraph in doc.paragraphs:
+                # Handle text with formatting and alignment
+                if paragraph.text.strip():
+                    # Determine alignment
+                    alignment = paragraph.alignment
+                    x_position = margin
+
+                    # Calculate text width for alignment
+                    text_width = len(paragraph.text) * 6  # Approximate character width
+
+                    if alignment == 1:  # Center
+                        x_position = (page_width - text_width) / 2
+                    elif alignment == 2:  # Right
+                        x_position = page_width - margin - text_width
+
+                    # Ensure x_position is within bounds
+                    x_position = max(margin, min(x_position, page_width - margin - 100))
+
+                    # Get font size from first run if available
+                    font_size = 12
+                    if paragraph.runs:
+                        first_run = paragraph.runs[0]
+                        if first_run.font.size:
+                            font_size = min(24, max(8, first_run.font.size.pt))
+
+                    # Insert text with proper positioning
+                    text_rect = fitz.Rect(x_position, y_position, page_width - margin, y_position + font_size + 5)
+                    page.insert_text(text_rect.tl, paragraph.text, fontsize=font_size)
+                    y_position += font_size + 8
+
+                # Extract and add actual images from paragraph runs
+                for run in paragraph.runs:
+                    if run.element.xml:
+                        import xml.etree.ElementTree as ET
+                        try:
+                            # Parse the XML to find image relationships
+                            root = ET.fromstring(run.element.xml)
+
+                            # Look for drawing elements with image references
+                            for elem in root.iter():
+                                if 'blip' in str(elem.tag).lower() and 'embed' in elem.attrib:
+                                    # Found an image reference
+                                    rel_id = elem.attrib['embed']
+
+                                    # Get the image from document relationships
+                                    try:
+                                        # Access document relationships to get actual image
+                                        from docx.opc.constants import RELATIONSHIP_TYPE as RT
+
+                                        # Find the image part
+                                        for rel in doc.part.rels.values():
+                                            if rel.rId == rel_id:
+                                                image_part = rel.target_part
+                                                img_bytes = image_part.blob
+
+                                                # Calculate image size and position
+                                                img_width = 200  # Default width
+                                                img_height = 150  # Default height
+
+                                                # Try to get original dimensions from the drawing
+                                                for extent in root.iter():
+                                                    if 'extent' in str(extent.tag).lower():
+                                                        if 'cx' in extent.attrib and 'cy' in extent.attrib:
+                                                            # Convert EMU to points (1 EMU = 1/914400 inch, 1 inch = 72 points)
+                                                            img_width = min(400, int(extent.attrib['cx']) / 914400 * 72)
+                                                            img_height = min(300, int(extent.attrib['cy']) / 914400 * 72)
+                                                            break
+
+                                                # Center image horizontally
+                                                img_x = (page_width - img_width) / 2
+                                                img_rect = fitz.Rect(img_x, y_position, img_x + img_width, y_position + img_height)
+
+                                                # Insert image into PDF
+                                                page.insert_image(img_rect, stream=img_bytes)
+                                                y_position += img_height + 10
+                                                break
+                                    except Exception as img_e:
+                                        # If image extraction fails, add a placeholder
+                                        page.insert_text((margin, y_position), "[Image - could not extract]", fontsize=10)
+                                        y_position += 20
+                                        print(f"Warning: Could not extract image: {img_e}")
+
+                        except Exception as e:
+                            # If XML parsing fails, check for other image indicators
+                            if 'drawing' in run.element.xml.lower() or 'image' in run.element.xml.lower():
+                                page.insert_text((margin, y_position), "[Image]", fontsize=10)
+                                y_position += 20
+
+                # Start new page if needed
+                if y_position > page.rect.height - 100:
+                    page = pdf_doc.new_page()
+                    y_position = 50
+
             pdf_doc.save(output_path)
 
         elif output_format == 'xlsx':
@@ -414,18 +780,153 @@ def convert_document(input_path, output_format):
 
         if output_format == 'pdf':
             pdf_doc = fitz.open()
-            for slide in prs.slides:
+
+            for slide_num, slide in enumerate(prs.slides):
                 page = pdf_doc.new_page()
-                text = "\n".join([shape.text for shape in slide.shapes if hasattr(shape, "text")])
-                page.insert_text((50, 50), text)
+                page_width = page.rect.width
+                page_height = page.rect.height
+
+                # Get slide dimensions for scaling
+                slide_width = prs.slide_width
+                slide_height = prs.slide_height
+
+                # Calculate scaling factors
+                scale_x = page_width / slide_width
+                scale_y = page_height / slide_height
+                scale = min(scale_x, scale_y)  # Maintain aspect ratio
+
+                for shape in slide.shapes:
+                    # Get shape position and size
+                    shape_left = shape.left * scale
+                    shape_top = shape.top * scale
+                    shape_width = shape.width * scale
+                    shape_height = shape.height * scale
+
+                    # Handle text shapes with positioning
+                    if hasattr(shape, "text") and shape.text.strip():
+                        # Calculate font size based on shape size
+                        font_size = min(24, max(8, shape_height / 10))
+
+                        # Position text according to original shape position
+                        text_rect = fitz.Rect(shape_left, shape_top,
+                                            shape_left + shape_width,
+                                            shape_top + shape_height)
+
+                        # Insert text with proper positioning
+                        page.insert_text(text_rect.tl, shape.text, fontsize=font_size)
+
+                    # Handle image shapes with proper positioning and sizing
+                    elif hasattr(shape, 'image'):
+                        try:
+                            # Extract image from PowerPoint shape
+                            image = shape.image
+                            img_bytes = image.blob
+
+                            # Position image according to original shape position and size
+                            img_rect = fitz.Rect(shape_left, shape_top,
+                                               shape_left + shape_width,
+                                               shape_top + shape_height)
+
+                            # Insert image into PDF with proper positioning
+                            page.insert_image(img_rect, stream=img_bytes)
+
+                        except Exception as e:
+                            # If image extraction fails, add placeholder at correct position
+                            page.insert_text((shape_left, shape_top), "[Image]", fontsize=10)
+                            print(f"Warning: Could not extract image from slide {slide_num}: {e}")
+
+                    # Handle other shape types that might contain images
+                    elif shape.shape_type == 13:  # Picture shape type
+                        page.insert_text((shape_left, shape_top), "[Image]", fontsize=10)
+
             pdf_doc.save(output_path)
 
         elif output_format == 'docx':
             doc = Document()
-            for slide in prs.slides:
-                for shape in slide.shapes:
-                    if hasattr(shape, "text"):
-                        doc.add_paragraph(shape.text)
+
+            for slide_num, slide in enumerate(prs.slides):
+                # Add slide separator
+                if slide_num > 0:
+                    doc.add_page_break()
+
+                doc.add_heading(f'Slide {slide_num + 1}', level=2)
+
+                # Sort shapes by their vertical position to maintain layout order
+                sorted_shapes = sorted(slide.shapes, key=lambda s: s.top)
+
+                for shape in sorted_shapes:
+                    # Handle text shapes with alignment detection
+                    if hasattr(shape, "text") and shape.text.strip():
+                        paragraph = doc.add_paragraph(shape.text)
+
+                        # Determine alignment based on shape position
+                        slide_width = prs.slide_width
+                        shape_center = shape.left + (shape.width / 2)
+
+                        from docx.enum.text import WD_ALIGN_PARAGRAPH
+                        if shape_center < slide_width * 0.3:
+                            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                        elif shape_center > slide_width * 0.7:
+                            paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                        elif shape_center > slide_width * 0.3 and shape_center < slide_width * 0.7:
+                            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                    # Handle image shapes with proper sizing
+                    elif hasattr(shape, 'image'):
+                        try:
+                            # Extract image from PowerPoint shape
+                            image = shape.image
+                            img_bytes = image.blob
+
+                            # Create temporary image file
+                            temp_img_path = f"temp_ppt_img_{slide_num}_{shape.shape_id}.png"
+                            with open(temp_img_path, "wb") as img_file:
+                                img_file.write(img_bytes)
+
+                            # Calculate appropriate size based on original shape dimensions
+                            from docx.shared import Inches
+
+                            # Convert PowerPoint units to inches (PowerPoint uses EMUs)
+                            original_width_inches = shape.width / 914400  # EMU to inches
+                            original_height_inches = shape.height / 914400
+
+                            # Scale to fit page (max 6.5 inches width for standard document)
+                            max_width = 6.5
+                            if original_width_inches > max_width:
+                                scale_factor = max_width / original_width_inches
+                                img_width = Inches(max_width)
+                                img_height = Inches(original_height_inches * scale_factor)
+                            else:
+                                img_width = Inches(original_width_inches)
+                                img_height = Inches(original_height_inches)
+
+                            # Add image to Word document with proper sizing
+                            paragraph = doc.add_paragraph()
+                            run = paragraph.add_run()
+                            run.add_picture(temp_img_path, width=img_width, height=img_height)
+
+                            # Apply alignment based on image position in slide
+                            shape_center = shape.left + (shape.width / 2)
+                            from docx.enum.text import WD_ALIGN_PARAGRAPH
+                            if shape_center < slide_width * 0.3:
+                                paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                            elif shape_center > slide_width * 0.7:
+                                paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                            else:
+                                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                            # Clean up temporary file
+                            os.remove(temp_img_path)
+
+                        except Exception as e:
+                            # If image extraction fails, add placeholder
+                            doc.add_paragraph("[Image could not be extracted]")
+                            print(f"Warning: Could not extract image from slide {slide_num}: {e}")
+
+                    # Handle other shape types that might contain images
+                    elif shape.shape_type == 13:  # Picture shape type
+                        doc.add_paragraph("[Image]")
+
             doc.save(output_path)
 
         elif output_format == 'xlsx':

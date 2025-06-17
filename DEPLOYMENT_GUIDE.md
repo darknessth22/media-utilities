@@ -101,7 +101,7 @@ This guide covers how to distribute your Media Utility application to other Wind
 - **OS**: Windows 10 (64-bit) or Windows 11
 - **RAM**: 4GB minimum, 8GB recommended
 - **Storage**: 500MB free space
-- **Network**: Internet connection for downloading media
+- **Network**: Internet connection for downloading media and Spotify support
 
 ### Recommended Requirements
 - **OS**: Windows 11 (latest updates)
@@ -255,6 +255,8 @@ signtool sign /f certificate.p12 /p password /t http://timestamp.digicert.com di
 - [ ] Application builds successfully
 - [ ] All features work in the executable
 - [ ] FFmpeg is properly bundled
+- [ ] spotdl is properly bundled (for Spotify support)
+- [ ] Document conversion with images works
 - [ ] Tested on clean Windows system
 - [ ] Created user documentation
 - [ ] Decided on distribution method
