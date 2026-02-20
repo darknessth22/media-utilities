@@ -20,8 +20,8 @@ def download_ffmpeg():
     """Download FFmpeg for Windows if not present"""
     print_step("Downloading FFmpeg")
 
-    if os.path.exists('ffmpeg.exe'):
-        print("✅ FFmpeg already exists, skipping download")
+    if os.path.exists('ffmpeg.exe') and os.path.exists('ffprobe.exe'):
+        print("✅ FFmpeg and FFprobe already exist, skipping download")
         return True
 
     # Check if we're in WSL2
@@ -45,17 +45,18 @@ def download_ffmpeg():
         with zipfile.ZipFile("ffmpeg.zip", 'r') as zip_ref:
             zip_ref.extractall("ffmpeg_temp")
 
-        # Find the ffmpeg.exe in the extracted files
+        # Find ffmpeg.exe and ffprobe.exe in the extracted files
         for root, _, files in os.walk("ffmpeg_temp"):
-            if "ffmpeg.exe" in files:
-                shutil.copy2(os.path.join(root, "ffmpeg.exe"), "ffmpeg.exe")
-                break
+            for binary in ("ffmpeg.exe", "ffprobe.exe"):
+                if binary in files and not os.path.exists(binary):
+                    shutil.copy2(os.path.join(root, binary), binary)
 
         # Cleanup
         os.remove("ffmpeg.zip")
         shutil.rmtree("ffmpeg_temp")
 
-        print("✅ FFmpeg downloaded successfully!")
+        found = [b for b in ("ffmpeg.exe", "ffprobe.exe") if os.path.exists(b)]
+        print(f"✅ Downloaded: {', '.join(found)}")
         return True
 
     except Exception as e:
@@ -162,7 +163,7 @@ def build_executable():
         subprocess.check_call([sys.executable, "-m", "PyInstaller", "media_util_gui.spec", "--clean"])
 
         print("✅ Executable built successfully!")
-        print(f"📁 Executable location: {os.path.abspath('dist/MediaUtility.exe')}")
+        print(f"📁 Executable location: {os.path.abspath('dist/MediaUtility/MediaUtility.exe')}")
         return True
 
     except subprocess.CalledProcessError as e:
@@ -196,7 +197,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "dist\\MediaUtility.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\\MediaUtility\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -255,7 +256,7 @@ def main():
     if not failed_steps:
         print("🎉 All steps completed successfully!")
         print("\n📁 Files created:")
-        print(f"   - Executable: {os.path.abspath('dist/MediaUtility.exe')}")
+        print(f"   - Executable: {os.path.abspath('dist/MediaUtility/MediaUtility.exe')}")
         print(f"   - Installer Script: {os.path.abspath('media_utility_installer.iss')}")
         
         print("\n🎯 Next Steps:")

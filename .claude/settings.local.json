@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:pymupdf.readthedocs.io)",
+      "WebFetch(domain:ttkbootstrap.readthedocs.io)"
+    ]
+  }
+}

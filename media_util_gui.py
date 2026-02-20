@@ -15,6 +15,7 @@ import io
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 def check_dependencies():
+    """Check all runtime dependencies. Returns 'ffmpeg_missing' if FFmpeg is absent, else None."""
     try:
         import yt_dlp
     except ImportError:
@@ -24,8 +25,8 @@ def check_dependencies():
     try:
         subprocess.run([ffmpeg_path, "-version"], capture_output=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("\nFFmpeg not found! Required for media processing.")
-        sys.exit(1)
+        print("\nFFmpeg not found! Media conversion features will be unavailable.")
+        return "ffmpeg_missing"
 
     try:
         import pillow_heif
@@ -35,29 +36,53 @@ def check_dependencies():
         import pillow_heif
         pillow_heif.register_heif_opener()
 
-    # Check for spotdl for Spotify support
+    # spotdl (Spotify support) — optional, not available on Python 3.14+
     try:
-        subprocess.run(["spotdl", "--version"], capture_output=True, check=True)
+        result = subprocess.run(["spotdl", "--version"], capture_output=True, text=True, check=True)
+        print(f"spotdl available: {result.stdout.strip()}")
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("\nspotdl not found! Installing for Spotify support...")
-        install("spotdl")
+        print("spotdl not found — Spotify downloads will be unavailable.")
+        print("Install on Python <=3.13 with: pip install 'spotdl>=3.9.6'")
+
+    return None
 import sys
 import os
 
+def _find_binary(name):
+    """Locate a binary using a four-step fallback chain."""
+    import shutil
+    exe_name = f"{name}.exe" if sys.platform == "win32" else name
+    # 1. PyInstaller bundle (onefile or onedir)
+    if hasattr(sys, '_MEIPASS'):
+        bundled = os.path.join(sys._MEIPASS, exe_name)
+        if os.path.isfile(bundled):
+            return bundled
+    # 2. Same directory as this script / frozen executable
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    local = os.path.join(script_dir, exe_name)
+    if os.path.isfile(local):
+        return local
+    # 3. Current working directory (legacy behaviour)
+    cwd = os.path.join(os.getcwd(), exe_name)
+    if os.path.isfile(cwd):
+        return cwd
+    # 4. System PATH
+    which = shutil.which(name)
+    if which:
+        return which
+    # Return bare name — callers receive a clear FileNotFoundError at call time
+    return exe_name
+
 def get_ffmpeg_path():
-    if sys.platform == "win32":
-        if hasattr(sys, '_MEIPASS'):
-            # When bundled, ffmpeg.exe is extracted to the temporary folder.
-            return os.path.join(sys._MEIPASS, "ffmpeg.exe")
-        else:
-            # When running from source, assume ffmpeg.exe is in the current directory
-            return os.path.join(os.getcwd(), "ffmpeg.exe")
-    else:
-        # For Linux/Mac, use the system-installed ffmpeg
-        return "ffmpeg"
-# Use this function to get the ffmpeg path
+    return _find_binary("ffmpeg")
+
+def get_ffprobe_path():
+    return _find_binary("ffprobe")
+
 ffmpeg_path = get_ffmpeg_path()
+ffprobe_path = get_ffprobe_path()
 print(f"FFmpeg path: {ffmpeg_path}")
+print(f"FFprobe path: {ffprobe_path}")
 def get_platform(url):
     domains = {
         'youtube': ['youtube.com', 'youtu.be'],
@@ -127,7 +152,7 @@ def download_spotify(url, audio_format="mp3", output_dir=None):
         print(f"Error downloading from Spotify: {str(e)}")
         return False
 
-def download_media(url, platform, media_type='video', quality=None, start_time=None, end_time=None, audio_format="mp3", output_dir=None, video_codec="libx264", force_codec=True):
+def download_media(url, platform, media_type='video', quality=None, start_time=None, end_time=None, audio_format="mp3", output_dir=None, video_codec="libx264", force_codec=False):
     # Handle Spotify URLs with spotdl
     if platform == 'spotify':
         print("Detected Spotify URL - using spotdl for download")
@@ -182,7 +207,7 @@ def download_media(url, platform, media_type='video', quality=None, start_time=N
         if media_type != 'audio' and os.path.exists(downloaded_file):
             # Get detailed information about the video
             info_cmd = [
-                'ffprobe', '-v', 'error', '-select_streams', 'v:0',
+                ffprobe_path, '-v', 'error', '-select_streams', 'v:0',
                 '-show_entries', 'stream=codec_name,profile,level,bit_rate', '-of', 'json',
                 downloaded_file
             ]
@@ -1044,6 +1069,8 @@ class MediaUtilityGUI:
         self.video_quality = None
         self.current_thread = None
         self.cancel_requested = False
+        import queue
+        self._result_queue = queue.Queue()
 
         # Initialize notebook
         self.notebook = ttk.Notebook(root)
@@ -1155,18 +1182,31 @@ class MediaUtilityGUI:
         self.progress.start(10)
         self.cancel_button.config(state='normal')
         self.cancel_requested = False
-        self.root.update()
 
     def stop_progress(self):
         self.progress.stop()
         self.cancel_button.config(state='disabled')
         self.current_thread = None
-        self.root.update()
 
     def update_status(self, message, is_error=False):
         self.status_label.config(text=message,
                                foreground='red' if is_error else 'black')
-        self.root.update()
+
+    def _poll_result(self, on_success_msg="Done.", on_failure_msg="Operation failed!"):
+        """Poll the result queue from the main thread via root.after()."""
+        import queue
+        try:
+            status, payload = self._result_queue.get_nowait()
+        except queue.Empty:
+            self.root.after(100, self._poll_result, on_success_msg, on_failure_msg)
+            return
+        self.stop_progress()
+        if status == "ok":
+            self.update_status(payload if payload else on_success_msg)
+        elif status == "cancelled":
+            self.update_status("Operation cancelled.")
+        else:  # "error"
+            self.update_status(payload if payload else on_failure_msg, is_error=True)
 
     def check_formats(self):
         url = self.url_entry.get().strip()
@@ -1179,22 +1219,23 @@ class MediaUtilityGUI:
         self.root.update()
 
         def check_formats_thread():
-            self.start_progress()
             try:
-                if not self.cancel_requested:
-                    formats = get_available_formats(url)
-                    if not self.cancel_requested:
-                        self.root.after(0, self.update_quality_list, formats)
-                    else:
-                        self.root.after(0, self.update_status, "Format check cancelled.")
+                if self.cancel_requested:
+                    self._result_queue.put(("cancelled", None))
+                    return
+                formats = get_available_formats(url)
+                if self.cancel_requested:
+                    self._result_queue.put(("cancelled", None))
+                else:
+                    self.root.after(0, self.update_quality_list, formats)
+                    self._result_queue.put(("ok", "Formats loaded."))
             except Exception as e:
-                if not self.cancel_requested:
-                    self.root.after(0, self.update_status, f"Error checking formats: {str(e)}", True)
-            finally:
-                self.stop_progress()
+                self._result_queue.put(("error", f"Error checking formats: {str(e)}"))
 
         self.current_thread = threading.Thread(target=check_formats_thread, daemon=True)
+        self.start_progress()
         self.current_thread.start()
+        self.root.after(100, self._poll_result, "Formats loaded.")
 
 
     def update_quality_list(self, formats):
@@ -1456,6 +1497,15 @@ class MediaUtilityGUI:
             ttk.Radiobutton(format_frame, text=fmt.upper(),
                         variable=self.doc_format, value=fmt).pack(side='left', padx=10)
 
+        # Conversion quality disclaimer
+        warning_label = ttk.Label(
+            self.document_tab,
+            text="Note: Complex layouts may not convert perfectly. Best results with text-heavy documents.",
+            foreground="gray",
+            wraplength=500
+        )
+        warning_label.pack(pady=(0, 5), padx=10)
+
         # Convert Button
         ttk.Button(self.document_tab, text="Convert",
                 command=self.start_doc_conversion).pack(pady=20)
@@ -1470,26 +1520,26 @@ class MediaUtilityGUI:
             messagebox.showerror("Error", "Please select a target format")
             return
 
-        def convert_thread():
-            self.start_progress()
-            self.update_status("Converting document...")
+        def doc_convert_thread():
             try:
-                if not self.cancel_requested:
-                    success = convert_document(file_path, self.doc_format.get())
-                    if success and not self.cancel_requested:
-                        self.update_status("Conversion completed successfully!")
-                    elif self.cancel_requested:
-                        self.update_status("Conversion cancelled.")
-                    else:
-                        self.update_status("Conversion failed!", True)
+                if self.cancel_requested:
+                    self._result_queue.put(("cancelled", None))
+                    return
+                success = convert_document(file_path, self.doc_format.get())
+                if self.cancel_requested:
+                    self._result_queue.put(("cancelled", None))
+                elif success:
+                    self._result_queue.put(("ok", "Document conversion completed!"))
+                else:
+                    self._result_queue.put(("error", "Document conversion failed!"))
             except Exception as e:
-                if not self.cancel_requested:
-                    self.update_status(f"Error: {str(e)}", True)
-            finally:
-                self.stop_progress()
+                self._result_queue.put(("error", f"Error: {str(e)}"))
 
-        self.current_thread = threading.Thread(target=convert_thread, daemon=True)
+        self.current_thread = threading.Thread(target=doc_convert_thread, daemon=True)
+        self.start_progress()
+        self.update_status("Converting document...")
         self.current_thread.start()
+        self.root.after(100, self._poll_result, "Document conversion complete!")
 
     def browse_file(self, entry_widget):
         filename = filedialog.askopenfilename()
@@ -1526,37 +1576,37 @@ class MediaUtilityGUI:
                     quality = f"{fmt['format_id']}+bestaudio/best"
 
         def download_thread():
-            self.start_progress()
-            self.update_status("Downloading...")
             try:
-                if not self.cancel_requested:
-                    success = download_media(
-                        url=url,
-                        platform=get_platform(url),
-                        media_type=self.media_type.get(),
-                        quality=quality,
-                        start_time=self.start_time.get() if self.start_time.get() else None,
-                        end_time=self.end_time.get() if self.end_time.get() else None,
-                        audio_format=self.download_audio_format.get(),
-                        output_dir=self.download_location.get() if self.download_location.get() else None,
-                        video_codec="libx264",  # Set h264 as the default codec
-                        force_codec=True  # Force re-encoding to ensure h264
-                    )
-                    if success and not self.cancel_requested:
-                        output_dir = self.download_location.get() if self.download_location.get() else os.getcwd()
-                        self.update_status(f"Download completed successfully to {output_dir}!")
-                    elif self.cancel_requested:
-                        self.update_status("Download cancelled.")
-                    else:
-                        self.update_status("Download failed!", True)
+                if self.cancel_requested:
+                    self._result_queue.put(("cancelled", None))
+                    return
+                success = download_media(
+                    url=url,
+                    platform=get_platform(url),
+                    media_type=self.media_type.get(),
+                    quality=quality,
+                    start_time=self.start_time.get() if self.start_time.get() else None,
+                    end_time=self.end_time.get() if self.end_time.get() else None,
+                    audio_format=self.download_audio_format.get(),
+                    output_dir=self.download_location.get() if self.download_location.get() else None,
+                    video_codec="libx264",  # Target codec when conversion is needed
+                    force_codec=False  # Only re-encode when codec is not already h264
+                )
+                if self.cancel_requested:
+                    self._result_queue.put(("cancelled", None))
+                elif success:
+                    out = self.download_location.get() if self.download_location.get() else os.getcwd()
+                    self._result_queue.put(("ok", f"Download completed to {out}!"))
+                else:
+                    self._result_queue.put(("error", "Download failed!"))
             except Exception as e:
-                if not self.cancel_requested:
-                    self.update_status(f"Error: {str(e)}", True)
-            finally:
-                self.stop_progress()
+                self._result_queue.put(("error", f"Error: {str(e)}"))
 
         self.current_thread = threading.Thread(target=download_thread, daemon=True)
+        self.start_progress()
+        self.update_status("Downloading...")
         self.current_thread.start()
+        self.root.after(100, self._poll_result, "Download completed!")
 
     def start_batch_conversion(self):
         files = self.batch_files.get().split(';')
@@ -1572,32 +1622,29 @@ class MediaUtilityGUI:
         target_format = format_var.get()
 
         def batch_convert_thread():
-            self.start_progress()
-            self.update_status("Converting files...")
             try:
                 for i, file_path in enumerate(files):
                     if self.cancel_requested:
-                        self.update_status("Batch conversion cancelled.")
+                        self._result_queue.put(("cancelled", None))
                         return
-
-                    self.update_status(f"Converting file {i+1} of {len(files)}...")
+                    # Intermediate status updates are safe via root.after from the worker
+                    self.root.after(0, self.update_status, f"Converting file {i+1} of {len(files)}...")
                     success = convert_images([file_path], target_format)
-
                     if not success and not self.cancel_requested:
-                        self.update_status(f"Failed to convert {os.path.basename(file_path)}", True)
+                        self._result_queue.put(("error", f"Failed to convert {os.path.basename(file_path)}"))
                         return
-
-                if not self.cancel_requested:
-                    self.update_status(f"Successfully converted {len(files)} files!")
-
+                if self.cancel_requested:
+                    self._result_queue.put(("cancelled", None))
+                else:
+                    self._result_queue.put(("ok", f"Successfully converted {len(files)} files!"))
             except Exception as e:
-                if not self.cancel_requested:
-                    self.update_status(f"Error: {str(e)}", True)
-            finally:
-                self.stop_progress()
+                self._result_queue.put(("error", f"Error: {str(e)}"))
 
         self.current_thread = threading.Thread(target=batch_convert_thread, daemon=True)
+        self.start_progress()
+        self.update_status("Converting files...")
         self.current_thread.start()
+        self.root.after(100, self._poll_result, "Batch conversion complete!")
 
 
 
@@ -1615,16 +1662,14 @@ class MediaUtilityGUI:
         target_format = format_var.get()
 
         def convert_thread():
-            self.start_progress()
-            self.update_status("Converting...")
             try:
                 if self.cancel_requested:
-                    self.update_status("Conversion cancelled.")
+                    self._result_queue.put(("cancelled", None))
                     return
 
                 ext = os.path.splitext(file_path)[1][1:].lower()
                 if ext == target_format:
-                    self.update_status("Source and target formats are the same!", True)
+                    self._result_queue.put(("error", "Source and target formats are the same!"))
                     return
 
                 supported_formats = {
@@ -1640,7 +1685,7 @@ class MediaUtilityGUI:
                         break
 
                 if self.cancel_requested:
-                    self.update_status("Conversion cancelled.")
+                    self._result_queue.put(("cancelled", None))
                     return
 
                 if media_type == "image":
@@ -1648,39 +1693,37 @@ class MediaUtilityGUI:
                 else:
                     base = os.path.splitext(file_path)[0]
                     output_path = f"{base}_converted.{target_format}"
-
                     if media_type == 'video' and target_format in supported_formats['audio']:
                         cmd = [
                             ffmpeg_path, '-y',
                             '-i', file_path,
-                            '-vn',  # Disable video
+                            '-vn',
                             '-acodec', 'libmp3lame' if target_format == 'mp3' else target_format,
                             output_path
                         ]
                     else:
                         cmd = [ffmpeg_path, '-y', '-i', file_path, output_path]
-                    if not self.cancel_requested:
-                        result = subprocess.run(cmd, capture_output=True)
-                        success = result.returncode == 0
-                    else:
-                        self.update_status("Conversion cancelled.")
+                    if self.cancel_requested:
+                        self._result_queue.put(("cancelled", None))
                         return
+                    result = subprocess.run(cmd, capture_output=True)
+                    success = result.returncode == 0
 
-                if success and not self.cancel_requested:
-                    self.update_status("Conversion completed successfully!")
-                elif self.cancel_requested:
-                    self.update_status("Conversion cancelled.")
+                if self.cancel_requested:
+                    self._result_queue.put(("cancelled", None))
+                elif success:
+                    self._result_queue.put(("ok", "Conversion completed successfully!"))
                 else:
-                    self.update_status("Conversion failed!", True)
+                    self._result_queue.put(("error", "Conversion failed!"))
 
             except Exception as e:
-                if not self.cancel_requested:
-                    self.update_status(f"Error: {str(e)}", True)
-            finally:
-                self.stop_progress()
+                self._result_queue.put(("error", f"Error: {str(e)}"))
 
         self.current_thread = threading.Thread(target=convert_thread, daemon=True)
+        self.start_progress()
+        self.update_status("Converting...")
         self.current_thread.start()
+        self.root.after(100, self._poll_result, "Conversion complete!")
 
 
     def start_trim(self):
@@ -1690,34 +1733,70 @@ class MediaUtilityGUI:
             return
 
         def trim_thread():
-            self.start_progress()
-            self.update_status("Trimming media...")
             try:
-                if not self.cancel_requested:
-                    success = trim_media(
-                        file_path,
-                        self.trim_start.get(),
-                        self.trim_end.get()
-                    )
-                    if success and not self.cancel_requested:
-                        self.update_status("Trimming completed successfully!")
-                    elif self.cancel_requested:
-                        self.update_status("Trimming cancelled.")
-                    else:
-                        self.update_status("Trimming failed!", True)
+                if self.cancel_requested:
+                    self._result_queue.put(("cancelled", None))
+                    return
+                success = trim_media(
+                    file_path,
+                    self.trim_start.get(),
+                    self.trim_end.get()
+                )
+                if self.cancel_requested:
+                    self._result_queue.put(("cancelled", None))
+                elif success:
+                    self._result_queue.put(("ok", "Trimming completed successfully!"))
+                else:
+                    self._result_queue.put(("error", "Trimming failed!"))
             except Exception as e:
-                if not self.cancel_requested:
-                    self.update_status(f"Error: {str(e)}", True)
-            finally:
-                self.stop_progress()
+                self._result_queue.put(("error", f"Error: {str(e)}"))
 
         self.current_thread = threading.Thread(target=trim_thread, daemon=True)
+        self.start_progress()
+        self.update_status("Trimming media...")
         self.current_thread.start()
+        self.root.after(100, self._poll_result, "Trimming complete!")
 
 def main():
-    check_dependencies()
+    import queue as _queue
+
     root = tk.Tk()
-    app = MediaUtilityGUI(root)
+    root.withdraw()  # Hide main window until dependency check completes
+
+    # Splash window shown while checking/installing dependencies
+    splash = tk.Toplevel(root)
+    splash.title("Starting Media Utility")
+    splash.geometry("380x110")
+    splash.resizable(False, False)
+    ttk.Label(splash, text="Checking dependencies, please wait...", padding=(20, 15)).pack()
+    _bar = ttk.Progressbar(splash, mode='indeterminate')
+    _bar.pack(fill='x', padx=20, pady=(0, 15))
+    _bar.start(10)
+
+    _result_q = _queue.Queue()
+    threading.Thread(target=lambda: _result_q.put(check_dependencies()), daemon=True).start()
+
+    def _poll_deps():
+        try:
+            dep_error = _result_q.get_nowait()
+        except _queue.Empty:
+            root.after(100, _poll_deps)
+            return
+        _bar.stop()
+        splash.destroy()
+        root.deiconify()
+        root._gui = MediaUtilityGUI(root)  # attach to root so it stays alive for root.mainloop()
+        if dep_error == "ffmpeg_missing":
+            messagebox.showerror(
+                "Missing Dependency",
+                "FFmpeg was not found on this system.\n\n"
+                "Media conversion, trimming, and download features will not work.\n\n"
+                "Install FFmpeg and add it to your system PATH, or place ffmpeg.exe "
+                "in the same directory as this application.\n\n"
+                "Download from: https://ffmpeg.org/download.html"
+            )
+
+    root.after(100, _poll_deps)
     root.mainloop()
 
 if __name__ == "__main__":

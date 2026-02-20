@@ -16,9 +16,11 @@ try:
 except:
     print("Warning: spotdl data files not found - Spotify support may not work in executable")
 
-# Add FFmpeg executable if it exists in the current directory
+# Add FFmpeg and FFprobe executables if they exist in the current directory
 if os.path.exists('ffmpeg.exe'):
     datas.append(('ffmpeg.exe', '.'))
+if os.path.exists('ffprobe.exe'):
+    datas.append(('ffprobe.exe', '.'))
 
 # Add spotdl executable if it exists (for Spotify support)
 if os.path.exists('spotdl.exe'):
@@ -46,23 +48,26 @@ hiddenimports += [
     'tkinter.messagebox',
     'fitz',
     'docx',
-    'docx.shared',  # Added for enhanced document conversion
+    'docx.shared',
+    'docx.enum',
+    'docx.enum.text',   # WD_ALIGN_PARAGRAPH used in document.py
     'openpyxl',
     'pptx',
-    'pptx.util',    # Added for enhanced document conversion
+    'pptx.util',
     'json',
     'subprocess',
     'threading',
     'io',
-    'xml.etree.ElementTree',  # Added for document image extraction
-    'tempfile',     # Added for temporary file handling
-    'urllib.request'  # May be needed for spotdl
+    'xml.etree.ElementTree',
+    'tempfile',
+    'contextlib',       # Used in document.py _temp_png context manager
+    'urllib.request',   # May be needed for spotdl
 ]
 
 block_cipher = None
 
 a = Analysis(
-    ['media_util_gui.py'],
+    ['main.py'],
     pathex=[],
     binaries=[],
     datas=datas,
@@ -85,10 +90,8 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='MediaUtility',
     debug=False,
     bootloader_ignore_signals=False,
@@ -96,11 +99,22 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,  # Set to False for GUI application
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
     icon='icon.ico' if os.path.exists('icon.ico') else None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='MediaUtility',
 )

@@ -11,13 +11,13 @@ from pathlib import Path
 
 def test_executable_exists():
     """Test if the executable was created"""
-    exe_path = Path("dist/MediaUtility.exe")
+    exe_path = Path("dist/MediaUtility/MediaUtility.exe")
     if exe_path.exists():
         print(f"✅ Executable found: {exe_path.absolute()}")
         print(f"📏 File size: {exe_path.stat().st_size / (1024*1024):.1f} MB")
         return True
     else:
-        print("❌ Executable not found at dist/MediaUtility.exe")
+        print("❌ Executable not found at dist/MediaUtility/MediaUtility.exe")
         return False
 
 def test_executable_launch():
@@ -27,7 +27,7 @@ def test_executable_launch():
     try:
         # Launch the executable in a separate process
         process = subprocess.Popen(
-            ["dist/MediaUtility.exe"],
+            ["dist/MediaUtility/MediaUtility.exe"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             creationflags=subprocess.CREATE_NEW_CONSOLE if sys.platform == "win32" else 0
@@ -124,7 +124,7 @@ def main():
     if passed == total:
         print("🎉 All tests passed! Your executable should work correctly.")
         print("\n📋 Next steps:")
-        print("1. Test the executable manually: dist/MediaUtility.exe")
+        print("1. Test the executable manually: dist/MediaUtility/MediaUtility.exe")
         print("2. Create the installer using Inno Setup")
         print("3. Test the installer on a clean Windows system")
     else:
