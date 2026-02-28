@@ -84,7 +84,7 @@ def download_media(
     output_dir: str | None = None,
     video_codec: str = "libx264",
     force_codec: bool = False,
-) -> bool:
+) -> dict:
     """Download media from a URL.
 
     Parameters
@@ -92,10 +92,17 @@ def download_media(
     force_codec : bool
         When False (default), only re-encode if the downloaded video is not
         already H.264.  Set True to always re-encode.
+
+    Returns
+    -------
+    dict
+        {"success": bool, "file_path": str | None, "file_size": int | None}
+        file_size is in bytes (the actual final file size after any re-encoding).
     """
     if platform == "spotify":
         print("Detected Spotify URL — using spotdl")
-        return download_spotify(url, audio_format, output_dir)
+        ok = download_spotify(url, audio_format, output_dir)
+        return {"success": ok, "file_path": None, "file_size": None}
 
     output_template = (
         os.path.join(output_dir, "%(title)s.%(ext)s") if output_dir else "%(title)s.%(ext)s"
@@ -105,6 +112,7 @@ def download_media(
         "cookiefile": "cookies.txt" if os.path.exists("cookies.txt") else None,
         "postprocessor_args": ["-loglevel", "error"],
         "force_keyframes_at_cuts": True,
+        "compat_opts": ["no-youtube-js"],
     }
 
     if start_time and end_time:
@@ -140,50 +148,57 @@ def download_media(
                 stream_info = codec_info.get("streams", [{}])[0]
                 current_codec = stream_info.get("codec_name", "").lower()
                 print(f"Video codec: {current_codec}")
-                is_h264 = current_codec in ("h264", "avc", "avc1")
+                
+                if video_codec == "original":
+                    is_target = True
+                else:
+                    target_codec_name = "h264"
+                    if video_codec == "libx265": target_codec_name = "hevc"
+                    elif video_codec == "libvpx-vp9": target_codec_name = "vp9"
+                    
+                    is_target = False
+                    if target_codec_name == "h264" and current_codec in ("h264", "avc", "avc1"):
+                        is_target = True
+                    elif target_codec_name == "hevc" and current_codec in ("hevc", "h265"):
+                        is_target = True
+                    elif target_codec_name == "vp9" and current_codec == "vp9":
+                        is_target = True
 
-                if not is_h264 or force_codec:
-                    print(f"Converting from {current_codec} to h264…")
+                if not is_target or force_codec:
+                    print(f"Converting from {current_codec} to {video_codec}...")
                     base, ext = os.path.splitext(downloaded_file)
-                    temp_file = f"{base}_h264{ext}"
+                    target_name = target_codec_name if video_codec != "original" else "converted"
+                    temp_file = f"{base}_{target_name}{ext}"
                     cmd = [
                         ffmpeg_path, "-y", "-i", downloaded_file,
                         "-c:v", video_codec,
                         "-preset", "fast", "-crf", "23",
-                        "-profile:v", "main", "-level", "4.0",
-                        "-pix_fmt", "yuv420p",
                         "-c:a", "copy",
                         temp_file,
                     ]
+                    # Specific arguments for h264 for maximum compatibility
+                    if video_codec == "libx264":
+                        cmd[-2:-2] = ["-profile:v", "main", "-level", "4.0", "-pix_fmt", "yuv420p"]
+                        
                     subprocess.run(cmd, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
                     if os.path.exists(temp_file):
                         os.remove(downloaded_file)
                         os.rename(temp_file, downloaded_file)
-                        print("Successfully converted to h264")
+                        print(f"Successfully converted to {video_codec}")
                 else:
-                    print("Video is already H.264 — no conversion needed")
+                    print(f"Video is already {current_codec} (match) — no conversion needed")
             except Exception as e:
-                print(f"Codec check failed ({e}), attempting conversion anyway…")
-                base, ext = os.path.splitext(downloaded_file)
-                temp_file = f"{base}_h264{ext}"
-                cmd = [
-                    ffmpeg_path, "-y", "-i", downloaded_file,
-                    "-c:v", video_codec,
-                    "-preset", "fast", "-crf", "23",
-                    "-profile:v", "main", "-level", "4.0",
-                    "-pix_fmt", "yuv420p",
-                    "-c:a", "copy",
-                    temp_file,
-                ]
-                subprocess.run(cmd, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
-                if os.path.exists(temp_file):
-                    os.remove(downloaded_file)
-                    os.rename(temp_file, downloaded_file)
+                print(f"Codec check/conversion failed: {e}")
 
-        return True
+        # Get actual final file size
+        final_size = None
+        if os.path.exists(downloaded_file):
+            final_size = os.path.getsize(downloaded_file)
+
+        return {"success": True, "file_path": downloaded_file, "file_size": final_size}
     except Exception as e:
         print(f"Error downloading: {e}")
-        return False
+        return {"success": False, "file_path": None, "file_size": None}
 
 
 # ---------------------------------------------------------------------------
@@ -197,7 +212,7 @@ def get_available_formats(url: str) -> list[dict]:
     best available audio stream, because yt-dlp always merges audio in when
     downloading a specific video format.
     """
-    with YoutubeDL({"quiet": True}) as ydl:
+    with YoutubeDL({"quiet": True, "compat_opts": ["no-youtube-js"]}) as ydl:
         try:
             info = ydl.extract_info(url, download=False)
             all_formats = info.get("formats", [])
@@ -226,7 +241,7 @@ def get_available_formats(url: str) -> list[dict]:
 
                     if video_size or best_audio_size:
                         total = video_size + best_audio_size
-                        size_mb = f"~{total / (1024 * 1024):.0f}MB"
+                        size_mb = f"~{total / (1024 * 1024):.0f}MB (est.)"
                     else:
                         size_mb = "unknown size"
 

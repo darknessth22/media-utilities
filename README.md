@@ -36,7 +36,7 @@ A comprehensive toolkit for media downloading, conversion, and manipulation with
 
 ### Python Dependencies
 ```bash
-pip install yt-dlp Pillow pillow-heif PyMuPDF python-docx openpyxl python-pptx spotdl
+pip install yt-dlp Pillow pillow-heif PyMuPDF python-docx openpyxl python-pptx spotdl ttkbootstrap darkdetect docx2pdf
 ```
 
 ## 🚀 Installation
@@ -286,7 +286,8 @@ Convert between various document formats with enhanced image support:
 
 **Supported Conversions:**
 - PDF to DOCX, XLSX, PPTX (preserves images and text)
-- DOCX to PDF, XLSX, PPTX (includes embedded images)
+- DOCX to PDF (requires Microsoft Word on Windows/macOS, or LibreOffice headless on Linux)
+- DOCX to XLSX, PPTX (includes embedded images)
 - XLSX to PDF, DOCX, PPTX (maintains data and formatting)
 - PPTX to PDF, DOCX, XLSX (preserves slide images and content)
 - Images to PDF (direct image-to-document conversion)
@@ -300,6 +301,7 @@ Convert between various document formats with enhanced image support:
 
 ### GUI Interface
 - **Intuitive Tabbed Interface**: Five specialized tabs for different operations
+- **Dark/Light Mode**: Automatic OS theme detection with manual toggle support
 - **Real-time Progress Tracking**: Progress bar and status messages for all operations
 - **File Browser Integration**: Easy file and folder selection with native dialogs
 - **Custom Download Location**: Choose where to save downloaded media

@@ -46,7 +46,11 @@ ffprobe.exe
 
 # Specific files to exclude
 media_util.py
-requirements.txt
 run_cli.py
 run_gui.py
 setup.py
+
+# PyInstaller build artifacts
+dist/
+build/
+*.spec

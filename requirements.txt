@@ -6,4 +6,8 @@ python-docx>=0.8.11
 openpyxl>=3.1.2
 python-pptx>=0.6.21
 pyinstaller>=5.13.0
-spotdl==4.2.0
+ttkbootstrap>=1.10.0
+darkdetect>=0.8.0
+docx2pdf>=0.1.8
+tkinterdnd2>=0.3.0
+python-vlc>=3.0.0

@@ -6,15 +6,30 @@ Run with:
 import queue
 import threading
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox
+import ttkbootstrap as ttk
 
 from utils.deps import check_dependencies
 from gui.app import MediaUtilityGUI
+from gui.theme import ThemeManager
 
 
 def main() -> None:
-    root = tk.Tk()
+    from tkinterdnd2 import TkinterDnD
+    
+    # Initialize TkinterDnD as the root
+    root = TkinterDnD.Tk()
+    root.title("Media Utility")
+    
+    # Initialize ttkbootstrap style properly for an existing Tk instance
+    style = ttk.Style(theme="cosmo")
+    
     root.withdraw()  # Hide until dependency check completes
+
+    # Initialize Theme Manager
+    theme_manager = ThemeManager(root)
+    theme_manager.initialize()
+    root.theme_manager = theme_manager # attach to root for easy access
 
     # Splash window shown while checking/installing dependencies
     splash = tk.Toplevel(root)

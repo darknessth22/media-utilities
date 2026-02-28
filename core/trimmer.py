@@ -9,7 +9,7 @@ from utils.ffmpeg import ffmpeg_path
 _WIN_FLAGS = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
 
 
-def trim_media(file_path: str, start_time: str, end_time: str) -> bool:
+def trim_media(file_path: str, start_time: str, end_time: str, output_dir: str | None = None) -> bool:
     """Trim an audio or video file between start_time and end_time."""
     supported_formats = {
         "audio": {"mp3", "wav", "aac", "flac", "ogg", "m4a"},
@@ -27,8 +27,10 @@ def trim_media(file_path: str, start_time: str, end_time: str) -> bool:
     except ValueError:
         return False
 
-    base, ext_with_dot = os.path.splitext(file_path)
-    output_path = f"{base}_trimmed{ext_with_dot}"
+    filename = os.path.basename(file_path)
+    base, ext_with_dot = os.path.splitext(filename)
+    out_dir = output_dir if output_dir else os.path.dirname(file_path)
+    output_path = os.path.join(out_dir, f"{base}_trimmed{ext_with_dot}")
 
     cmd = [ffmpeg_path, "-y", "-i", file_path, "-ss", str(start), "-to", str(end)]
 

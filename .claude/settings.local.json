@@ -3,7 +3,11 @@
     "allow": [
       "WebSearch",
       "WebFetch(domain:pymupdf.readthedocs.io)",
-      "WebFetch(domain:ttkbootstrap.readthedocs.io)"
+      "WebFetch(domain:ttkbootstrap.readthedocs.io)",
+      "Bash(python:*)",
+      "Bash(source:*)",
+      "Bash(powershell -Command \"& ''e:/Omniclouds/venv/Scripts/Activate.ps1''; pip list\")",
+      "Bash(powershell -Command \"Get-Command soffice -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source; Get-Command libreoffice -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")"
     ]
   }
 }

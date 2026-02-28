@@ -10,7 +10,7 @@ from utils.ffmpeg import ffmpeg_path
 _WIN_FLAGS = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
 
 
-def convert_images(file_paths: list[str], target_format: str) -> bool:
+def convert_images(file_paths: list[str], target_format: str, output_dir: str | None = None) -> bool:
     """Convert image files to target_format. Returns True if at least one succeeded."""
     try:
         import pillow_heif
@@ -35,8 +35,11 @@ def convert_images(file_paths: list[str], target_format: str) -> bool:
     for file_path in file_paths:
         try:
             with Image.open(file_path) as image:
-                exif_data = image.info.get("exif")
-                output_path = file_path.rsplit(".", 1)[0] + f".{target_format.lower()}"
+                filename = os.path.basename(file_path)
+                out_dir = output_dir if output_dir else os.path.dirname(file_path)
+                base_name = filename.rsplit(".", 1)[0]
+                output_path = os.path.join(out_dir, f"{base_name}.{target_format.lower()}")
+                
                 if pil_format == "HEIF":
                     image.save(
                         output_path, format="HEIF", exif=exif_data,

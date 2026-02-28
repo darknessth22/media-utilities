@@ -11,6 +11,7 @@ Everything you need to go from a fresh machine to a running app.
 | Python | 3.10 | 3.11+ recommended |
 | FFmpeg | any recent | must be on PATH or in the project folder |
 | Git | any | to clone the repo |
+| LibreOffice | any | (Optional) for DOCX to PDF on Linux |
 
 ---
 
@@ -101,6 +102,8 @@ This installs:
 - `Pillow` + `pillow-heif` — image conversion (including HEIC)
 - `PyMuPDF` — PDF processing
 - `python-docx`, `openpyxl`, `python-pptx` — Office document conversion
+- `docx2pdf` — DOCX to PDF conversions
+- `ttkbootstrap`, `darkdetect` — Modern GUI theming and dark mode detection
 - `spotdl==4.2.0` — Spotify support
 - `pyinstaller` — building the `.exe` (optional, only needed for distribution)
 

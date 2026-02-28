@@ -62,6 +62,9 @@ hiddenimports += [
     'tempfile',
     'contextlib',       # Used in document.py _temp_png context manager
     'urllib.request',   # May be needed for spotdl
+    'ttkbootstrap',
+    'darkdetect',
+    'docx2pdf',
 ]
 
 block_cipher = None
