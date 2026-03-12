@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Utility Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar for a polished look */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+
+<body
+    class="bg-slate-950 text-slate-200 h-screen p-8 flex items-center justify-center font-sans selection:bg-blue-500/30">
+
+    <div
+        class="w-full max-w-6xl h-[800px] bg-slate-900 rounded-xl shadow-2xl border border-slate-800 flex overflow-hidden">
+
+        <aside class="w-64 bg-slate-900 border-r border-slate-800 flex flex-col">
+            <div class="p-6">
+                <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                    <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    Media Suite
+                </h1>
+            </div>
+
+            <nav class="flex-1 px-4 space-y-2">
+                <a href="#"
+                    class="flex items-center gap-3 px-4 py-3 bg-blue-600/10 border-r-4 border-blue-500 text-blue-400 rounded-l-lg font-medium">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    Download Media
+                </a>
+                <a href="#"
+                    class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-lg transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                        </path>
+                    </svg>
+                    Convert Media
+                </a>
+                <a href="#"
+                    class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-lg transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+                        </path>
+                    </svg>
+                    Batch Convert
+                </a>
+                <a href="#"
+                    class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-lg transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                    </svg>
+                    Trim Media
+                </a>
+                <a href="#"
+                    class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-lg transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    History
+                </a>
+            </nav>
+
+            <div class="p-4 border-t border-slate-800">
+                <a href="#"
+                    class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-lg transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+                        </path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    Settings
+                </a>
+            </div>
+        </aside>
+
+        <main class="flex-1 bg-slate-950 p-8 overflow-y-auto">
+            <header class="mb-8">
+                <h2 class="text-3xl font-bold text-white tracking-tight">Download Media</h2>
+                <p class="text-slate-400 mt-1">Fetch high-quality video and audio from URLs.</p>
+            </header>
+
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-sm mb-6">
+                <label class="block text-sm font-medium text-slate-400 mb-2">Media URL</label>
+                <div class="flex gap-4">
+                    <input type="text" placeholder="Paste YouTube, Spotify, etc. link here..."
+                        class="flex-1 bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+                    <button
+                        class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">Check
+                        Formats</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-sm flex flex-col h-72">
+                    <h3 class="text-sm font-medium text-slate-400 mb-4">Video Quality</h3>
+                    <div class="flex-1 overflow-y-auto space-y-2 pr-2">
+                        <div
+                            class="p-3 bg-blue-600/10 border border-blue-500/50 rounded-lg cursor-pointer flex justify-between items-center group">
+                            <div>
+                                <span class="font-bold text-blue-400 block">1920x1080 60fps</span>
+                                <span class="text-xs text-blue-400/70 uppercase">MP4 Video</span>
+                            </div>
+                            <span class="text-sm text-blue-400 font-medium">~412MB</span>
+                        </div>
+                        <div
+                            class="p-3 bg-slate-950 border border-slate-800 hover:border-slate-600 rounded-lg cursor-pointer flex justify-between items-center transition-colors">
+                            <div>
+                                <span class="font-bold text-slate-200 block">1280x720 60fps</span>
+                                <span class="text-xs text-slate-500 uppercase">WEBM Video</span>
+                            </div>
+                            <span class="text-sm text-slate-400">~208MB</span>
+                        </div>
+                        <div
+                            class="p-3 bg-slate-950 border border-slate-800 hover:border-slate-600 rounded-lg cursor-pointer flex justify-between items-center transition-colors">
+                            <div>
+                                <span class="font-bold text-slate-200 block">1280x720 60fps</span>
+                                <span class="text-xs text-slate-500 uppercase">MP4 Video</span>
+                            </div>
+                            <span class="text-sm text-slate-400">~195MB</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-sm flex flex-col h-72 space-y-6">
+                    <div>
+                        <h3 class="text-sm font-medium text-slate-400 mb-3">Media Type</h3>
+                        <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
+                            <button
+                                class="flex-1 bg-blue-600 text-white py-2 rounded-md font-medium shadow-sm">Video</button>
+                            <button
+                                class="flex-1 text-slate-400 hover:text-white py-2 font-medium transition-colors">Audio
+                                Only</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-medium text-slate-400 mb-3">Audio Format</h3>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button
+                                class="bg-blue-600 text-white py-2 rounded-lg font-medium text-sm border border-blue-500">MP3</button>
+                            <button
+                                class="bg-slate-950 border border-slate-800 hover:border-slate-600 text-slate-300 py-2 rounded-lg font-medium text-sm transition-colors">AAC</button>
+                            <button
+                                class="bg-slate-950 border border-slate-800 hover:border-slate-600 text-slate-300 py-2 rounded-lg font-medium text-sm transition-colors">FLAC</button>
+                            <button
+                                class="bg-slate-950 border border-slate-800 hover:border-slate-600 text-slate-300 py-2 rounded-lg font-medium text-sm transition-colors">WAV</button>
+                            <button
+                                class="bg-slate-950 border border-slate-800 hover:border-slate-600 text-slate-300 py-2 rounded-lg font-medium text-sm transition-colors">OPUS</button>
+                            <button
+                                class="bg-slate-950 border border-slate-800 hover:border-slate-600 text-slate-300 py-2 rounded-lg font-medium text-sm transition-colors">M4A</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-sm">
+                <div class="mb-6 flex gap-4 items-end">
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Save Location</label>
+                        <input type="text" value="C:\Users\dark\Downloads"
+                            class="w-full bg-slate-950 border border-slate-700 text-slate-300 rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 transition-colors">
+                    </div>
+                    <button
+                        class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">Browse</button>
+                </div>
+
+                <button
+                    class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-lg text-lg flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20 transition-all hover:scale-[1.01] active:scale-[0.99]">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    Download Media
+                </button>
+            </div>
+        </main>
+    </div>
+
+</body>
+
+</html>

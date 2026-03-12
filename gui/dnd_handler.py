@@ -1,22 +1,33 @@
+"""Drag-and-drop file handler — PySide6 edition.
+
+Migration caveat M-3: replaces tkinterdnd2 string-based parse with
+QDropEvent.mimeData().urls() (list of QUrl objects).
+
+The DroppedFile dataclass and tab-routing logic are preserved from the
+legacy implementation; only process_drop() has been rewritten.
+"""
+from __future__ import annotations
+
 import os
-import sys
 from dataclasses import dataclass
-from typing import List, Tuple, Literal, Optional
+from typing import List, Literal, Optional, Tuple
 
-# Supported file type mapping according to data-model.md
-FILE_TYPE_MAP = {
-    "video": {".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv"},
-    "audio": {".mp3", ".wav", ".aac", ".flac", ".ogg", ".m4a"},
-    "image": {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".heic", ".heif"},
-    "document": {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt"}
+from PySide6.QtCore import QUrl
+
+FILE_TYPE_MAP: dict[str, set[str]] = {
+    "video":    {".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv"},
+    "audio":    {".mp3", ".wav", ".aac", ".flac", ".ogg", ".m4a"},
+    "image":    {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".heic", ".heif"},
+    "document": {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt"},
 }
 
-TAB_MAPPING = {
-    "video": "trim",
-    "audio": "trim",
-    "image": "convert",
-    "document": "document"
+TAB_MAPPING: dict[str, str] = {
+    "video":    "trim",
+    "audio":    "trim",
+    "image":    "convert",
+    "document": "document",
 }
+
 
 @dataclass
 class DroppedFile:
@@ -25,12 +36,13 @@ class DroppedFile:
     file_type: Literal["video", "audio", "image", "document", "unknown"]
     target_tab: Optional[Literal["trim", "convert", "batch", "document"]]
     size_bytes: int
-    is_large: bool
+    is_large: bool  # True when file exceeds 4 GB
+
 
 class DndHandler:
     @staticmethod
     def detect_file_type(extension: str) -> str:
-        """Detect file type category based on extension."""
+        """Return a broad category name for *extension* (with leading dot)."""
         ext = extension.lower()
         for type_name, exts in FILE_TYPE_MAP.items():
             if ext in exts:
@@ -39,55 +51,41 @@ class DndHandler:
 
     @staticmethod
     def map_to_tab(file_type: str, is_batch: bool = False) -> Optional[str]:
-        """Map a generic file type or batch operation to a specific tab name."""
+        """Map a file-type category to a section id."""
         if file_type == "unknown":
             return None
         if is_batch:
             return "batch"
         return TAB_MAPPING.get(file_type)
 
-    @staticmethod
-    def parse_dropped_paths(raw_data: str) -> List[str]:
-        """
-        Parse raw drop data from tkinterdnd2 which comes as a string.
-        Paths with spaces are wrapped in curly braces {like this}.
-        """
-        if not raw_data:
-            return []
-        
-        # tkinterdnd2 sends the file paths separated by space, but wraps paths with spaces in {}.
-        return [f for f in raw_data.strip('{}').split('} {')] if '}' in raw_data else raw_data.split()
-
     @classmethod
-    def process_drop(cls, raw_data: str) -> Tuple[List[DroppedFile], str]:
-        """
-        Process dropped files and return the dropped files and any error message.
-        Error message will indicate if the file type is mixed for multi-file drop, or unknown.
-        """
-        paths = cls.parse_dropped_paths(raw_data)
-        if not paths:
-            return [], "No valid files found in drop payload."
+    def process_drop(cls, urls: List[QUrl]) -> Tuple[List[DroppedFile], str]:
+        """Process a list of QUrl objects from QDropEvent.mimeData().urls().
 
-        dropped_files = []
-        file_types_found = set()
+        Returns (dropped_files, error_message).  error_message is empty on
+        full success; non-empty means at least a partial problem occurred.
+        """
+        paths = [url.toLocalFile() for url in urls if url.isLocalFile()]
+        if not paths:
+            return [], "No valid local files found in drop payload."
+
+        dropped_files: list[DroppedFile] = []
+        file_types_found: set[str] = set()
 
         for path in paths:
             if not os.path.exists(path):
                 continue
-            
             ext = os.path.splitext(path)[1].lower()
             file_type = cls.detect_file_type(ext)
             size = os.path.getsize(path)
-            is_large = size > (4 * 1024 * 1024 * 1024)  # 4GB
-
             dropped_files.append(
                 DroppedFile(
                     path=path,
                     extension=ext,
-                    file_type=file_type, # type: ignore
+                    file_type=file_type,  # type: ignore[arg-type]
                     target_tab=None,
                     size_bytes=size,
-                    is_large=is_large
+                    is_large=size > 4 * 1024 * 1024 * 1024,
                 )
             )
             file_types_found.add(file_type)
@@ -97,27 +95,31 @@ class DndHandler:
 
         if "unknown" in file_types_found and len(file_types_found) == 1:
             return dropped_files, "Unsupported file format."
-        elif "unknown" in file_types_found:
+        if "unknown" in file_types_found:
             return dropped_files, "Some files are of an unsupported format."
 
         is_batch = len(dropped_files) > 1
-
         if is_batch and len(file_types_found) > 1:
-            return dropped_files, "Mixed file types detected. Batch conversion requires files of the same type."
+            return dropped_files, (
+                "Mixed file types detected. "
+                "Batch conversion requires files of the same type."
+            )
 
-        # Compute and assign the target tab
         if file_types_found:
-            resolved_type = list(file_types_found)[0]
+            resolved_type = next(iter(file_types_found))
             if resolved_type != "unknown":
                 if is_batch:
                     if resolved_type == "image":
-                        target_tab = "batch"
+                        target_tab: Optional[str] = "batch"
                     else:
-                        return dropped_files, f"Batch operations are only supported for image conversion, not {resolved_type}."
+                        return dropped_files, (
+                            f"Batch operations are only supported for image "
+                            f"conversion, not {resolved_type}."
+                        )
                 else:
                     target_tab = cls.map_to_tab(resolved_type, False)
-                
+
                 for df in dropped_files:
-                    df.target_tab = target_tab # type: ignore
+                    df.target_tab = target_tab  # type: ignore[assignment]
 
         return dropped_files, ""

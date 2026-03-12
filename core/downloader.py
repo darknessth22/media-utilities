@@ -84,6 +84,7 @@ def download_media(
     output_dir: str | None = None,
     video_codec: str = "libx264",
     force_codec: bool = False,
+    cancel_check=None,
 ) -> dict:
     """Download media from a URL.
 
@@ -107,12 +108,16 @@ def download_media(
     output_template = (
         os.path.join(output_dir, "%(title)s.%(ext)s") if output_dir else "%(title)s.%(ext)s"
     )
+    def _progress_hook(_d):
+        if cancel_check and cancel_check():
+            raise Exception("Download cancelled by user")
+
     ydl_opts: dict = {
         "outtmpl": output_template,
         "cookiefile": "cookies.txt" if os.path.exists("cookies.txt") else None,
         "postprocessor_args": ["-loglevel", "error"],
         "force_keyframes_at_cuts": True,
-        "compat_opts": ["no-youtube-js"],
+        "progress_hooks": [_progress_hook],
     }
 
     if start_time and end_time:
@@ -129,7 +134,9 @@ def download_media(
             {"key": "FFmpegExtractAudio", "preferredcodec": audio_format, "preferredquality": "320"}
         ]
     else:
-        ydl_opts["format"] = quality or "bestvideo+bestaudio/best"
+        # When a specific format ID is selected it is usually video-only.
+        # Append +bestaudio so yt-dlp always merges in the best audio stream.
+        ydl_opts["format"] = f"{quality}+bestaudio/best" if quality else "bestvideo+bestaudio/best"
         ydl_opts["merge_output_format"] = "mp4"
 
     try:
@@ -212,7 +219,7 @@ def get_available_formats(url: str) -> list[dict]:
     best available audio stream, because yt-dlp always merges audio in when
     downloading a specific video format.
     """
-    with YoutubeDL({"quiet": True, "compat_opts": ["no-youtube-js"]}) as ydl:
+    with YoutubeDL({"quiet": True}) as ydl:
         try:
             info = ydl.extract_info(url, download=False)
             all_formats = info.get("formats", [])

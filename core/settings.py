@@ -11,7 +11,8 @@ class UserSettings:
     output_folder: str | None = None
     default_codec: str = "original"
     theme_mode: str = "auto"
-    version: int = 1
+    quit_on_close: bool = True
+    version: int = 2
 
 
 class SettingsManager:
@@ -70,6 +71,11 @@ class SettingsManager:
             for key, value in data.items():
                 if key in merged_data:
                     merged_data[key] = value
+            
+            # Migration support
+            if merged_data.get("version", 1) < 2:
+                merged_data["version"] = 2
+                # If we had loaded old data, quit_on_close defaults to True via asdict(default_settings) which is fine.
                     
             return UserSettings(**merged_data)
         except (json.JSONDecodeError, OSError, TypeError):

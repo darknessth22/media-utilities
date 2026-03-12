@@ -73,9 +73,9 @@ def install_dependencies():
         subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
         print("✅ Dependencies installed successfully!")
 
-        # Verify the new GUI/conversion deps are present (ttkbootstrap, darkdetect, docx2pdf)
+        # Verify the new GUI/conversion deps are present (PySide6, docx2pdf)
         missing = []
-        for pkg in ("ttkbootstrap", "darkdetect", "docx2pdf"):
+        for pkg in ("PySide6", "docx2pdf"):
             try:
                 __import__(pkg)
             except ImportError:
@@ -84,7 +84,7 @@ def install_dependencies():
             print(f"⚠️  Still missing after install: {', '.join(missing)}")
             print("    Run: pip install " + " ".join(missing))
         else:
-            print("✅ ttkbootstrap, darkdetect, docx2pdf confirmed available.")
+            print("✅ PySide6, docx2pdf confirmed available.")
 
         return True
     except subprocess.CalledProcessError as e:

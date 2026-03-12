@@ -98,12 +98,12 @@ pip install -r requirements.txt
 ```
 
 This installs:
+- `PySide6>=6.6.0` — Qt GUI framework (replaces tkinter/ttkbootstrap)
 - `yt-dlp` — video/audio downloads
 - `Pillow` + `pillow-heif` — image conversion (including HEIC)
 - `PyMuPDF` — PDF processing
 - `python-docx`, `openpyxl`, `python-pptx` — Office document conversion
 - `docx2pdf` — DOCX to PDF conversions
-- `ttkbootstrap`, `darkdetect` — Modern GUI theming and dark mode detection
 - `spotdl==4.2.0` — Spotify support
 - `pyinstaller` — building the `.exe` (optional, only needed for distribution)
 
@@ -116,8 +116,8 @@ python main.py
 ```
 
 The app will:
-1. Show a splash screen while checking/installing any missing dependencies.
-2. Open the main window with 5 tabs: Download, Convert, Batch Convert, Trim, Document Convert.
+1. Check/install any missing Python dependencies in the background.
+2. Open the main window with a sidebar providing 6 sections: Download, Convert, Trim, Document Convert, History, Settings.
 
 > **Legacy entry point:** `python media_util_gui.py` also works — it still contains the original single-file version and will remain available until the next major release.
 
@@ -163,24 +163,37 @@ To create a proper Windows installer:
 
 ---
 
-## Project structure (after module split)
+## Project structure
 
 ```
 media-utilities/
 ├── main.py                  # Entry point — run this
-├── media_util_gui.py        # Legacy single-file version (still works)
+├── media_util_gui.py        # Legacy entry point (delegates to main.py)
 ├── requirements.txt
 ├── build_executable.py      # Builds the .exe
-├── media_util_gui.spec      # PyInstaller config
+├── media_util_gui.spec      # PyInstaller config (PySide6)
 │
 ├── gui/
-│   └── app.py               # MediaUtilityGUI class (all 5 tabs)
+│   ├── app.py               # MainWindow — frameless sidebar UI
+│   ├── theme.py             # ThemeManager + dark/light QSS
+│   ├── worker.py            # Worker(QThread) for async operations
+│   ├── dnd_handler.py       # Drag-and-drop routing
+│   └── tabs/
+│       ├── download_section.py
+│       ├── convert_section.py
+│       ├── trim_section.py
+│       ├── document_section.py
+│       ├── history_section.py
+│       └── settings_section.py
 │
 ├── core/
-│   ├── downloader.py        # download_media, download_spotify, get_platform
+│   ├── downloader.py        # download_media, get_available_formats
 │   ├── converter.py         # convert_images, convert_media
 │   ├── trimmer.py           # trim_media
-│   └── document.py          # convert_document (PDF/DOCX/XLSX/PPTX)
+│   ├── document.py          # convert_document (PDF/DOCX/XLSX/PPTX)
+│   ├── tray.py              # SystemTrayIcon (QSystemTrayIcon wrapper)
+│   ├── settings.py          # UserSettings + SettingsManager
+│   └── history/             # HistoryManager + HistoryItem
 │
 └── utils/
     ├── ffmpeg.py            # FFmpeg/FFprobe path resolution

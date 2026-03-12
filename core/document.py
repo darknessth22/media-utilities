@@ -1,4 +1,4 @@
-"""Document conversion engine: PDF, DOCX, XLSX, PPTX, and image → PDF."""
+"""Document conversion engine: PDF, DOCX, and image → PDF."""
 import contextlib
 import io
 import os
@@ -9,12 +9,8 @@ from io import BytesIO
 
 import fitz  # PyMuPDF
 from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches, Pt
-from openpyxl import Workbook, load_workbook
 from PIL import Image
-from pptx import Presentation
-from pptx.util import Inches as PptxInches
 
 
 
@@ -59,8 +55,8 @@ class ConversionSummary:
 
 
 _IMAGE_EXTS = frozenset({".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp"})
-_VALID_DOCS  = frozenset({".pdf", ".docx", ".xlsx", ".pptx"})
-_VALID_OUTPUTS = frozenset({"pdf", "docx", "xlsx", "pptx"})
+_VALID_DOCS  = frozenset({".pdf", ".docx"})
+_VALID_OUTPUTS = frozenset({"pdf", "docx"})
 
 
 def _is_scanned_page(page) -> bool:
@@ -552,7 +548,7 @@ def convert_document(
 ) -> tuple[bool, str, ConversionSummary | None]:
     """Convert a document to output_format.
 
-    Supports PDF, DOCX, XLSX, PPTX as input, and the same set as output.
+    Supports PDF and DOCX as input, and the same set as output.
     Images (JPG/PNG/BMP/GIF/WEBP) can be converted to PDF.
 
     Returns: (success, output_path_or_error, summary)
@@ -574,67 +570,7 @@ def convert_document(
     if input_ext == ".pdf":
         if output_format == "docx":
             return _pdf_to_docx(input_path, output_path, progress_callback, cancel_event)
-            
-        # Fallback for other formats (pptx, xlsx) using legacy logic or keeping it simple
-        with fitz.open(input_path) as doc:
-            if doc.is_encrypted:
-                return False, "PDF is encrypted/password-protected", None
-
-            page_count = len(doc)
-            summary = ConversionSummary(total_pages=page_count)
-
-            if output_format == "pptx":
-                _log("Building PPTX…")
-                prs = Presentation()
-                for page_num, page in enumerate(doc):
-                    _log(f"  Processing page {page_num + 1}/{page_count}…")
-                    slide   = prs.slides.add_slide(prs.slide_layouts[6])
-                    text    = page.get_text()
-                    imgs    = page.get_images()
-                    _log(f"    Text length: {len(text.strip())} chars, {len(imgs)} image(s)")
-
-                    if text.strip():
-                        txBox = slide.shapes.add_textbox(
-                            PptxInches(0.5), PptxInches(0.5),
-                            prs.slide_width - PptxInches(1), PptxInches(2),
-                        )
-                        txBox.text_frame.text = text
-
-                    img_top = PptxInches(3)
-                    for img_index, img in enumerate(imgs):
-                        data = _safe_pixmap_png(doc, img[0])
-                        if data:
-                            try:
-                                with _temp_png(data) as tmp:
-                                    slide.shapes.add_picture(tmp, PptxInches(1), img_top, width=PptxInches(6))
-                                img_top += PptxInches(2)
-                            except Exception as e:
-                                _log(f"    Warning: Could not add image {img_index} to slide: {e}")
-
-                _log(f"Saving PPTX → {output_path}")
-                try:
-                    prs.save(output_path)
-                    return True, output_path, summary
-                except Exception as e:
-                    return False, f"ERROR saving PPTX: {e}", None
-
-            elif output_format == "xlsx":
-                _log("Building XLSX (text only)…")
-                wb = Workbook()
-                ws = wb.active
-                for i, page in enumerate(doc):
-                    text = page.get_text()
-                    _log(f"  Page {i + 1}/{page_count}: {len(text.strip())} chars")
-                    ws.cell(row=i + 1, column=1, value=text)
-                _log(f"Saving XLSX → {output_path}")
-                try:
-                    wb.save(output_path)
-                    return True, output_path, summary
-                except Exception as e:
-                    return False, f"ERROR saving XLSX: {e}", None
-
-            else:
-                return False, f"PDF → {output_format} is not supported", None
+        return False, f"PDF → {output_format} is not supported", None
 
     # ------------------------------------------------------------------
     # DOCX → other
@@ -642,226 +578,7 @@ def convert_document(
     elif input_ext == ".docx":
         if output_format == "pdf":
             return _docx_to_pdf(input_path, output_path, progress_callback, cancel_event)
-
-        _log("Reading DOCX…")
-        try:
-            doc = Document(input_path)
-        except Exception as e:
-            return False, f"Error reading DOCX: {e}", None
-            
-        para_count = len(doc.paragraphs)
-        summary = ConversionSummary(total_pages=1, text_blocks=para_count)
-        _log(f"Found {para_count} paragraph(s)")
-
-        if output_format == "xlsx":
-            _log("Building XLSX…")
-            wb = Workbook()
-            ws = wb.active
-            for i, paragraph in enumerate(doc.paragraphs):
-                ws.cell(row=i + 1, column=1, value=paragraph.text)
-            _log(f"Saving XLSX → {output_path}")
-            try:
-                wb.save(output_path)
-                return True, output_path, summary
-            except Exception as e:
-                return False, f"ERROR saving XLSX: {e}", None
-
-        elif output_format == "pptx":
-            _log("Building PPTX…")
-            prs = Presentation()
-            for paragraph in doc.paragraphs:
-                if paragraph.text.strip():
-                    slide = prs.slides.add_slide(prs.slide_layouts[5])
-                    txBox = slide.shapes.add_textbox(0, 0, prs.slide_width, prs.slide_height)
-                    txBox.text_frame.text = paragraph.text
-            _log(f"Saving PPTX → {output_path}")
-            try:
-                prs.save(output_path)
-                return True, output_path, summary
-            except Exception as e:
-                return False, f"ERROR saving PPTX: {e}", None
-
-        else:
-            return False, f"DOCX → {output_format} is not supported", None
-
-    # ------------------------------------------------------------------
-    # XLSX → other
-    # ------------------------------------------------------------------
-    elif input_ext == ".xlsx":
-        _log("Reading XLSX…")
-        try:
-            wb = load_workbook(input_path)
-            ws = wb.active
-            row_count = ws.max_row
-        except Exception as e:
-            return False, f"Error reading XLSX: {e}", None
-            
-        summary = ConversionSummary(total_pages=1, text_blocks=row_count)
-        _log(f"Found {row_count} row(s)")
-
-        if output_format == "pdf":
-            _log("Building PDF…")
-            pdf_doc = fitz.open()
-            try:
-                page = pdf_doc.new_page()
-                text = "\n".join(str(cell.value) for row in ws.rows for cell in row if cell.value)
-                _log(f"  Total text length: {len(text)} chars")
-                page.insert_text((50, 50), text)
-                _log(f"Saving PDF → {output_path}")
-                try:
-                    pdf_doc.save(output_path)
-                    return True, output_path, summary
-                except Exception as e:
-                    return False, f"ERROR saving PDF: {e}", None
-            finally:
-                pdf_doc.close()
-
-        elif output_format == "docx":
-            _log("Building DOCX…")
-            new_doc = Document()
-            for row in ws.rows:
-                text = " ".join(str(cell.value) for cell in row if cell.value)
-                if text.strip():
-                    new_doc.add_paragraph(text)
-            _log(f"Saving DOCX → {output_path}")
-            try:
-                new_doc.save(output_path)
-                return True, output_path, summary
-            except Exception as e:
-                return False, f"ERROR saving DOCX: {e}", None
-
-        elif output_format == "pptx":
-            _log("Building PPTX…")
-            prs   = Presentation()
-            slide = prs.slides.add_slide(prs.slide_layouts[5])
-            txBox = slide.shapes.add_textbox(0, 0, prs.slide_width, prs.slide_height)
-            txBox.text_frame.text = "\n".join(
-                str(cell.value) for row in ws.rows for cell in row if cell.value
-            )
-            _log(f"Saving PPTX → {output_path}")
-            try:
-                prs.save(output_path)
-                return True, output_path, summary
-            except Exception as e:
-                return False, f"ERROR saving PPTX: {e}", None
-
-        else:
-            return False, f"XLSX → {output_format} is not supported", None
-
-    # ------------------------------------------------------------------
-    # PPTX → other
-    # ------------------------------------------------------------------
-    elif input_ext == ".pptx":
-        _log("Reading PPTX…")
-        try:
-            prs         = Presentation(input_path)
-            slide_count = len(prs.slides)
-            slide_width = prs.slide_width
-        except Exception as e:
-            return False, f"Error reading PPTX: {e}", None
-            
-        summary = ConversionSummary(total_pages=slide_count)
-        _log(f"Found {slide_count} slide(s)")
-
-        if output_format == "pdf":
-            _log("Building PDF…")
-            pdf_doc = fitz.open()
-            try:
-                for slide_num, slide in enumerate(prs.slides):
-                    _log(f"  Processing slide {slide_num + 1}/{slide_count}…")
-                    page        = pdf_doc.new_page()
-                    page_width  = page.rect.width
-                    page_height = page.rect.height
-                    scale       = min(page_width / prs.slide_width, page_height / prs.slide_height)
-
-                    for shape in slide.shapes:
-                        sl = shape.left   * scale
-                        st = shape.top    * scale
-                        sw = shape.width  * scale
-                        sh = shape.height * scale
-
-                        if hasattr(shape, "text") and shape.text.strip():
-                            font_size = min(24, max(8, sh / 10))
-                            text_rect = fitz.Rect(sl, st, sl + sw, st + sh)
-                            page.insert_text(text_rect.tl, shape.text, fontsize=font_size)
-                        elif hasattr(shape, "image"):
-                            try:
-                                img_rect = fitz.Rect(sl, st, sl + sw, st + sh)
-                                page.insert_image(img_rect, stream=shape.image.blob)
-                            except Exception:
-                                pass
-
-                _log(f"Saving PDF → {output_path}")
-                try:
-                    pdf_doc.save(output_path)
-                    return True, output_path, summary
-                except Exception as e:
-                    return False, f"ERROR saving PDF: {e}", None
-            finally:
-                pdf_doc.close()
-
-        elif output_format == "docx":
-            _log("Building DOCX…")
-            new_doc = Document()
-            for slide_num, slide in enumerate(prs.slides):
-                _log(f"  Processing slide {slide_num + 1}/{slide_count}…")
-                if slide_num > 0:
-                    new_doc.add_page_break()
-                new_doc.add_heading(f"Slide {slide_num + 1}", level=2)
-                for shape in sorted(slide.shapes, key=lambda s: s.top):
-                    if hasattr(shape, "text") and shape.text.strip():
-                        paragraph    = new_doc.add_paragraph(shape.text)
-                        shape_center = shape.left + shape.width / 2
-                        if shape_center < slide_width * 0.3:
-                            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                        elif shape_center > slide_width * 0.7:
-                            paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-                        else:
-                            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    elif hasattr(shape, "image"):
-                        try:
-                            ow           = shape.width  / 914400
-                            oh           = shape.height / 914400
-                            max_w        = 6.5
-                            sf           = max_w / ow if ow > max_w else 1
-                            shape_center = shape.left + shape.width / 2
-                            with _temp_png(shape.image.blob) as tmp:
-                                p = new_doc.add_paragraph()
-                                p.add_run().add_picture(tmp, width=Inches(ow * sf), height=Inches(oh * sf))
-                                if shape_center < slide_width * 0.3:
-                                    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                                elif shape_center > slide_width * 0.7:
-                                    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-                                else:
-                                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                        except Exception:
-                            pass
-            _log(f"Saving DOCX → {output_path}")
-            try:
-                new_doc.save(output_path)
-                return True, output_path, summary
-            except Exception as e:
-                return False, f"ERROR saving DOCX: {e}", None
-
-        elif output_format == "xlsx":
-            _log("Building XLSX…")
-            wb      = Workbook()
-            ws      = wb.active
-            row_num = 1
-            for slide in prs.slides:
-                for shape in slide.shapes:
-                    if hasattr(shape, "text"):
-                        ws.cell(row=row_num, column=1, value=shape.text)
-                        row_num += 1
-            _log(f"Saving XLSX → {output_path}")
-            try:
-                wb.save(output_path)
-                return True, output_path, summary
-            except Exception as e:
-                return False, f"ERROR saving XLSX: {e}", None
-
-        else:
-            return False, f"PPTX → {output_format} is not supported", None
+        return False, f"DOCX → {output_format} is not supported", None
 
     # ------------------------------------------------------------------
     # Image → PDF

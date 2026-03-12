@@ -93,9 +93,9 @@ user benefit.
 
 ## Technology Stack & Dependencies
 
-- **Runtime**: Python 3.10+ (3.11+ recommended)
-- **GUI Framework**: tkinter (standard library — no additional
-  GUI framework dependencies)
+- **Runtime**: Python 3.10+ (3.12 recommended)
+- **GUI Framework**: PySide6 (official Qt for Python, LGPL licensed)
+  with PySide6.QtMultimedia for media playback
 - **Media Processing**: FFmpeg (external, MUST be on PATH or in
   project directory)
 - **Downloading**: yt-dlp for video/audio, spotdl 4.2.0 for

@@ -10,11 +10,22 @@ datas += collect_data_files('yt_dlp')
 datas += collect_data_files('pillow_heif')
 datas += collect_data_files('fitz')
 
+# Collect PySide6 assets (translations, plugins, etc.)
+try:
+    datas += collect_data_files('PySide6')
+except Exception:
+    pass
+
 # Try to collect spotdl data files for Spotify support
 try:
     datas += collect_data_files('spotdl')
-except:
+except Exception:
     print("Warning: spotdl data files not found - Spotify support may not work in executable")
+
+# Add application assets
+assets_dir = os.path.join(os.path.dirname(os.path.abspath('.')), 'assets')
+if os.path.isdir('assets'):
+    datas.append(('assets', 'assets'))
 
 # Add FFmpeg and FFprobe executables if they exist in the current directory
 if os.path.exists('ffmpeg.exe'):
@@ -33,19 +44,22 @@ hiddenimports = []
 hiddenimports += collect_submodules('yt_dlp')
 hiddenimports += collect_submodules('pillow_heif')
 
+# PySide6 multimedia modules for video trimmer
+hiddenimports += [
+    'PySide6.QtMultimedia',
+    'PySide6.QtMultimediaWidgets',
+    'PySide6.QtSvg',
+    'PySide6.QtSvgWidgets',
+]
+
 # Try to collect spotdl submodules for Spotify support
 try:
     hiddenimports += collect_submodules('spotdl')
-except:
+except Exception:
     print("Warning: spotdl submodules not found - adding basic spotdl imports")
     hiddenimports += ['spotdl', 'spotdl.download', 'spotdl.utils']
 
 hiddenimports += [
-    'PIL._tkinter_finder',
-    'tkinter',
-    'tkinter.ttk',
-    'tkinter.filedialog',
-    'tkinter.messagebox',
     'fitz',
     'docx',
     'docx.shared',
@@ -62,8 +76,6 @@ hiddenimports += [
     'tempfile',
     'contextlib',       # Used in document.py _temp_png context manager
     'urllib.request',   # May be needed for spotdl
-    'ttkbootstrap',
-    'darkdetect',
     'docx2pdf',
 ]
 
@@ -81,7 +93,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['tkinter', 'ttkbootstrap', 'darkdetect', '_tkinter'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

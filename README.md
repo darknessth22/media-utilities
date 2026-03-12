@@ -36,7 +36,7 @@ A comprehensive toolkit for media downloading, conversion, and manipulation with
 
 ### Python Dependencies
 ```bash
-pip install yt-dlp Pillow pillow-heif PyMuPDF python-docx openpyxl python-pptx spotdl ttkbootstrap darkdetect docx2pdf
+pip install PySide6>=6.6.0 yt-dlp Pillow pillow-heif PyMuPDF python-docx openpyxl python-pptx spotdl docx2pdf
 ```
 
 ## 🚀 Installation
@@ -300,12 +300,14 @@ Convert between various document formats with enhanced image support:
 - ✅ **Batch Processing**: Convert multiple documents at once
 
 ### GUI Interface
-- **Intuitive Tabbed Interface**: Five specialized tabs for different operations
-- **Dark/Light Mode**: Automatic OS theme detection with manual toggle support
+- **Modern Sidebar Navigation**: Six sections — Download, Convert, Trim, Document Convert, History, Settings
+- **PySide6-powered**: Native Qt widgets, no Tkinter dependency
+- **Dark/Light Mode**: Automatic OS theme detection via Qt with manual toggle
 - **Real-time Progress Tracking**: Progress bar and status messages for all operations
 - **File Browser Integration**: Easy file and folder selection with native dialogs
+- **Drag-and-Drop**: Drop files onto the window to auto-route to the correct section
+- **System Tray**: Minimize to tray with native balloon notifications on task completion
 - **Custom Download Location**: Choose where to save downloaded media
 - **Format Auto-detection**: Automatically detects media types and shows relevant options
-- **Error Handling**: User-friendly error messages and recovery options
 - **Cancellation Support**: Cancel long-running operations at any time
-- **H264 Codec Optimization**: Automatic video codec conversion for maximum compatibility
+- **Operation History**: Full history tab with play/open-folder actions

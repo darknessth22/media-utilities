@@ -17,6 +17,13 @@ def check_dependencies() -> str | None:
     -------
     'ffmpeg_missing'  if FFmpeg cannot be found, else None.
     """
+    # PySide6 (critical — without it the GUI cannot start)
+    try:
+        import PySide6  # noqa: F401
+    except ImportError:
+        print("Installing PySide6...")
+        install("PySide6>=6.6.0")
+
     # yt-dlp
     try:
         import yt_dlp  # noqa: F401
@@ -40,28 +47,22 @@ def check_dependencies() -> str | None:
         import pillow_heif
         pillow_heif.register_heif_opener()
 
-    # GUI and Document Conversion dependencies
-    for package in ["ttkbootstrap", "darkdetect", "docx2pdf"]:
-        try:
-            __import__(package)
-        except ImportError:
-            print(f"Installing {package}...")
-            install(package)
-
-    # LibreOffice (for DOCX to PDF fallback)
+    # docx2pdf (DOCX → PDF on Windows/macOS)
     try:
-        # On Windows, try soffice; on others, try libreoffice
+        import docx2pdf  # noqa: F401
+    except ImportError:
+        print("Installing docx2pdf...")
+        install("docx2pdf")
+
+    # LibreOffice (for DOCX to PDF fallback on Linux)
+    try:
         cmds = ["soffice", "libreoffice"] if sys.platform == "win32" else ["libreoffice", "soffice"]
-        found_lo = False
         for cmd in cmds:
             try:
                 subprocess.run([cmd, "--version"], capture_output=True, check=True)
-                found_lo = True
                 break
             except (subprocess.CalledProcessError, FileNotFoundError):
                 continue
-        if not found_lo:
-            pass
     except Exception:
         pass
 

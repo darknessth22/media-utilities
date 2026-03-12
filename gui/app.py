@@ -1,1047 +1,957 @@
-"""Main application window and all tab UI/logic."""
+"""Main application window (PySide6) — Phase 5: User Story 3.
+
+Implements T007–T020:
+  T007 – MainWindow skeleton + QStatusBar
+  T008 – Frameless title bar with drag and QSizeGrip
+  T009 – Fixed 180 px left sidebar with SVG nav items
+  T010 – Main content area with section tab strip + primary action button
+  T011 – Full Settings tab (quit_on_close, theme toggle, default paths)
+  T012 – Download tab wired to core downloader
+  T013 – Convert / Batch Convert tabs wired to core converter
+  T014 – Trim tab with QMediaPlayer + QVideoWidget
+  T015 – Document Convert tab wired to core document functions
+  T016 – History tab with QAbstractTableModel
+  T017 – Drag-and-drop via QDropEvent.mimeData().urls()
+  T018 – QSystemTrayIcon integration (SystemTrayIcon from core/tray.py)
+  T019 – Native notifications via tray.notify() on task completion
+  T020 – closeEvent respects quit_on_close; minimises to tray when OFF
+"""
+from __future__ import annotations
+
 import os
-import queue
-import subprocess
-import sys
-import threading
-import tkinter as tk
-from tkinter import filedialog, messagebox
-import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
+from typing import Optional
 
-from core.converter import convert_images
-from core.document import convert_document, detect_converter_backend
-from core.downloader import download_media, get_available_formats, get_platform
-from core.trimmer import trim_media
-from utils.ffmpeg import ffmpeg_path
+from PySide6.QtCore import Qt, QPoint, Signal
+from PySide6.QtGui import QPixmap, QPainter
+from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtWidgets import (
+    QMainWindow, QWidget, QFrame,
+    QHBoxLayout, QVBoxLayout,
+    QLabel, QPushButton, QCheckBox, QLineEdit,
+    QComboBox, QFileDialog, QSizeGrip, QMenu,
+    QTabBar, QStackedWidget, QScrollArea,
+    QSizePolicy, QStatusBar,
+)
+
+from core.settings import SettingsManager, UserSettings
+from core.tray import SystemTrayIcon
+from gui.dnd_handler import DndHandler
+from gui.tabs.download_section import DownloadSection
+from gui.tabs.convert_section import ConvertSection
+from gui.tabs.trim_section import TrimSection
+from gui.tabs.document_section import DocumentSection
+from gui.tabs.history_section import HistorySection
+
+# ── Asset path ────────────────────────────────────────────────────────────────
+_ICONS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "icons")
+
+# ── Section definitions ───────────────────────────────────────────────────────
+# Each entry maps a sidebar nav item to its content configuration.
+_SECTIONS = [
+    {
+        "id": "download",
+        "label": "Media Download",
+        "icon": "download.svg",
+        "tabs": ["MEDIA DOWNLOAD"],
+        "action_label": "Download",
+    },
+    {
+        "id": "convert",
+        "label": "Convert Media",
+        "icon": "convert.svg",
+        "tabs": ["CONVERT", "BATCH CONVERT"],
+        "action_label": "Convert",
+    },
+    {
+        "id": "trim",
+        "label": "Trim Media",
+        "icon": "trim.svg",
+        "tabs": ["TRIM MEDIA"],
+        "action_label": "Trim",
+    },
+    {
+        "id": "document",
+        "label": "Document Convert",
+        "icon": "document.svg",
+        "tabs": ["DOCUMENT CONVERT"],
+        "action_label": "Convert",
+    },
+    {
+        "id": "history",
+        "label": "History",
+        "icon": "history.svg",
+        "tabs": ["HISTORY"],
+        "action_label": None,
+    },
+    {
+        "id": "settings",
+        "label": "Settings",
+        "icon": "settings.svg",
+        "tabs": ["SETTINGS"],
+        "action_label": None,
+    },
+]
+
+# ── SVG icon helper ───────────────────────────────────────────────────────────
+
+def _load_svg_icon(filename: str, size: int = 24, color: str = "#8B949E") -> QPixmap:
+    """Render an SVG from the icons directory, tinted to *color*, as a QPixmap."""
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+
+    path = os.path.join(_ICONS_DIR, filename)
+    if not os.path.exists(path):
+        return pixmap
+
+    try:
+        with open(path, "rb") as fh:
+            svg_text = fh.read().decode("utf-8", errors="replace")
+
+        # Replace currentColor with the target color so SVGs render correctly.
+        svg_text = svg_text.replace("currentColor", color)
+        # If the SVG has no explicit color attributes at all, inject a fill.
+        if "fill=" not in svg_text and "stroke=" not in svg_text:
+            svg_text = svg_text.replace("<svg", f'<svg fill="{color}"', 1)
+
+        renderer = QSvgRenderer(svg_text.encode("utf-8"))
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        renderer.render(painter)
+        painter.end()
+    except Exception:
+        pass
+
+    return pixmap
 
 
-# Suppress the black console window that flashes on every subprocess call on Windows
-_WIN_FLAGS = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
+# ── T008: Custom title bar ────────────────────────────────────────────────────
 
-# Codec map for video→audio extraction (fixes silent wrong-codec output)
-_AUDIO_CODECS = {
-    "mp3": "libmp3lame", "aac": "aac", "flac": "flac",
-    "wav": "pcm_s16le", "opus": "libopus", "m4a": "aac", "ogg": "libvorbis",
-}
+class TitleBar(QWidget):
+    """Frameless window title bar — app logo, name, window controls, drag-to-move."""
 
-class MediaUtilityGUI:
-    def __init__(self, root: ttk.Window) -> None:
-        from core.settings import SettingsManager
-        
-        self.root = root
-        self.root.title("Media Utility")
-        self.root.geometry("900x650")
-        self.root.minsize(900, 650)
-        self.theme_manager = getattr(root, "theme_manager", None)
-        
-        self.settings = SettingsManager.load()
-        if self.theme_manager:
-            self.theme_manager.set_mode(self.settings.theme_mode)
-            
-        self.video_quality = None
-        self.current_thread: threading.Thread | None = None
-        self.cancel_requested = False
-        self._result_queue: queue.Queue = queue.Queue()
-        self._status_is_error = False
+    def __init__(self, parent: QMainWindow) -> None:
+        super().__init__(parent)
+        self.setObjectName("TitleBar")
+        self.setFixedHeight(42)
+        self._drag_start: Optional[QPoint] = None
 
-        # Notebook
-        self.notebook = ttk.Notebook(root, bootstyle="primary")
-        self.notebook.pack(fill="both", expand=True, padx=10, pady=5)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 0, 8, 0)
+        layout.setSpacing(8)
 
-        # Tab frames
-        self.download_tab = ttk.Frame(self.notebook, padding=10)
-        self.convert_tab = ttk.Frame(self.notebook, padding=10)
-        self.batch_convert_tab = ttk.Frame(self.notebook, padding=10)
-        self.trim_tab = ttk.Frame(self.notebook, padding=10)
-        self.document_tab = ttk.Frame(self.notebook, padding=10)
+        # Logo (uses settings icon as placeholder; swap for real logo in polish phase)
+        self._logo = QLabel()
+        self._logo.setFixedSize(24, 24)
+        self._logo.setObjectName("TitleLogo")
+        logo_px = _load_svg_icon("dashboard.svg", 24, "#3B82F6")
+        if not logo_px.isNull():
+            self._logo.setPixmap(logo_px)
+        layout.addWidget(self._logo)
 
-        self.notebook.add(self.download_tab, text="Download Media")
-        self.notebook.add(self.convert_tab, text="Convert Media")
-        self.notebook.add(self.batch_convert_tab, text="Batch Convert")
-        self.notebook.add(self.trim_tab, text="Trim Media")
-        self.notebook.add(self.document_tab, text="Document Convert")
+        self._title = QLabel("Media Utility")
+        self._title.setObjectName("TitleLabel")
+        layout.addWidget(self._title)
+        layout.addStretch()
 
-        self.setup_download_tab()
-        self.setup_convert_tab()
-        self.setup_batch_convert_tab()
-        self.setup_trim_tab()
-        self.setup_document_tab()
+        # Notification bell with badge overlay
+        self._btn_bell = self._ctrl_btn("🔔", "Notifications")
+        self._bell_badge = QLabel("", self._btn_bell)
+        self._bell_badge.setObjectName("BellBadge")
+        self._bell_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._bell_badge.setFixedSize(16, 16)
+        self._bell_badge.move(20, 4)
+        self._bell_badge.setVisible(False)
+        self._btn_bell.clicked.connect(self._on_bell)
+        layout.addWidget(self._btn_bell)
 
-        # Status bar
-        status_frame = ttk.Frame(root, padding=(10, 5))
-        status_frame.pack(fill="x", side="bottom")
-        
-        progress_frame = ttk.Frame(status_frame)
-        progress_frame.pack(fill="x", pady=5)
-        
-        self.progress = ttk.Progressbar(progress_frame, mode="indeterminate", bootstyle="info-striped")
-        self.progress.pack(side="left", fill="x", expand=True, padx=(0, 10))
-        
-        self.cancel_button = ttk.Button(
-            progress_frame, text="Cancel", command=self.cancel_operation, 
-            state="disabled", bootstyle="danger-outline"
+        # Window control buttons (⋯  —  □  ✕)
+        self._btn_menu = self._ctrl_btn("⋯", "More options")
+        self._btn_min = self._ctrl_btn("—", "Minimize")
+        self._btn_max = self._ctrl_btn("□", "Maximize / Restore")
+        self._btn_close = self._ctrl_btn("✕", "Close")
+        self._btn_close.setObjectName("CloseBtn")
+
+        self._btn_menu.clicked.connect(self._on_menu)
+        self._btn_min.clicked.connect(lambda: self.window().showMinimized())
+        self._btn_max.clicked.connect(self._toggle_maximize)
+        self._btn_close.clicked.connect(self.window().close)
+
+        for btn in (self._btn_menu, self._btn_min, self._btn_max, self._btn_close):
+            layout.addWidget(btn)
+
+    def _ctrl_btn(self, text: str, tooltip: str) -> QPushButton:
+        btn = QPushButton(text)
+        btn.setObjectName("TitleBarBtn")
+        btn.setToolTip(tooltip)
+        btn.setFixedSize(38, 38)
+        btn.setCursor(Qt.CursorShape.ArrowCursor)
+        return btn
+
+    def _toggle_maximize(self) -> None:
+        w = self.window()
+        if w.isMaximized():
+            w.showNormal()
+        else:
+            w.showMaximized()
+
+    def _on_menu(self) -> None:
+        win = self.window()
+        menu = QMenu(self)
+
+        current_mode = win.theme_manager.get_current_mode()
+        for mode, label in [("auto", "Auto (System)"), ("dark", "Dark"), ("light", "Light")]:
+            act = menu.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(current_mode == mode)
+            act.triggered.connect(lambda _, m=mode: win.theme_manager.set_mode(m))
+
+        menu.addSeparator()
+        settings_act = menu.addAction("Settings")
+        settings_act.triggered.connect(lambda: win._navigate_to(5))
+
+        menu.addSeparator()
+        from PySide6.QtWidgets import QApplication
+        quit_act = menu.addAction("Quit")
+        quit_act.triggered.connect(QApplication.quit)
+
+        pos = self._btn_menu.mapToGlobal(self._btn_menu.rect().bottomLeft())
+        menu.exec(pos)
+
+    def _on_bell(self) -> None:
+        self.window()._show_notifications(self._btn_bell)
+
+    def update_bell_badge(self, count: int) -> None:
+        if count > 0:
+            self._bell_badge.setText(str(min(count, 99)))
+            self._bell_badge.setVisible(True)
+        else:
+            self._bell_badge.setVisible(False)
+
+    # ── Drag to move ──────────────────────────────────────────────────────────
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start = event.globalPosition().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if self._drag_start and (event.buttons() & Qt.MouseButton.LeftButton):
+            w = self.window()
+            if not w.isMaximized():
+                delta = event.globalPosition().toPoint() - self._drag_start
+                w.move(w.pos() + delta)
+                self._drag_start = event.globalPosition().toPoint()
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._drag_start = None
+        super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._toggle_maximize()
+
+
+# ── T009: Sidebar nav button ──────────────────────────────────────────────────
+
+class NavButton(QPushButton):
+    """Sidebar nav item: 24×24 SVG icon + text label, with active/inactive states."""
+
+    def __init__(self, label: str, icon_filename: str, parent=None) -> None:
+        super().__init__(parent)
+        self.setObjectName("NavButton")
+        self.setFixedHeight(44)
+        self.setCheckable(True)
+        self.setFlat(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        # Default property value so QSS selector resolves on first paint.
+        self.setProperty("active", "false")
+
+        inner = QHBoxLayout(self)
+        inner.setContentsMargins(14, 0, 14, 0)
+        inner.setSpacing(10)
+
+        self._icon_label = QLabel()
+        self._icon_label.setFixedSize(24, 24)
+        self._icon_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        inner.addWidget(self._icon_label)
+
+        self._text_label = QLabel(label)
+        self._text_label.setObjectName("NavButtonLabel")
+        self._text_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        inner.addWidget(self._text_label)
+        inner.addStretch()
+
+        self._icon_filename = icon_filename
+        self._update_icon(active=False)
+
+    def _update_icon(self, active: bool) -> None:
+        color = "#3B82F6" if active else "#8B949E"
+        px = _load_svg_icon(self._icon_filename, 24, color)
+        self._icon_label.setPixmap(px)
+
+    def set_active(self, active: bool) -> None:
+        self.setChecked(active)
+        self.setProperty("active", "true" if active else "false")
+        self._update_icon(active)
+        # Force QSS re-evaluation for property-based selectors.
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+
+# ── T011: Settings section ────────────────────────────────────────────────────
+
+class SettingsSection(QScrollArea):
+    """FR-009: quit_on_close toggle, theme toggle, default file paths.
+
+    All controls auto-save to disk on change and emit *settings_changed*.
+    """
+
+    settings_changed = Signal(UserSettings)
+
+    def __init__(self, settings: UserSettings, theme_manager, parent=None) -> None:
+        super().__init__(parent)
+        self.setWidgetResizable(True)
+        self.setFrameShape(QFrame.Shape.NoFrame)
+
+        self._settings = settings
+        self._theme_manager = theme_manager
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        layout.addWidget(self._build_appearance_card())
+        layout.addWidget(self._build_behavior_card())
+        layout.addWidget(self._build_paths_card())
+
+        self.setWidget(content)
+
+    # ── Card builders ─────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _section_header(text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setObjectName("TextSecondary")
+        lbl.setStyleSheet(
+            "font-size: 11px; font-weight: bold; letter-spacing: 1px; margin-bottom: 4px;"
         )
-        self.cancel_button.pack(side="right")
-        
-        # Tool bar for theme toggle
-        self.status_label = ttk.Label(status_frame, text="Ready", font=("Helvetica", 10))
-        self.status_label.pack(side="left", pady=5)
-        
-        if self.theme_manager:
-            self.theme_btn = ttk.Button(
-                status_frame, 
-                text=f"Theme: {self.theme_manager.get_current_mode().capitalize()}",
-                command=self._toggle_theme,
-                bootstyle="secondary-outline",
-                padding=(10, 2)
-            )
-            self.theme_btn.pack(side="right", pady=5)
-            
-        self.settings_btn = ttk.Button(
-            status_frame,
-            text="⚙ Settings",
-            command=self._open_settings,
-            bootstyle="secondary-outline",
-            padding=(10, 2)
+        return lbl
+
+    @staticmethod
+    def _card() -> QFrame:
+        frame = QFrame()
+        frame.setObjectName("Card")
+        return frame
+
+    def _build_appearance_card(self) -> QFrame:
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(14)
+
+        layout.addWidget(self._section_header("APPEARANCE"))
+
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Theme"))
+        row.addStretch()
+        self._theme_combo = QComboBox()
+        self._theme_combo.addItems(["Auto (System)", "Light", "Dark"])
+        self._theme_combo.setCurrentIndex(
+            {"auto": 0, "light": 1, "dark": 2}.get(self._settings.theme_mode, 0)
         )
-        self.settings_btn.pack(side="right", padx=5, pady=5)
-            
-        self.root.after(500, self._check_converter_backend)
+        self._theme_combo.setFixedWidth(160)
+        self._theme_combo.currentIndexChanged.connect(self._on_theme_changed)
+        row.addWidget(self._theme_combo)
+        layout.addLayout(row)
 
-        # Register Drop Target
-        from tkinterdnd2 import DND_FILES
-        self.root.drop_target_register(DND_FILES)
-        self.root.dnd_bind('<<Drop>>', self.on_drop)
-        
-        # Check VLC availability
-        from utils.vlc_check import is_vlc_available
-        if not is_vlc_available():
-            self.root.after(1000, lambda: messagebox.showwarning(
-                "VLC Not Found",
-                "VLC Media Player is not installed or cannot be found.\n\n"
-                "The Visual Trimmer will fall back to manual text-input mode.\n\n"
-                "To enable the full visual trimmer with playback, please install VLC from:\n"
-                "https://www.videolan.org/"
-            ))
+        return card
 
-    def on_drop(self, event) -> None:
-        """Handle drag-and-drop events."""
-        if self.current_thread and self.current_thread.is_alive():
-            messagebox.showinfo(
-                "Operation in Progress", 
-                "An operation is currently running. Please wait for it to finish before dropping files."
+    def _build_behavior_card(self) -> QFrame:
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(14)
+
+        layout.addWidget(self._section_header("BEHAVIOR"))
+
+        row = QHBoxLayout()
+        lbl = QLabel("Quit on close")
+        row.addWidget(lbl)
+        hint = QLabel("When enabled, × closes the app instead of minimizing to tray.")
+        hint.setObjectName("TextMuted")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("font-size: 12px;")
+
+        self._quit_check = QCheckBox()
+        self._quit_check.setChecked(self._settings.quit_on_close)
+        self._quit_check.setToolTip(
+            "Checked → × closes the application.\n"
+            "Unchecked → × minimizes to system tray (Phase 5)."
+        )
+        self._quit_check.stateChanged.connect(self._on_quit_changed)
+        row.addStretch()
+        row.addWidget(self._quit_check)
+        layout.addLayout(row)
+        layout.addWidget(hint)
+
+        return card
+
+    def _build_paths_card(self) -> QFrame:
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(14)
+
+        layout.addWidget(self._section_header("FILE PATHS & ENCODING"))
+
+        # Output folder
+        layout.addWidget(QLabel("Default output folder"))
+        folder_row = QHBoxLayout()
+        self._folder_input = QLineEdit()
+        self._folder_input.setPlaceholderText("Default — same directory as source file")
+        if self._settings.output_folder:
+            self._folder_input.setText(self._settings.output_folder)
+        self._folder_input.textChanged.connect(self._on_folder_changed)
+        browse_btn = QPushButton("Browse…")
+        browse_btn.setObjectName("BrowseBtn")
+        browse_btn.setFixedWidth(90)
+        browse_btn.clicked.connect(self._browse_folder)
+        folder_row.addWidget(self._folder_input)
+        folder_row.addWidget(browse_btn)
+        layout.addLayout(folder_row)
+
+        # Default video codec
+        codec_row = QHBoxLayout()
+        codec_row.addWidget(QLabel("Default video codec"))
+        codec_row.addStretch()
+        self._codec_combo = QComboBox()
+        self._codec_combo.addItems([
+            "Original (keep source)",
+            "H.264 (libx264)",
+            "H.265 / HEVC (libx265)",
+            "VP9 (libvpx-vp9)",
+        ])
+        self._codec_combo.setCurrentIndex(
+            {"original": 0, "h264": 1, "hevc": 2, "vp9": 3}.get(
+                self._settings.default_codec, 0
             )
-            return
+        )
+        self._codec_combo.setFixedWidth(220)
+        self._codec_combo.currentIndexChanged.connect(self._on_codec_changed)
+        codec_row.addWidget(self._codec_combo)
+        layout.addLayout(codec_row)
 
-        from gui.dnd_handler import DndHandler
-        dropped_files, error = DndHandler.process_drop(event.data)
-        
-        if error:
-            messagebox.showwarning("Drop Error", error)
-            return
-            
-        if not dropped_files:
-            return
-            
-        file_to_load = dropped_files[0]
-        
-        if file_to_load.target_tab == "convert":
-            self.notebook.select(self.convert_tab)
-            self.convert_path.delete(0, tk.END)
-            self.convert_path.insert(0, file_to_load.path)
-            self.convert_path.config(foreground="")
-            self.update_media_type()
-        elif file_to_load.target_tab == "trim":
-            self.notebook.select(self.trim_tab)
-            self.trim_path.delete(0, tk.END)
-            self.trim_path.insert(0, file_to_load.path)
-            self.trim_path.config(foreground="")
-            if file_to_load.file_type == "video" and hasattr(self, "visual_trimmer"):
-                self.visual_trimmer.load_video(file_to_load.path)
-        elif file_to_load.target_tab == "document":
-            self.notebook.select(self.document_tab)
-            self.doc_path.delete(0, tk.END)
-            self.doc_path.insert(0, file_to_load.path)
-            self.doc_path.config(foreground="")
-        elif file_to_load.target_tab == "batch":
-            self.notebook.select(self.batch_convert_tab)
-            paths = [df.path for df in dropped_files]
-            
-            self.batch_files.delete(0, tk.END)
-            self.batch_files.insert(0, ";".join(paths))
-            self.batch_files.config(foreground="")
-            self.files_text.config(state="normal")
-            self.files_text.delete(1.0, tk.END)
-            for path in paths:
-                self.files_text.insert(tk.END, f"{os.path.basename(path)}\n")
-            self.files_text.config(state="disabled")
-            self.update_batch_media_type(tuple(paths))
+        return card
 
-    def _toggle_theme(self):
-        if self.theme_manager:
-            mode = self.theme_manager.toggle()
-            self.theme_btn.config(text=f"Theme: {mode.capitalize()}")
-            # Save setting
-            self.settings.theme_mode = mode
-            from core.settings import SettingsManager
-            SettingsManager.save(self.settings)
+    # ── Control handlers (all auto-save) ──────────────────────────────────────
 
-    def _open_settings(self):
-        from gui.settings_panel import create_settings_panel
-        from core.settings import SettingsManager
-        
-        # Determine if we have a missing/deleted default folder issue
-        if self.settings.output_folder and not os.path.exists(self.settings.output_folder):
-            messagebox.showwarning(
-                "Deleted Folder",
-                f"Your configured output folder was not found:\n{self.settings.output_folder}\n\nPlease select a new one."
+    def _on_theme_changed(self, index: int) -> None:
+        mode = ("auto", "light", "dark")[index]
+        self._settings.theme_mode = mode
+        if self._theme_manager:
+            self._theme_manager.set_mode(mode)
+        self._save()
+
+    def _on_quit_changed(self, _state: int) -> None:
+        self._settings.quit_on_close = self._quit_check.isChecked()
+        self._save()
+
+    def _on_folder_changed(self, text: str) -> None:
+        self._settings.output_folder = text.strip() or None
+        self._save()
+
+    def _browse_folder(self) -> None:
+        start = self._folder_input.text() or os.path.expanduser("~")
+        directory = QFileDialog.getExistingDirectory(self, "Select Output Folder", start)
+        if directory:
+            self._folder_input.setText(directory)
+
+    def _on_codec_changed(self, index: int) -> None:
+        self._settings.default_codec = ("original", "h264", "hevc", "vp9")[index]
+        self._save()
+
+    def _save(self) -> None:
+        SettingsManager.save(self._settings)
+        self.settings_changed.emit(self._settings)
+
+    # ── External API ──────────────────────────────────────────────────────────
+
+    def reload_settings(self, settings: UserSettings) -> None:
+        """Refresh controls from *settings* without triggering saves."""
+        self._settings = settings
+        for widget in (self._theme_combo, self._quit_check,
+                       self._folder_input, self._codec_combo):
+            widget.blockSignals(True)
+
+        self._theme_combo.setCurrentIndex(
+            {"auto": 0, "light": 1, "dark": 2}.get(settings.theme_mode, 0)
+        )
+        self._quit_check.setChecked(settings.quit_on_close)
+        self._folder_input.setText(settings.output_folder or "")
+        self._codec_combo.setCurrentIndex(
+            {"original": 0, "h264": 1, "hevc": 2, "vp9": 3}.get(settings.default_codec, 0)
+        )
+
+        for widget in (self._theme_combo, self._quit_check,
+                       self._folder_input, self._codec_combo):
+            widget.blockSignals(False)
+
+
+# ── T007 / T008 / T009 / T010: Main Window ───────────────────────────────────
+
+class MainWindow(QMainWindow):
+    """PySide6 main application window (frameless, slate-blue design system).
+
+    Layout::
+
+        ┌─────────────────────────────────────────────────────────┐
+        │  TitleBar (drag region + window controls)               │
+        ├───────────────┬─────────────────────────────────────────┤
+        │               │  [Section Tab Strip]                    │
+        │  Sidebar      ├─────────────────────────────────────────┤
+        │  (180 px)     │  Scrollable section content             │
+        │               ├─────────────────────────────────────────┤
+        │  [Logo + name]│  [ Primary Action Button — full width ] │
+        │  Nav items    ├─────────────────────────────────────────┤
+        │               │  Status Bar                             │
+        └───────────────┴─────────────────────────────────────────┘
+    """
+
+    def __init__(self, settings: UserSettings, theme_manager) -> None:
+        super().__init__()
+        self.settings = settings
+        self.theme_manager = theme_manager
+        self._current_section: int = 0
+        self._notifications: list[dict] = []
+
+        # ── Window flags (frameless) ──────────────────────────────────────────
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setMinimumSize(960, 680)
+        self.resize(1120, 740)
+
+        # ── Drag-and-drop (T017) ──────────────────────────────────────────────
+        self.setAcceptDrops(True)
+
+        # ── System tray (T018 / T020) ─────────────────────────────────────────
+        self._tray = SystemTrayIcon(self)
+        self._tray.restore_requested.connect(self._restore_from_tray)
+        self._tray.settings_requested.connect(lambda: self._navigate_to(5))
+        self._tray.quit_requested.connect(self._quit_from_tray)
+
+        # ── Central widget ────────────────────────────────────────────────────
+        central = QWidget()
+        central.setObjectName("CentralWidget")
+        self.setCentralWidget(central)
+
+        root = QVBoxLayout(central)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # T008: title bar
+        self.title_bar = TitleBar(self)
+        root.addWidget(self.title_bar)
+
+        # Thin separator below title bar
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setObjectName("Separator")
+        sep.setFixedHeight(1)
+        root.addWidget(sep)
+
+        # Body row: sidebar + right panel
+        body = QWidget()
+        body.setObjectName("Body")
+        body_row = QHBoxLayout(body)
+        body_row.setContentsMargins(0, 0, 0, 0)
+        body_row.setSpacing(0)
+        root.addWidget(body, 1)
+
+        # T009: sidebar
+        self._sidebar = self._build_sidebar()
+        body_row.addWidget(self._sidebar)
+
+        # T010: right panel (tab strip + content + action button)
+        self._right_panel = self._build_right_panel()
+        body_row.addWidget(self._right_panel, 1)
+
+        # T007: status bar with QSizeGrip for frameless resize
+        status_bar = QStatusBar()
+        status_bar.setObjectName("StatusBar")
+        self.setStatusBar(status_bar)
+        status_bar.showMessage("Ready")
+        # QSizeGrip added to corner for window resizing (M-6)
+        grip = QSizeGrip(self)
+        status_bar.addPermanentWidget(grip)
+        self._status_bar = status_bar
+
+        # Navigate to the first section on startup
+        self._navigate_to(0)
+
+    # ── T009: Sidebar ─────────────────────────────────────────────────────────
+
+    def _build_sidebar(self) -> QWidget:
+        sidebar = QWidget()
+        sidebar.setObjectName("Sidebar")
+        sidebar.setFixedWidth(180)
+
+        layout = QVBoxLayout(sidebar)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Header: app logo (40×40) + app name
+        header = QWidget()
+        header.setObjectName("SidebarHeader")
+        header.setFixedHeight(60)
+        h_row = QHBoxLayout(header)
+        h_row.setContentsMargins(14, 0, 14, 0)
+        h_row.setSpacing(10)
+
+        logo = QLabel()
+        logo.setFixedSize(40, 40)
+        logo_px = _load_svg_icon("dashboard.svg", 40, "#3B82F6")
+        if not logo_px.isNull():
+            logo.setPixmap(logo_px)
+        h_row.addWidget(logo)
+
+        app_name = QLabel("Media Utility")
+        app_name.setObjectName("SidebarTitle")
+        h_row.addWidget(app_name)
+        h_row.addStretch()
+        layout.addWidget(header)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setObjectName("Separator")
+        sep.setFixedHeight(1)
+        layout.addWidget(sep)
+
+        # Nav items — one per section
+        self._nav_buttons: list[NavButton] = []
+        for i, section in enumerate(_SECTIONS):
+            btn = NavButton(section["label"], section["icon"])
+            btn.clicked.connect(lambda _checked, idx=i: self._navigate_to(idx))
+            layout.addWidget(btn)
+            self._nav_buttons.append(btn)
+
+        layout.addStretch()
+        return sidebar
+
+    # ── T010: Right panel ─────────────────────────────────────────────────────
+
+    def _build_right_panel(self) -> QWidget:
+        panel = QWidget()
+        panel.setObjectName("RightPanel")
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Section tab strip (flat, underline-style)
+        self._section_tab_bar = QTabBar()
+        self._section_tab_bar.setObjectName("SectionTabBar")
+        self._section_tab_bar.setExpanding(False)
+        self._section_tab_bar.setDrawBase(False)
+        self._section_tab_bar.currentChanged.connect(self._on_section_tab_changed)
+        layout.addWidget(self._section_tab_bar)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setObjectName("Separator")
+        sep.setFixedHeight(1)
+        layout.addWidget(sep)
+
+        # Stacked widget — one widget per section
+        self._content_stack = QStackedWidget()
+        self._content_stack.setObjectName("ContentStack")
+        layout.addWidget(self._content_stack, 1)
+
+        # ── Instantiate section widgets (Phase 4) ─────────────────────────────
+        self._download_section = DownloadSection(self.settings)
+        self._convert_section = ConvertSection(self.settings)
+        self._trim_section = TrimSection(self.settings)
+        self._document_section = DocumentSection(self.settings)
+        self._history_section = HistorySection()
+        self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
+        self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
+
+        self._section_widgets: list[QWidget] = [
+            self._download_section,   # index 0 — download
+            self._convert_section,    # index 1 — convert / batch convert
+            self._trim_section,       # index 2 — trim
+            self._document_section,   # index 3 — document convert
+            self._history_section,    # index 4 — history
+            self._settings_section_widget,  # index 5 — settings
+        ]
+
+        # Connect status signals from all operation sections.
+        # Route through _on_status_message so tray notifications fire too (T019).
+        _op_sections = (
+            self._download_section,   # index 0
+            self._convert_section,    # index 1
+            self._trim_section,       # index 2
+            self._document_section,   # index 3
+        )
+        for section in _op_sections:
+            section.status_message.connect(self._on_status_message)
+
+        # busy_changed → toggle primary button text between label and "Cancel"
+        for idx, section in enumerate(_op_sections):
+            section.busy_changed.connect(
+                lambda busy, i=idx: self._on_section_busy_changed(i, busy)
             )
-            self.settings.output_folder = None
-            SettingsManager.save(self.settings)
-            
-        def on_settings_changed(new_settings):
-            self.settings = new_settings
-            SettingsManager.save(self.settings)
-            
-            # Apply Theme immediately
-            if self.theme_manager:
-                self.theme_manager.set_mode(self.settings.theme_mode)
-                self.theme_btn.config(text=f"Theme: {self.settings.theme_mode.capitalize()}")
-                
-        create_settings_panel(self.root, self.settings, on_settings_changed).show()
 
-    def _check_converter_backend(self) -> None:
-        backend = detect_converter_backend()
-        if backend == "none":
-            messagebox.showwarning(
-                "Missing Dependencies",
-                "No DOCX-to-PDF converter found on this system.\n\n"
-                "Please install Microsoft Word or LibreOffice to use the DOCX-to-PDF feature."
-            )
+        for widget in self._section_widgets:
+            self._content_stack.addWidget(widget)
 
-    # ------------------------------------------------------------------
-    # Progress / status helpers (all called from main thread)
-    # ------------------------------------------------------------------
+        # Separator above primary action button
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.Shape.HLine)
+        sep2.setObjectName("Separator")
+        sep2.setFixedHeight(1)
+        layout.addWidget(sep2)
 
-    def cancel_operation(self) -> None:
-        if self.current_thread and self.current_thread.is_alive():
-            self.cancel_requested = True
-            if getattr(self, "cancel_event", None):
-                self.cancel_event.set()
-            self.update_status("Cancelling operation...")
-            self.cancel_button.config(state="disabled")
+        # Primary action button (full-width pill, hidden for sections with action_label=None)
+        self._action_btn_container = QWidget()
+        self._action_btn_container.setObjectName("ActionBtnContainer")
+        btn_row = QHBoxLayout(self._action_btn_container)
+        btn_row.setContentsMargins(20, 12, 20, 12)
 
-    def start_progress(self) -> None:
-        self.progress.start(10)
-        self.cancel_button.config(state="normal")
-        self.cancel_requested = False
-        self._set_action_buttons("disabled")
+        self._primary_btn = QPushButton("Download")
+        self._primary_btn.setObjectName("PrimaryActionBtn")
+        self._primary_btn.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        self._primary_btn.setFixedHeight(48)
+        self._primary_btn.clicked.connect(self._on_primary_action)
+        btn_row.addWidget(self._primary_btn)
+        layout.addWidget(self._action_btn_container)
 
-    def stop_progress(self) -> None:
-        self.progress.stop()
-        self.cancel_button.config(state="disabled")
-        self.current_thread = None
-        self._set_action_buttons("normal")
+        return panel
 
-    def _set_action_buttons(self, state: str) -> None:
-        for btn in (self.download_btn, self.convert_btn, self.batch_btn, self.trim_btn, self.doc_btn):
-            btn.config(state=state)
+    # ── Navigation ────────────────────────────────────────────────────────────
+
+    def _navigate_to(self, index: int) -> None:
+        """Switch to section *index*, updating sidebar, tab bar, and action button."""
+        self._current_section = index
+
+        # Refresh history whenever the history section is activated
+        if index == 4:
+            self._history_section.refresh()
+
+        # Update nav button active states
+        for i, btn in enumerate(self._nav_buttons):
+            btn.set_active(i == index)
+
+        # Switch content
+        self._content_stack.setCurrentIndex(index)
+
+        # Rebuild the section tab bar for this section
+        self._section_tab_bar.blockSignals(True)
+        while self._section_tab_bar.count():
+            self._section_tab_bar.removeTab(0)
+        for tab_label in _SECTIONS[index]["tabs"]:
+            self._section_tab_bar.addTab(tab_label)
+        self._section_tab_bar.blockSignals(False)
+
+        # Show/hide primary action button
+        action_label = _SECTIONS[index].get("action_label")
+        if action_label:
+            self._primary_btn.setText(action_label)
+            self._action_btn_container.setVisible(True)
+        else:
+            self._action_btn_container.setVisible(False)
+
+    def _on_section_busy_changed(self, section_index: int, busy: bool) -> None:
+        """Toggle primary button text between the action label and 'Cancel'."""
+        if section_index != self._current_section:
+            return
+        action_label = _SECTIONS[section_index].get("action_label")
+        if action_label:
+            self._primary_btn.setText("Cancel" if busy else action_label)
+
+    def _on_section_tab_changed(self, tab_index: int) -> None:
+        """Sub-tab change within a section — delegate to the current section widget."""
+        widget = self._section_widgets[self._current_section]
+        if hasattr(widget, "on_sub_tab_changed"):
+            widget.on_sub_tab_changed(tab_index)
+
+    # ── Primary action button ─────────────────────────────────────────────────
+
+    def _on_primary_action(self) -> None:
+        widget = self._section_widgets[self._current_section]
+        if hasattr(widget, "trigger_primary_action"):
+            widget.trigger_primary_action()
+
+    # ── Settings ──────────────────────────────────────────────────────────────
+
+    def _on_settings_changed(self, new_settings: UserSettings) -> None:
+        self.settings = new_settings
+
+    # ── T007 / T019: Status bar + tray notifications ──────────────────────────
 
     def update_status(self, message: str, is_error: bool = False) -> None:
-        self._status_is_error = is_error
-        self.status_label.config(text=message)
+        """Update the status bar. Pass *is_error=True* to colour it red."""
+        self._status_bar.showMessage(message)
         if is_error:
-            self.status_label.configure(bootstyle="danger")
+            self._status_bar.setStyleSheet("color: #F85149;")
         else:
-            self.status_label.configure(bootstyle="default")
+            self._status_bar.setStyleSheet("")
 
-    def _poll_result(self, on_success_msg: str = "Done.", on_failure_msg: str = "Operation failed!") -> None:
-        """Poll the result queue from the main thread (called via root.after)."""
-        try:
-            status, payload = self._result_queue.get_nowait()
-        except queue.Empty:
-            self.root.after(100, self._poll_result, on_success_msg, on_failure_msg)
-            return
-        self.stop_progress()
-        if status == "ok":
-            self.update_status(payload if payload else on_success_msg)
-        elif status == "cancelled":
-            self.update_status("Operation cancelled.")
+    def _on_status_message(self, message: str, is_error: bool) -> None:
+        """Slot connected to every section's status_message signal.
+
+        Updates the status bar, adds completed operations to the notification
+        bell, and (when the window is hidden) fires a tray balloon.
+        """
+        self.update_status(message, is_error)
+
+        if self._is_final_status(message, is_error):
+            self._notifications.append({"text": message, "is_error": is_error})
+            self.title_bar.update_bell_badge(len(self._notifications))
+
+        # T019: notify via tray only when the window is not visible.
+        if not self.isVisible() and self._is_final_status(message, is_error):
+            title = "Media Utility — Error" if is_error else "Media Utility"
+            self._tray.notify(title, message, is_error)
+
+    def _show_notifications(self, anchor) -> None:
+        """Show the notification history popup anchored below *anchor*."""
+        menu = QMenu(self)
+        if not self._notifications:
+            empty = menu.addAction("No notifications yet")
+            empty.setEnabled(False)
         else:
-            self.update_status(payload if payload else on_failure_msg, is_error=True)
+            for n in reversed(self._notifications[-15:]):
+                icon = "✕" if n["is_error"] else "✔"
+                act = menu.addAction(f"{icon}  {n['text']}")
+                act.setEnabled(False)
+            menu.addSeparator()
+            clear_act = menu.addAction("Clear All")
+            clear_act.triggered.connect(self._clear_notifications)
+        pos = anchor.mapToGlobal(anchor.rect().bottomLeft())
+        menu.exec(pos)
 
-    # ------------------------------------------------------------------
-    # File browser helpers
-    # ------------------------------------------------------------------
+    def _clear_notifications(self) -> None:
+        self._notifications.clear()
+        self.title_bar.update_bell_badge(0)
 
-    def browse_file(self, entry_widget: ttk.Entry) -> None:
-        filename = filedialog.askopenfilename()
-        if filename:
-            entry_widget.delete(0, tk.END)
-            entry_widget.insert(0, filename)
-
-    def browse_download_location(self) -> None:
-        directory = filedialog.askdirectory()
-        if directory:
-            self.download_location.delete(0, tk.END)
-            self.download_location.insert(0, directory)
-
-    def browse_multiple_files(self) -> None:
-        filenames = filedialog.askopenfilenames()
-        if filenames:
-            self.batch_files.delete(0, tk.END)
-            self.batch_files.insert(0, ";".join(filenames))
-            self.files_text.config(state="normal")
-            self.files_text.delete(1.0, tk.END)
-            for file in filenames:
-                self.files_text.insert(tk.END, f"{os.path.basename(file)}\n")
-            self.files_text.config(state="disabled")
-            self.update_batch_media_type(filenames)
-
-    # ------------------------------------------------------------------
-    # Format grid helper (shared by convert + batch tabs)
-    # ------------------------------------------------------------------
-
-    def setup_format_grid(self, parent: ttk.Frame, formats: list[str], var: tk.StringVar) -> None:
-        for i, fmt in enumerate(formats):
-            ttk.Radiobutton(parent, text=fmt.upper(), variable=var, value=fmt).grid(
-                row=i // 4, column=i % 4, padx=10, pady=5
-            )
-
-    # ------------------------------------------------------------------
-    # Placeholder helper
-    # ------------------------------------------------------------------
-
-    def _add_placeholder(self, entry: ttk.Entry, placeholder: str) -> None:
-        entry.insert(0, placeholder)
-        entry.config(foreground="gray")
-
-        def on_focus_in(_event):
-            if entry.get() == placeholder:
-                entry.delete(0, tk.END)
-                entry.config(foreground="")
-
-        def on_focus_out(_event):
-            if not entry.get():
-                entry.insert(0, placeholder)
-                entry.config(foreground="gray")
-
-        entry.bind("<FocusIn>", on_focus_in)
-        entry.bind("<FocusOut>", on_focus_out)
-
-    # ------------------------------------------------------------------
-    # Download tab
-    # ------------------------------------------------------------------
-
-    def setup_download_tab(self) -> None:
-        url_frame = ttk.Frame(self.download_tab)
-        url_frame.pack(fill="x", padx=10, pady=5)
-        ttk.Label(url_frame, text="Enter URL:").pack(side="left", padx=5)
-        self.url_entry = ttk.Entry(url_frame)
-        self.url_entry.pack(side="left", padx=5, expand=True, fill="x")
-        self._add_placeholder(self.url_entry, "Paste URL here (YouTube, Spotify, etc.)...")
-        
-        ttk.Button(
-            url_frame, text="Check Formats", 
-            command=self.check_formats, 
-            bootstyle="info-outline"
-        ).pack(side="left", padx=5)
-
-        quality_frame = ttk.LabelFrame(self.download_tab, text="Video Quality")
-        quality_frame.pack(pady=10, padx=10, fill="both", expand=True)
-        self.quality_container = ttk.Frame(quality_frame)
-        self.quality_container.pack(fill="both", expand=True)
-        scrollbar = ttk.Scrollbar(self.quality_container, bootstyle="round")
-        scrollbar.pack(side="right", fill="y")
-        self.quality_listbox = tk.Listbox(
-            self.quality_container, yscrollcommand=scrollbar.set, 
-            height=6, relief="flat", highlightthickness=0, font=("Helvetica", 10)
+    @staticmethod
+    def _is_final_status(message: str, is_error: bool) -> bool:
+        """Return True when *message* signals a completed (not in-progress) state."""
+        if is_error:
+            return True
+        lowered = message.lower()
+        return (
+            message.startswith("Done →")
+            or "complete" in lowered
+            or "cancelled" in lowered
+            or "failed" in lowered
         )
-        self.quality_listbox.pack(side="left", fill="both", expand=True)
-        scrollbar.config(command=self.quality_listbox.yview)
 
-        media_frame = ttk.LabelFrame(self.download_tab, text="Media Type")
-        media_frame.pack(pady=10, padx=10, fill="x")
-        self.media_type = tk.StringVar(value="video")
-        ttk.Radiobutton(media_frame, text="Video", variable=self.media_type, value="video",
-                        command=self.update_format_visibility, bootstyle="toolbutton").pack(side="left", padx=10)
-        ttk.Radiobutton(media_frame, text="Audio", variable=self.media_type, value="audio",
-                        command=self.update_format_visibility, bootstyle="toolbutton").pack(side="left", padx=10)
+    # ── T018 / T020: Tray helpers ─────────────────────────────────────────────
 
-        self.audio_frame = ttk.LabelFrame(self.download_tab, text="Audio Format")
-        self.audio_frame.pack(pady=10, padx=10, fill="x")
-        self.download_audio_format = tk.StringVar(value="mp3")
-        for fmt in ("mp3", "aac", "flac", "wav", "opus", "m4a"):
-            ttk.Radiobutton(self.audio_frame, text=fmt.upper(),
-                            variable=self.download_audio_format, value=fmt).pack(side="left", padx=10)
+    def _restore_from_tray(self) -> None:
+        """Show and raise the main window, then hide the tray icon."""
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        self._tray.hide()
 
-        time_frame = ttk.LabelFrame(self.download_tab, text="Time Range (Optional)")
-        time_frame.pack(pady=10, padx=10, fill="x")
-        ttk.Label(time_frame, text="Start Time:").pack(side="left", padx=5)
-        self.start_time = ttk.Entry(time_frame, width=15)
-        self.start_time.pack(side="left", padx=5)
-        self._add_placeholder(self.start_time, "00:00:00")
-        
-        ttk.Label(time_frame, text="End Time:").pack(side="left", padx=5)
-        self.end_time = ttk.Entry(time_frame, width=15)
-        self.end_time.pack(side="left", padx=5)
-        self._add_placeholder(self.end_time, "HH:MM:SS")
+    def _quit_from_tray(self) -> None:
+        """Terminate the application from the tray context menu."""
+        self._tray.hide()
+        from PySide6.QtWidgets import QApplication
+        QApplication.quit()
 
-        location_frame = ttk.LabelFrame(self.download_tab, text="Download Location (Optional)")
-        location_frame.pack(pady=10, padx=10, fill="x")
-        self.download_location = ttk.Entry(location_frame)
-        self.download_location.pack(side="left", padx=5, fill="x", expand=True)
-        self._add_placeholder(self.download_location, "Default is downloads folder")
-        
-        ttk.Button(
-            location_frame, text="Browse", 
-            command=self.browse_download_location, 
-            bootstyle="secondary-outline"
-        ).pack(side="left", padx=5)
+    # ── T017: Drag-and-drop ───────────────────────────────────────────────────
 
-        self.download_btn = ttk.Button(
-            self.download_tab, text="Download Media", 
-            command=self.start_download, 
-            bootstyle="primary", padding=(20, 10)
-        )
-        self.download_btn.pack(pady=20)
-
-    def update_format_visibility(self) -> None:
-        if self.media_type.get() == "audio":
-            self.quality_container.pack_forget()
-            self.audio_frame.pack(pady=10, padx=10, fill="x")
+    def dragEnterEvent(self, event) -> None:
+        if event.mimeData().hasUrls() and any(
+            url.isLocalFile() for url in event.mimeData().urls()
+        ):
+            event.acceptProposedAction()
         else:
-            self.quality_container.pack(fill="both", expand=True)
-            self.audio_frame.pack(pady=10, padx=10, fill="x")
+            event.ignore()
 
-    def check_formats(self) -> None:
-        url = self.url_entry.get().strip()
-        if not url or url == "Paste URL here (YouTube, Spotify, etc.)...":
-            messagebox.showerror("Error", "Please enter a URL")
+    def dragMoveEvent(self, event) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event) -> None:
+        urls = event.mimeData().urls()
+        dropped_files, error_msg = DndHandler.process_drop(urls)
+
+        if not dropped_files:
+            self.update_status(error_msg or "Drop failed — unsupported files.", True)
+            event.ignore()
             return
-        self.quality_listbox.delete(0, tk.END)
-        self.quality_listbox.insert(tk.END, "Checking available formats...")
 
-        def worker() -> None:
-            try:
-                if self.cancel_requested:
-                    self._result_queue.put(("cancelled", None))
-                    return
-                formats = get_available_formats(url)
-                if self.cancel_requested:
-                    self._result_queue.put(("cancelled", None))
-                elif not formats:
-                    self.root.after(0, lambda: self.quality_listbox.delete(0, tk.END))
-                    self._result_queue.put(("error", "No formats found. Check the URL and try again."))
-                else:
-                    self.root.after(0, self.update_quality_list, formats)
-                    self._result_queue.put(("ok", f"Loaded {len(formats)} format(s)."))
-            except Exception as e:
-                self._result_queue.put(("error", f"Error checking formats: {e}"))
+        if error_msg:
+            self.update_status(error_msg, True)
 
-        self.current_thread = threading.Thread(target=worker, daemon=True)
-        self.start_progress()
-        self.current_thread.start()
-        self.root.after(100, self._poll_result, "Formats loaded.")
+        # Map the DnD target_tab to the section index
+        target_tab = dropped_files[0].target_tab
+        section_index = {
+            "convert": 1,
+            "batch":   1,
+            "trim":    2,
+            "document": 3,
+        }.get(target_tab or "", -1)
 
-    def update_quality_list(self, formats: list[dict]) -> None:
-        self.quality_listbox.delete(0, tk.END)
-        self.quality_listbox.insert(tk.END, "Best Quality (Automatic)")
-        self.formats = formats
-        self._formats_url = self.url_entry.get().strip()
-        for fmt in formats:
-            self.quality_listbox.insert(tk.END, fmt["display"])
-
-    def start_download(self) -> None:
-        url = self.url_entry.get().strip()
-        if not url or url == "Paste URL here (YouTube, Spotify, etc.)...":
-            messagebox.showerror("Error", "Please enter a URL")
+        if section_index == -1:
+            self.update_status("Could not determine target section for dropped files.", True)
+            event.ignore()
             return
-        quality = None
-        if self.media_type.get() == "video":
-            current_url = self.url_entry.get().strip()
-            selected_idx = self.quality_listbox.curselection()
-            if selected_idx:
-                if selected_idx[0] == 0:
-                    quality = "bestvideo+bestaudio/best"
-                elif (
-                    hasattr(self, "formats") and self.formats
-                    and hasattr(self, "_formats_url") and self._formats_url == current_url
-                ):
-                    fmt = self.formats[selected_idx[0] - 1]
-                    quality = f"{fmt['format_id']}+bestaudio/best"
-                # else: URL changed since format check — fall back to automatic best
 
-        def worker() -> None:
-            try:
-                if self.cancel_requested:
-                    self._result_queue.put(("cancelled", None))
-                    return
+        self._navigate_to(section_index)
 
-                s_time = self.start_time.get()
-                if s_time == "00:00:00": s_time = None
-                e_time = self.end_time.get()
-                if e_time == "HH:MM:SS": e_time = None
+        widget = self._section_widgets[section_index]
+        paths = [df.path for df in dropped_files]
 
-                loc = self.download_location.get()
-                if loc == "Default is downloads folder" or not loc.strip():
-                    loc = self.settings.output_folder if self.settings.output_folder else None
+        if target_tab == "batch" and hasattr(widget, "populate_batch_files"):
+            widget.populate_batch_files(paths)
+            # Switch the section tab bar to BATCH CONVERT (index 1)
+            self._section_tab_bar.blockSignals(True)
+            self._section_tab_bar.setCurrentIndex(1)
+            self._section_tab_bar.blockSignals(False)
+            if hasattr(widget, "on_sub_tab_changed"):
+                widget.on_sub_tab_changed(1)
+        elif hasattr(widget, "populate_file") and paths:
+            widget.populate_file(paths[0])
 
-                codec_map = {"h264": "libx264", "hevc": "libx265", "vp9": "libvpx-vp9", "original": "original"}
-                vcodec = codec_map.get(self.settings.default_codec, "libx264")
+        event.acceptProposedAction()
+        self.update_status(
+            f"Loaded {len(paths)} file(s) — ready.", False
+        )
 
-                result = download_media(
-                    url=url,
-                    platform=get_platform(url),
-                    media_type=self.media_type.get(),
-                    quality=quality,
-                    start_time=s_time,
-                    end_time=e_time,
-                    audio_format=self.download_audio_format.get(),
-                    output_dir=loc,
-                    video_codec=vcodec,
-                    force_codec=True if vcodec != "original" else False,
+    # ── Close event ───────────────────────────────────────────────────────────
+
+    def closeEvent(self, event) -> None:
+        """T020: Respect quit_on_close setting.
+
+        quit_on_close=True  → terminate the process immediately.
+        quit_on_close=False → hide the window and show the system tray icon so
+                              the app continues running in the background.
+        """
+        if self.settings.quit_on_close:
+            self._tray.hide()
+            event.accept()
+            # setQuitOnLastWindowClosed is False (tray support), so we must
+            # call quit() explicitly; otherwise the event loop keeps running.
+            from PySide6.QtWidgets import QApplication
+            QApplication.quit()
+        else:
+            event.ignore()
+            self.hide()
+            if SystemTrayIcon.is_available():
+                self._tray.show()
+                self._tray.notify(
+                    "Media Utility",
+                    "Running in the background. Click the tray icon to restore.",
                 )
-                if self.cancel_requested:
-                    self._result_queue.put(("cancelled", None))
-                elif result["success"]:
-                    out = loc or os.getcwd()
-                    size_str = ""
-                    if result["file_size"]:
-                        size_mb = result["file_size"] / (1024 * 1024)
-                        size_str = f" (Final size: {size_mb:.1f} MB)"
-                    self._result_queue.put(("ok", f"Download completed to {out}!{size_str}"))
-                else:
-                    self._result_queue.put(("error", "Download failed!"))
-            except Exception as e:
-                self._result_queue.put(("error", f"Error: {e}"))
-
-        self.current_thread = threading.Thread(target=worker, daemon=True)
-        self.start_progress()
-        self.update_status("Downloading...")
-        self.current_thread.start()
-        self.root.after(100, self._poll_result, "Download completed!")
-
-    # ------------------------------------------------------------------
-    # Convert tab
-    # ------------------------------------------------------------------
-
-    def setup_convert_tab(self) -> None:
-        file_frame = ttk.Frame(self.convert_tab)
-        file_frame.pack(pady=10, fill="x")
-        self.convert_path = ttk.Entry(file_frame)
-        self.convert_path.pack(side="left", padx=5, expand=True, fill="x")
-        self._add_placeholder(self.convert_path, "Select file to convert...")
-        
-        ttk.Button(
-            file_frame, text="Browse", 
-            command=lambda: self.browse_file(self.convert_path),
-            bootstyle="secondary-outline"
-        ).pack(side="left", padx=5)
-
-        self.media_type_label = ttk.Label(self.convert_tab, text="Media Type: None", font=("Helvetica", 10, "bold"))
-        self.media_type_label.pack(pady=5)
-
-        self.format_notebook = ttk.Notebook(self.convert_tab, bootstyle="info")
-        self.format_notebook.pack(pady=10, padx=10, fill="both", expand=True)
-        self.conv_audio_frame = ttk.Frame(self.format_notebook, padding=10)
-        self.conv_video_frame = ttk.Frame(self.format_notebook, padding=10)
-        self.conv_image_frame = ttk.Frame(self.format_notebook, padding=10)
-        self.format_notebook.add(self.conv_audio_frame, text="Audio Formats")
-        self.format_notebook.add(self.conv_video_frame, text="Video Formats")
-        self.format_notebook.add(self.conv_image_frame, text="Image Formats")
-
-        self.audio_format = tk.StringVar()
-        self.video_format = tk.StringVar()
-        self.image_format = tk.StringVar()
-        self.setup_format_grid(self.conv_audio_frame, ["mp3", "wav", "aac", "flac", "ogg", "m4a"], self.audio_format)
-        self.setup_format_grid(self.conv_video_frame, ["mp4", "mkv", "avi", "mov", "webm", "flv"], self.video_format)
-        self.setup_format_grid(self.conv_image_frame,
-                               ["jpg", "jpeg", "png", "bmp", "gif", "webp", "heic", "heif"], self.image_format)
-
-        self.convert_btn = ttk.Button(
-            self.convert_tab, text="Convert Media", 
-            command=self.start_conversion, 
-            bootstyle="primary", padding=(20, 10)
-        )
-        self.convert_btn.pack(pady=20)
-        self.convert_path.bind("<KeyRelease>", self.update_media_type)
-
-    def update_media_type(self, _event=None) -> None:
-        file_path = self.convert_path.get()
-        if not file_path or not os.path.exists(file_path) or file_path == "Select file to convert...":
-            self.media_type_label.config(text="Media Type: None")
-            return
-        ext = os.path.splitext(file_path)[1][1:].lower()
-        supported = {
-            "audio": {"mp3", "wav", "aac", "flac", "ogg", "m4a"},
-            "video": {"mp4", "mkv", "avi", "mov", "webm", "flv"},
-            "image": {"jpg", "jpeg", "png", "bmp", "gif", "webp", "heic", "heif"},
-        }
-        media_type = next((k for k, v in supported.items() if ext in v), None)
-        if media_type:
-            self.media_type_label.config(text=f"Media Type: {media_type.capitalize()}")
-            self.format_notebook.select({"audio": 0, "video": 1, "image": 2}[media_type])
-        else:
-            self.media_type_label.config(text="Media Type: Unsupported format")
-
-    def get_current_format_var(self) -> tk.StringVar | None:
-        idx = self.format_notebook.index(self.format_notebook.select())
-        return {0: self.audio_format, 1: self.video_format, 2: self.image_format}.get(idx)
-
-    def start_conversion(self) -> None:
-        file_path = self.convert_path.get()
-        if not file_path or not os.path.exists(file_path) or file_path == "Select file to convert...":
-            messagebox.showerror("Error", "Please select a valid file")
-            return
-        format_var = self.get_current_format_var()
-        if not format_var or not format_var.get():
-            messagebox.showerror("Error", "Please select a target format")
-            return
-        target_format = format_var.get()
-
-        def worker() -> None:
-            try:
-                if self.cancel_requested:
-                    self._result_queue.put(("cancelled", None))
-                    return
-                ext = os.path.splitext(file_path)[1][1:].lower()
-                if ext == target_format:
-                    self._result_queue.put(("error", "Source and target formats are the same!"))
-                    return
-                supported = {
-                    "audio": {"mp3", "wav", "aac", "flac", "ogg", "m4a"},
-                    "video": {"mp4", "mkv", "avi", "mov", "webm", "flv"},
-                    "image": {"jpg", "jpeg", "png", "bmp", "gif", "webp", "heic", "heif"},
-                }
-                media_type = next((k for k, v in supported.items() if ext in v), None)
-                if self.cancel_requested:
-                    self._result_queue.put(("cancelled", None))
-                    return
-                if media_type == "image":
-                    success = convert_images([file_path], target_format, output_dir=self.settings.output_folder)
-                else:
-                    filename = os.path.basename(file_path)
-                    base_name = os.path.splitext(filename)[0]
-                    out_dir = self.settings.output_folder or os.path.dirname(file_path)
-                    if not os.path.exists(out_dir): os.makedirs(out_dir, exist_ok=True)
-                    output_path = os.path.join(out_dir, f"{base_name}_converted.{target_format}")
-                    
-                    if media_type == "video" and target_format in supported["audio"]:
-                        codec = _AUDIO_CODECS.get(target_format, target_format)
-                        cmd = [ffmpeg_path, "-y", "-i", file_path, "-vn", "-acodec", codec, output_path]
-                    else:
-                        cmd = [ffmpeg_path, "-y", "-i", file_path]
-                        if media_type == "video" and self.settings.default_codec != "original":
-                            codec_map = {"h264": "libx264", "hevc": "libx265", "vp9": "libvpx-vp9"}
-                            vcodec = codec_map.get(self.settings.default_codec, "libx264")
-                            cmd.extend(["-vcodec", vcodec])
-                        cmd.append(output_path)
-                    if self.cancel_requested:
-                        self._result_queue.put(("cancelled", None))
-                        return
-                    result = subprocess.run(cmd, capture_output=True, timeout=3600, **_WIN_FLAGS)
-                    success = result.returncode == 0
-                if self.cancel_requested:
-                    self._result_queue.put(("cancelled", None))
-                elif success:
-                    self._result_queue.put(("ok", "Conversion completed successfully!"))
-                else:
-                    self._result_queue.put(("error", "Conversion failed!"))
-            except Exception as e:
-                self._result_queue.put(("error", f"Error: {e}"))
-
-        self.current_thread = threading.Thread(target=worker, daemon=True)
-        self.start_progress()
-        self.update_status("Converting...")
-        self.current_thread.start()
-        self.root.after(100, self._poll_result, "Conversion complete!")
-
-    # ------------------------------------------------------------------
-    # Batch convert tab
-    # ------------------------------------------------------------------
-
-    def setup_batch_convert_tab(self) -> None:
-        file_frame = ttk.Frame(self.batch_convert_tab)
-        file_frame.pack(pady=10, fill="x")
-        self.batch_files = ttk.Entry(file_frame)
-        self.batch_files.pack(side="left", padx=5, expand=True, fill="x")
-        self._add_placeholder(self.batch_files, "Selected files for batch conversion...")
-        
-        ttk.Button(
-            file_frame, text="Browse", 
-            command=self.browse_multiple_files,
-            bootstyle="secondary-outline"
-        ).pack(side="left", padx=5)
-
-        files_frame = ttk.LabelFrame(self.batch_convert_tab, text="Selected Files")
-        files_frame.pack(pady=10, padx=10, fill="both", expand=True)
-        self.files_text = tk.Text(
-            files_frame, height=5, width=50, 
-            relief="flat", highlightthickness=0, font=("Courier", 10)
-        )
-        scrollbar = ttk.Scrollbar(files_frame, command=self.files_text.yview, bootstyle="round")
-        self.files_text.configure(yscrollcommand=scrollbar.set)
-        self.files_text.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        self.files_text.config(state="disabled")
-
-        self.batch_type_label = ttk.Label(self.batch_convert_tab, text="Media Type: None", font=("Helvetica", 10, "bold"))
-        self.batch_type_label.pack(pady=5)
-
-        self.batch_format_notebook = ttk.Notebook(self.batch_convert_tab, bootstyle="info")
-        self.batch_format_notebook.pack(pady=10, padx=10, fill="both", expand=True)
-        batch_audio = ttk.Frame(self.batch_format_notebook, padding=10)
-        batch_video = ttk.Frame(self.batch_format_notebook, padding=10)
-        batch_image = ttk.Frame(self.batch_format_notebook, padding=10)
-        self.batch_format_notebook.add(batch_audio, text="Audio Formats")
-        self.batch_format_notebook.add(batch_video, text="Video Formats")
-        self.batch_format_notebook.add(batch_image, text="Image Formats")
-
-        self.batch_audio_format = tk.StringVar()
-        self.batch_video_format = tk.StringVar()
-        self.batch_image_format = tk.StringVar()
-        self.setup_format_grid(batch_audio, ["mp3", "wav", "aac", "flac", "ogg", "m4a"], self.batch_audio_format)
-        self.setup_format_grid(batch_video, ["mp4", "mkv", "avi", "mov", "webm", "flv"], self.batch_video_format)
-        self.setup_format_grid(batch_image,
-                               ["jpg", "jpeg", "png", "bmp", "gif", "webp", "heic", "heif"], self.batch_image_format)
-
-        self.batch_btn = ttk.Button(
-            self.batch_convert_tab, text="Convert All", 
-            command=self.start_batch_conversion, 
-            bootstyle="primary", padding=(20, 10)
-        )
-        self.batch_btn.pack(pady=20)
-
-    def update_batch_media_type(self, filenames: tuple[str, ...]) -> None:
-        if not filenames:
-            self.batch_type_label.config(text="Media Type: None")
-            return
-        supported = {
-            "audio": {"mp3", "wav", "aac", "flac", "ogg", "m4a"},
-            "video": {"mp4", "mkv", "avi", "mov", "webm", "flv"},
-            "image": {"jpg", "jpeg", "png", "bmp", "gif", "webp", "heic", "heif"},
-        }
-        extensions = {os.path.splitext(f)[1][1:].lower() for f in filenames}
-        media_types = {mt for ext in extensions for mt, exts in supported.items() if ext in exts}
-        if len(media_types) > 1:
-            self.batch_type_label.config(text="Media Type: Mixed (not supported)")
-            messagebox.showwarning("Warning", "Mixed media types detected. Please select files of the same type.")
-        elif len(media_types) == 1:
-            mt = media_types.pop()
-            self.batch_type_label.config(text=f"Media Type: {mt.capitalize()}")
-            self.batch_format_notebook.select({"audio": 0, "video": 1, "image": 2}[mt])
-        else:
-            self.batch_type_label.config(text="Media Type: Unsupported format")
-
-    def get_current_batch_format_var(self) -> tk.StringVar | None:
-        idx = self.batch_format_notebook.index(self.batch_format_notebook.select())
-        return {0: self.batch_audio_format, 1: self.batch_video_format, 2: self.batch_image_format}.get(idx)
-
-    def start_batch_conversion(self) -> None:
-        raw_val = self.batch_files.get()
-        if raw_val == "Selected files for batch conversion...":
-            raw_val = ""
-        files = [f for f in raw_val.split(";") if f.strip()]
-        if not files:
-            messagebox.showerror("Error", "Please select files to convert")
-            return
-        format_var = self.get_current_batch_format_var()
-        if not format_var or not format_var.get():
-            messagebox.showerror("Error", "Please select a target format")
-            return
-        target_format = format_var.get()
-
-        def worker() -> None:
-            try:
-                for i, file_path in enumerate(files):
-                    if self.cancel_requested:
-                        self._result_queue.put(("cancelled", None))
-                        return
-                    self.root.after(0, self.update_status, f"Converting file {i+1} of {len(files)}...")
-                    success = convert_images([file_path], target_format, output_dir=self.settings.output_folder)
-                    if not success and not self.cancel_requested:
-                        self._result_queue.put(("error", f"Failed to convert {os.path.basename(file_path)}"))
-                        return
-                if self.cancel_requested:
-                    self._result_queue.put(("cancelled", None))
-                else:
-                    self._result_queue.put(("ok", f"Successfully converted {len(files)} files!"))
-            except Exception as e:
-                self._result_queue.put(("error", f"Error: {e}"))
-
-        self.current_thread = threading.Thread(target=worker, daemon=True)
-        self.start_progress()
-        self.update_status("Converting files...")
-        self.current_thread.start()
-        self.root.after(100, self._poll_result, "Batch conversion complete!")
-
-    # ------------------------------------------------------------------
-    # Trim tab
-    # ------------------------------------------------------------------
-
-    def setup_trim_tab(self) -> None:
-        file_frame = ttk.Frame(self.trim_tab)
-        file_frame.pack(pady=10, fill="x")
-        self.trim_path = ttk.Entry(file_frame)
-        self.trim_path.pack(side="left", padx=5, expand=True, fill="x")
-        self._add_placeholder(self.trim_path, "Select file to trim...")
-        
-        ttk.Button(
-            file_frame, text="Browse", 
-            command=lambda: self.browse_file(self.trim_path),
-            bootstyle="secondary-outline"
-        ).pack(side="left", padx=5)
-
-        time_frame = ttk.LabelFrame(self.trim_tab, text="Time Range")
-        time_frame.pack(pady=10, padx=10, fill="x")
-        ttk.Label(time_frame, text="Start Time:").pack(side="left", padx=5)
-        self.trim_start = ttk.Entry(time_frame, width=15)
-        self.trim_start.pack(side="left", padx=5)
-        self._add_placeholder(self.trim_start, "00:00:00")
-        
-        ttk.Label(time_frame, text="End Time:").pack(side="left", padx=5)
-        self.trim_end = ttk.Entry(time_frame, width=15)
-        self.trim_end.pack(side="left", padx=5)
-        self._add_placeholder(self.trim_end, "HH:MM:SS")
-
-        self.trim_btn = ttk.Button(
-            self.trim_tab, text="Trim Media", 
-            command=self.start_trim, 
-            bootstyle="primary", padding=(20, 10)
-        )
-        self.trim_btn.pack(pady=20)
-        
-        # Add the Visual Trimmer Widget
-        from gui.video_trimmer import create_video_trimmer
-        self.visual_trimmer = create_video_trimmer(
-            self.trim_tab,
-            on_selection_changed=self._on_trimmer_selection_changed,
-            on_load_error=self._on_trimmer_error
-        )
-        self.visual_trimmer.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Bind file path entry to load video when focus leaves or enter pressed
-        def on_path_updated(_event=None):
-            path = self.trim_path.get().strip()
-            if path and path != "Select file to trim..." and os.path.exists(path):
-                ext = os.path.splitext(path)[1][1:].lower()
-                media_exts = {
-                    "mp4", "mkv", "avi", "mov", "webm", "flv",
-                    "mp3", "wav", "aac", "flac", "ogg", "m4a", "opus", "wma",
-                }
-                if ext in media_exts:
-                    self.visual_trimmer.load_video(path)
-                else:
-                    self.visual_trimmer.clear()
-        
-        self.trim_path.bind("<FocusOut>", on_path_updated)
-        self.trim_path.bind("<Return>", on_path_updated)
-        
-    def _on_trimmer_selection_changed(self, _start_ms: int, _end_ms: int):
-        from gui.video_trimmer import VideoTrimmerWidget # Type hint only
-        if hasattr(self, 'visual_trimmer'):
-            start_str, end_str = self.visual_trimmer.get_selection_timestamps()
-            
-            # Update the fallback text boxes
-            self.trim_start.delete(0, tk.END)
-            self.trim_start.insert(0, start_str)
-            self.trim_start.config(foreground="")
-            
-            self.trim_end.delete(0, tk.END)
-            self.trim_end.insert(0, end_str)
-            self.trim_end.config(foreground="")
-
-    def _on_trimmer_error(self, message: str):
-        messagebox.showwarning("Trimmer Error", message)
-
-    def start_trim(self) -> None:
-        file_path = self.trim_path.get()
-        if not file_path or not os.path.exists(file_path) or file_path == "Select file to trim...":
-            messagebox.showerror("Error", "Please select a valid file")
-            return
-
-        def worker() -> None:
-            try:
-                if self.cancel_requested:
-                    self._result_queue.put(("cancelled", None))
-                    return
-                s_time = self.trim_start.get()
-                if s_time == "00:00:00": s_time = ""
-                e_time = self.trim_end.get()
-                if e_time == "HH:MM:SS": e_time = ""
-                
-                success = trim_media(file_path, s_time, e_time, output_dir=self.settings.output_folder)
-                if self.cancel_requested:
-                    self._result_queue.put(("cancelled", None))
-                elif success:
-                    self._result_queue.put(("ok", "Trimming completed successfully!"))
-                else:
-                    self._result_queue.put(("error", "Trimming failed!"))
-            except Exception as e:
-                self._result_queue.put(("error", f"Error: {e}"))
-
-        self.current_thread = threading.Thread(target=worker, daemon=True)
-        self.start_progress()
-        self.update_status("Trimming media...")
-        self.current_thread.start()
-        self.root.after(100, self._poll_result, "Trimming complete!")
-
-    # ------------------------------------------------------------------
-    # Document convert tab
-    # ------------------------------------------------------------------
-
-    def setup_document_tab(self) -> None:
-        file_frame = ttk.Frame(self.document_tab)
-        file_frame.pack(pady=10, fill="x")
-        self.doc_path = ttk.Entry(file_frame)
-        self.doc_path.pack(side="left", padx=5, expand=True, fill="x")
-        self._add_placeholder(self.doc_path, "Select document to convert...")
-        
-        ttk.Button(
-            file_frame, text="Browse", 
-            command=lambda: self.browse_file(self.doc_path),
-            bootstyle="secondary-outline"
-        ).pack(side="left", padx=5)
-
-        format_frame = ttk.LabelFrame(self.document_tab, text="Target Format")
-        format_frame.pack(pady=10, padx=10, fill="x")
-        self.doc_format = tk.StringVar()
-        for fmt in ("pdf", "docx", "xlsx", "pptx"):
-            ttk.Radiobutton(format_frame, text=fmt.upper(),
-                            variable=self.doc_format, value=fmt, bootstyle="toolbutton").pack(side="left", padx=10)
-
-        self.doc_warning_label = ttk.Label(
-            self.document_tab,
-            text="Note: Complex layouts may not convert perfectly. Best results with text-heavy documents.",
-            wraplength=600,
-            bootstyle="secondary"
-        )
-        self.doc_warning_label.pack(pady=(0, 5), padx=10)
-
-        self.doc_btn = ttk.Button(
-            self.document_tab, text="Convert Document", 
-            command=self.start_doc_conversion, 
-            bootstyle="primary", padding=(20, 10)
-        )
-        self.doc_btn.pack(pady=20)
-
-    def _poll_doc_progress(self) -> None:
-        # Stop polling once the thread finishes; _poll_doc_result handles cleanup.
-        if not (self.current_thread and self.current_thread.is_alive()):
-            return
-
-        try:
-            current, total = None, None
-            while True:
-                current, total = self._doc_progress_q.get_nowait()
-        except queue.Empty:
-            pass
-
-        if current is not None and total is not None:
-            self.progress["value"] = int((current / total) * 100)
-            self.update_status(f"Page {current} of {total}")
-
-        self.root.after(100, self._poll_doc_progress)
-            
-    def _poll_doc_result(self) -> None:
-        try:
-            status, payload = self._result_queue.get_nowait()
-        except queue.Empty:
-            self.root.after(100, self._poll_doc_result)
-            return
-
-        self.progress.stop()
-        self.progress.config(mode="indeterminate")
-        self.cancel_button.config(state="disabled")
-        self.current_thread = None
-        self._set_action_buttons("normal")
-
-        if status == "ok":
-            summary = payload
-            if hasattr(summary, "text_blocks"):
-                details = [
-                    f"Total Pages: {summary.total_pages}",
-                    f"Text Blocks: {summary.text_blocks}",
-                    f"Headings: {summary.headings}",
-                    f"Tables: {summary.tables}",
-                    f"Images: {summary.images}",
-                    f"List Items: {summary.list_items}",
-                ]
-                if summary.scanned_pages:
-                    details.append(f"Scanned Pages: {summary.scanned_pages}")
-                if summary.skipped_elements:
-                    details.append(f"\nSkipped Elements:\n- " + "\n- ".join(summary.skipped_elements))
-                if summary.warnings:
-                    details.append(f"\nWarnings:\n- " + "\n- ".join(summary.warnings))
-                    
-                messagebox.showinfo("Conversion Summary", "\n".join(details))
-            self.update_status("Document conversion completed!")
-        elif status == "cancelled":
-            self.update_status("Operation cancelled.")
-        else:
-            self.update_status(payload if payload else "Document conversion failed!", is_error=True)
-
-    def start_doc_conversion(self) -> None:
-        file_path = self.doc_path.get()
-        if not file_path or not os.path.exists(file_path) or file_path == "Select document to convert...":
-            messagebox.showerror("Error", "Please select a valid file")
-            return
-        if not self.doc_format.get():
-            messagebox.showerror("Error", "Please select a target format")
-            return
-
-        if file_path.lower().endswith(".pdf"):
-            try:
-                import fitz
-                with fitz.open(file_path) as doc:
-                    if len(doc) > 200:
-                        messagebox.showwarning("Large Document", "This PDF has over 200 pages. Conversion may take a long time and consume significant memory.")
-            except Exception:
-                pass
-
-        self.cancel_event = threading.Event()
-        self._doc_progress_q = queue.Queue()
-        is_pdf_to_docx = (file_path.lower().endswith(".pdf") and self.doc_format.get() == "docx")
-
-        def progress_cb(current, total):
-            self._doc_progress_q.put((current, total))
-
-        def worker() -> None:
-            try:
-                if self.cancel_requested:
-                    self._result_queue.put(("cancelled", None))
-                    return
-                success, msg, summary = convert_document(
-                    file_path, 
-                    self.doc_format.get(), 
-                    progress_callback=progress_cb, 
-                    cancel_event=self.cancel_event,
-                    output_dir=self.settings.output_folder
-                )
-                if self.cancel_requested or (self.cancel_event and self.cancel_event.is_set()):
-                    self._result_queue.put(("cancelled", None))
-                elif success:
-                    self._result_queue.put(("ok", summary))
-                else:
-                    self._result_queue.put(("error", msg or "Document conversion failed!"))
-            except Exception as e:
-                self._result_queue.put(("error", f"Error: {e}"))
-
-        self.current_thread = threading.Thread(target=worker, daemon=True)
-        self.cancel_button.config(state="normal")
-        self.cancel_requested = False
-        self._set_action_buttons("disabled")
-
-        if is_pdf_to_docx:
-            self.progress.config(mode="determinate", maximum=100, value=0)
-            self.update_status("Converting (Page 1 of ...)")
-            self._poll_doc_progress()
-        else:
-            self.progress.config(mode="indeterminate")
-            self.progress.start(10)
-            self.update_status("Converting...")
-
-        self.current_thread.start()
-        self.root.after(100, self._poll_doc_result)

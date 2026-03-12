@@ -1,71 +1,75 @@
-"""Entry point for Media Utility.
+"""Entry point for Media Utility (PySide6).
 
 Run with:
     python main.py
 """
-import queue
-import threading
-import tkinter as tk
-from tkinter import messagebox
-import ttkbootstrap as ttk
+import signal
+import sys
 
-from utils.deps import check_dependencies
-from gui.app import MediaUtilityGUI
+from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtCore import QThread, QTimer, Signal
+
+from core.settings import SettingsManager
+from gui.app import MainWindow
 from gui.theme import ThemeManager
 
 
+class _DepsChecker(QThread):
+    """Background thread that validates runtime dependencies."""
+    done = Signal(str)  # "" = all OK, "ffmpeg_missing" = critical error
+
+    def run(self) -> None:
+        from utils.deps import check_dependencies
+        result = check_dependencies()
+        self.done.emit(result or "")
+
+
 def main() -> None:
-    from tkinterdnd2 import TkinterDnD
-    
-    # Initialize TkinterDnD as the root
-    root = TkinterDnD.Tk()
-    root.title("Media Utility")
-    
-    # Initialize ttkbootstrap style properly for an existing Tk instance
-    style = ttk.Style(theme="cosmo")
-    
-    root.withdraw()  # Hide until dependency check completes
+    app = QApplication(sys.argv)
+    app.setApplicationName("Media Utility")
+    app.setOrganizationName("Omniclouds")
+    # Prevent the process from exiting when the last window is hidden to tray.
+    app.setQuitOnLastWindowClosed(False)
 
-    # Initialize Theme Manager
-    theme_manager = ThemeManager(root)
-    theme_manager.initialize()
-    root.theme_manager = theme_manager # attach to root for easy access
+    # Load user settings
+    settings = SettingsManager.load()
 
-    # Splash window shown while checking/installing dependencies
-    splash = tk.Toplevel(root)
-    splash.title("Starting Media Utility")
-    splash.geometry("380x110")
-    splash.resizable(False, False)
-    ttk.Label(splash, text="Checking dependencies, please wait...", padding=(20, 15)).pack()
-    bar = ttk.Progressbar(splash, mode="indeterminate")
-    bar.pack(fill="x", padx=20, pady=(0, 15))
-    bar.start(10)
+    # Initialise and apply theme
+    theme_manager = ThemeManager(app)
+    theme_manager.set_mode(settings.theme_mode)
 
-    result_q: queue.Queue = queue.Queue()
-    threading.Thread(target=lambda: result_q.put(check_dependencies()), daemon=True).start()
+    # Create and show the main window immediately so the user sees the UI.
+    window = MainWindow(settings, theme_manager)
+    window.show()
 
-    def _poll_deps() -> None:
-        try:
-            dep_error = result_q.get_nowait()
-        except queue.Empty:
-            root.after(100, _poll_deps)
-            return
-        bar.stop()
-        splash.destroy()
-        root.deiconify()
-        root._gui = MediaUtilityGUI(root)  # attached to root to prevent GC
-        if dep_error == "ffmpeg_missing":
-            messagebox.showerror(
-                "Missing Dependency",
-                "FFmpeg was not found on this system.\n\n"
-                "Media conversion, trimming, and download features will not work.\n\n"
-                "Install FFmpeg and add it to your system PATH, or place ffmpeg.exe "
-                "in the same directory as this application.\n\n"
-                "Download from: https://ffmpeg.org/download.html",
-            )
+    # Allow Ctrl+C (SIGINT) to quit the Qt event loop cleanly.
+    # Qt's C++ loop doesn't return to Python regularly, so we use a short
+    # no-op timer to give Python a chance to handle the signal every 200 ms.
+    signal.signal(signal.SIGINT, lambda *_: QApplication.quit())
+    _sigint_timer = QTimer()
+    _sigint_timer.start(200)
+    _sigint_timer.timeout.connect(lambda: None)
 
-    root.after(100, _poll_deps)
-    root.mainloop()
+    # Check dependencies in the background; notify on critical failure.
+    checker = _DepsChecker(window)
+    checker.done.connect(lambda err: _on_deps_checked(err, window))
+    checker.start()
+
+    sys.exit(app.exec())
+
+
+def _on_deps_checked(error: str, window: MainWindow) -> None:
+    if error == "ffmpeg_missing":
+        QMessageBox.critical(
+            window,
+            "Missing Dependency",
+            "FFmpeg was not found on this system.\n\n"
+            "Media conversion, trimming, and download features will not work.\n\n"
+            "Install FFmpeg and add it to your system PATH, or place ffmpeg.exe "
+            "in the same directory as this application.\n\n"
+            "Download from: https://ffmpeg.org/download.html",
+        )
+        window.update_status("FFmpeg not found — some features unavailable.", is_error=True)
 
 
 if __name__ == "__main__":
