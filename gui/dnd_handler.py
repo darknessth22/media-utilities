@@ -18,7 +18,7 @@ FILE_TYPE_MAP: dict[str, set[str]] = {
     "video":    {".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv"},
     "audio":    {".mp3", ".wav", ".aac", ".flac", ".ogg", ".m4a"},
     "image":    {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".heic", ".heif"},
-    "document": {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt"},
+    "document": {".pdf", ".docx", ".doc"},
 }
 
 TAB_MAPPING: dict[str, str] = {

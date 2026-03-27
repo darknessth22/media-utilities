@@ -109,6 +109,7 @@ class _SingleConvertView(QWidget):
         self._worker: Worker | None = None
         self._media_type = "unknown"
         self._selected_format = ""
+        self._last_result_path: str | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -339,6 +340,7 @@ class _SingleConvertView(QWidget):
         src = self._file_input.text()
         if result.get("success"):
             fp = result.get("file_path") or ""
+            self._last_result_path = fp
             fn = os.path.basename(fp)
             get_history_manager().add_item(
                 HistoryItem(task_type="convert", file_name=fn, file_path=fp, status="success")
@@ -377,6 +379,7 @@ class _BatchConvertView(QWidget):
         self._settings = settings
         self._worker: Worker | None = None
         self._selected_format = "PNG"
+        self._last_result_path: str | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -568,6 +571,7 @@ class _BatchConvertView(QWidget):
         if result.get("success"):
             n = result.get("count", 0)
             dest_dir = result.get("dest_dir", "")
+            last_dest = ""
             for i in range(self._file_list.count()):
                 p = self._file_list.item(i).text()
                 base = os.path.splitext(os.path.basename(p))[0]
@@ -575,9 +579,11 @@ class _BatchConvertView(QWidget):
                     dest_dir or os.path.dirname(p),
                     f"{base}.{self._selected_format.lower()}",
                 )
+                last_dest = dest
                 get_history_manager().add_item(
                     HistoryItem(task_type="convert", file_name=os.path.basename(dest), file_path=dest, status="success")
                 )
+            self._last_result_path = last_dest
             self.status_message.emit(f"Done — {n} file(s) converted.", False)
         else:
             err = result.get("error") or "Batch conversion failed."
@@ -631,6 +637,11 @@ class ConvertSection(QWidget):
         self._batch_view.status_message.connect(self.status_message)
         self._single_view.busy_changed.connect(self.busy_changed)
         self._batch_view.busy_changed.connect(self.busy_changed)
+
+    @property
+    def _last_result_path(self) -> str | None:
+        view = self._single_view if self._current_sub_tab == 0 else self._batch_view
+        return getattr(view, "_last_result_path", None)
 
     # ── Public API ────────────────────────────────────────────────────────────
 

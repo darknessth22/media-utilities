@@ -94,6 +94,7 @@ class TrimSection(QScrollArea):
         self._worker: Worker | None = None
         self._duration_ms: int = 0
         self._is_audio_only = False
+        self._last_result_path: str | None = None
 
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -486,6 +487,7 @@ class TrimSection(QScrollArea):
         out_path = os.path.join(out_dir, f"{base}_trimmed{ext}")
 
         if success:
+            self._last_result_path = out_path
             get_history_manager().add_item(
                 HistoryItem(
                     task_type="trim",

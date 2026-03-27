@@ -7,7 +7,22 @@ import signal
 import sys
 
 from PySide6.QtWidgets import QApplication, QMessageBox
-from PySide6.QtCore import QThread, QTimer, Signal
+from PySide6.QtCore import QThread, QTimer, Signal, qInstallMessageHandler, QtMsgType
+
+
+def _qt_message_handler(mode, _context, message):
+    """Filter out the benign QFont::setPointSize warning caused by pixel-based QSS."""
+    if "QFont::setPointSize" in message:
+        return
+    if mode == QtMsgType.QtWarningMsg:
+        sys.stderr.write(f"Qt Warning: {message}\n")
+    elif mode == QtMsgType.QtCriticalMsg:
+        sys.stderr.write(f"Qt Critical: {message}\n")
+    elif mode == QtMsgType.QtFatalMsg:
+        sys.stderr.write(f"Qt Fatal: {message}\n")
+
+
+qInstallMessageHandler(_qt_message_handler)
 
 from core.settings import SettingsManager
 from gui.app import MainWindow

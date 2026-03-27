@@ -68,6 +68,7 @@ class DownloadSection(QScrollArea):
         self._worker: Worker | None = None
         self._formats: list[dict] = []          # from get_available_formats()
         self._selected_format_id: str | None = None
+        self._last_result_path: str | None = None
 
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -417,6 +418,7 @@ class DownloadSection(QScrollArea):
         self._worker = None
         if result.get("success"):
             fp = result.get("file_path") or ""
+            self._last_result_path = fp
             fn = os.path.basename(fp) if fp else "downloaded file"
             size = result.get("file_size")
             size_str = f"  ({size / (1024*1024):.1f} MB)" if size else ""

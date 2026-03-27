@@ -810,7 +810,11 @@ class MainWindow(QMainWindow):
         self.update_status(message, is_error)
 
         if self._is_final_status(message, is_error):
-            self._notifications.append({"text": message, "is_error": is_error})
+            file_path = None
+            if not is_error:
+                sender = self.sender()
+                file_path = getattr(sender, "_last_result_path", None)
+            self._notifications.append({"text": message, "is_error": is_error, "file_path": file_path})
             self.title_bar.update_bell_badge(len(self._notifications))
 
         # T019: notify via tray only when the window is not visible.
@@ -828,12 +832,41 @@ class MainWindow(QMainWindow):
             for n in reversed(self._notifications[-15:]):
                 icon = "✕" if n["is_error"] else "✔"
                 act = menu.addAction(f"{icon}  {n['text']}")
-                act.setEnabled(False)
+                fp = n.get("file_path")
+                if fp and os.path.exists(fp):
+                    act.triggered.connect(lambda _checked, p=fp: self._open_containing_folder(p))
+                elif fp:
+                    # File gone — try opening the parent directory
+                    parent_dir = os.path.dirname(fp)
+                    if os.path.isdir(parent_dir):
+                        act.triggered.connect(lambda _checked, d=parent_dir: self._open_containing_folder(d))
+                    else:
+                        act.setEnabled(False)
+                else:
+                    act.setEnabled(False)
             menu.addSeparator()
             clear_act = menu.addAction("Clear All")
             clear_act.triggered.connect(self._clear_notifications)
         pos = anchor.mapToGlobal(anchor.rect().bottomLeft())
         menu.exec(pos)
+
+    @staticmethod
+    def _open_containing_folder(file_path: str) -> None:
+        """Open the OS file explorer with *file_path* selected."""
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtCore import QUrl
+        import subprocess, sys
+
+        if os.path.isdir(file_path):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+            return
+
+        if sys.platform == "win32":
+            subprocess.Popen(["explorer", "/select,", os.path.normpath(file_path)])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-R", file_path])
+        else:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(file_path)))
 
     def _clear_notifications(self) -> None:
         self._notifications.clear()

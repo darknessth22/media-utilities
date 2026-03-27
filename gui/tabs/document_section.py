@@ -29,7 +29,7 @@ from gui.worker import Worker
 
 
 class DocumentSection(QScrollArea):
-    """Document Convert tab — PDF / DOCX / XLSX / PPTX / image → target format."""
+    """Document Convert tab — Word to PDF, PDF to Word, Image to PDF."""
 
     status_message = Signal(str, bool)   # (text, is_error)
     busy_changed   = Signal(bool)
@@ -45,6 +45,7 @@ class DocumentSection(QScrollArea):
         self._settings = settings
         self._worker: Worker | None = None
         self._selected_format = "DOCX"
+        self._last_result_path: str | None = None
 
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -89,7 +90,7 @@ class DocumentSection(QScrollArea):
         row = QHBoxLayout()
         self._file_input = QLineEdit()
         self._file_input.setObjectName("PillInput")
-        self._file_input.setPlaceholderText("PDF, DOCX, XLSX, PPTX, or image…")
+        self._file_input.setPlaceholderText("PDF, Word document, or image…")
         row.addWidget(self._file_input)
 
         browse_btn = QPushButton("Browse…")
@@ -254,6 +255,7 @@ class DocumentSection(QScrollArea):
         self._worker = None
         if result.get("success"):
             fp = result.get("file_path") or ""
+            self._last_result_path = fp
             fn = os.path.basename(fp) if fp else "output"
             get_history_manager().add_item(
                 HistoryItem(task_type="document", file_name=fn, file_path=fp, status="success")
