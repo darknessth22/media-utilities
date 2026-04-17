@@ -445,8 +445,6 @@ class DownloadSection(QScrollArea):
                 msg += "\nDownloaded via direct URL (yt-dlp unavailable for this link)."
             elif result.get("error_code") == "html_scrape_ok":
                 msg += "\nDownloaded via embedded video found in page HTML."
-            elif result.get("error_code") == "gallery_dl_ok":
-                msg += "\nDownloaded via gallery-dl."
             self.status_message.emit(msg, False)
         else:
             url = self._url_input.text()

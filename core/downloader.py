@@ -264,28 +264,6 @@ def _scrape_html_video(url: str, output_dir: str | None, cancel_check=None) -> d
     return None
 
 
-def _gallery_dl_download(url: str, output_dir: str | None) -> dict | None:
-    """Try gallery-dl as a fallback downloader. Returns None if not installed or unsupported."""
-    import shutil
-    if not shutil.which("gallery-dl"):
-        return None
-    cmd = ["gallery-dl", "--no-mtime", url]
-    if output_dir:
-        cmd += ["--destination", output_dir]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300, **_WIN_FLAGS)
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return None
-    if proc.returncode != 0:
-        return None
-    # gallery-dl writes filenames to stdout — pick the last non-empty line
-    lines = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
-    file_path = lines[-1] if lines else None
-    if file_path and not os.path.isfile(file_path):
-        file_path = None
-    size = os.path.getsize(file_path) if file_path else None
-    return {"success": True, "file_path": file_path, "file_size": size, "error_code": "gallery_dl_ok", "warning": None}
-
 
 def _download_generic_media(
     url: str,
@@ -332,18 +310,6 @@ def _download_generic_media(
             return {**result, "warning": warning}
         return None
 
-    def try_gallery_dl(classified: str) -> dict | None:
-        if classified in ("timeout",):
-            return None
-        result = _gallery_dl_download(url, output_dir)
-        if result and result.get("success"):
-            fp = result.get("file_path")
-            if fp:
-                final_sz = _finalize_downloaded_file(fp, media_type, video_codec, force_codec)
-                result = {**result, "file_size": final_sz}
-            return {**result, "warning": warning}
-        return None
-
     # --- Pre-flight (no download) ---
     try:
         with YoutubeDL(opts) as ydl:
@@ -356,9 +322,6 @@ def _download_generic_media(
         html_result = try_html_scrape(code)
         if html_result is not None:
             return html_result
-        gdl_result = try_gallery_dl(code)
-        if gdl_result is not None:
-            return gdl_result
         return {
             "success": False,
             "file_path": None,
@@ -371,9 +334,6 @@ def _download_generic_media(
         html_result = try_html_scrape("no_video")
         if html_result is not None:
             return html_result
-        gdl_result = try_gallery_dl("no_video")
-        if gdl_result is not None:
-            return gdl_result
         return {
             "success": False,
             "file_path": None,
@@ -399,9 +359,6 @@ def _download_generic_media(
         html_result = try_html_scrape(code)
         if html_result is not None:
             return html_result
-        gdl_result = try_gallery_dl(code)
-        if gdl_result is not None:
-            return gdl_result
         return {
             "success": False,
             "file_path": None,
@@ -414,9 +371,6 @@ def _download_generic_media(
         html_result = try_html_scrape("no_video")
         if html_result is not None:
             return html_result
-        gdl_result = try_gallery_dl("no_video")
-        if gdl_result is not None:
-            return gdl_result
         return {
             "success": False,
             "file_path": None,
