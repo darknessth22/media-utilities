@@ -6,6 +6,10 @@ Auto-generated from all feature plans. Last updated: 2026-03-11
 - Python 3.10+ (3.12 recommended) + **PySide6** (GUI), **QMediaPlayer/QVideoWidget** (video trimmer), **QSystemTrayIcon** (system tray), **QGuiApplication.styleHints().colorScheme()** (OS theme detection), **QDropEvent.mimeData().urls()** (drag-and-drop)
 - JSON config file in platform app data directory
 - PyMuPDF/fitz (PDF extraction), python-docx (DOCX generation), docx2pdf (DOCX→PDF on Windows/macOS), LibreOffice headless (DOCX→PDF on Linux)
+- Python 3.10+ (3.12 recommended) + PySide6 (GUI framework), Pillow (icon generation in build script), PyInstaller (executable packaging) (006-app-icon-rebrand)
+- N/A (icon is a static asset bundled with the application) (006-app-icon-rebrand)
+- Python 3.12 (3.10+ compatible) + yt-dlp (existing), urllib (stdlib — for HTTP fallback), PySide6 (existing GUI) (007-generic-url-download)
+- Download history JSON (existing — no schema changes) (007-generic-url-download)
 
 ## Project Structure
 
@@ -49,6 +53,8 @@ pytest; ruff check .
 Python 3.12 (3.10+ compatible): Follow standard conventions
 
 ## Recent Changes
+- 007-generic-url-download: Added Python 3.12 (3.10+ compatible) + yt-dlp (existing), urllib (stdlib — for HTTP fallback), PySide6 (existing GUI)
+- 006-app-icon-rebrand: Added Python 3.10+ (3.12 recommended) + PySide6 (GUI framework), Pillow (icon generation in build script), PyInstaller (executable packaging)
 - 001-qt-migration (Phase N complete): Migrated from tkinter/ttkbootstrap/python-vlc/pystray/darkdetect to PySide6. All legacy GUI files removed. GUI now uses frameless MainWindow with 6-section sidebar navigation.
 
 <!-- MANUAL ADDITIONS START -->

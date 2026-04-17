@@ -40,6 +40,14 @@ from gui.worker import Worker
 
 _AUDIO_FORMATS = ["MP3", "FLAC", "OGG", "OPUS", "M4A"]
 
+_GENERIC_ERROR_MESSAGES: dict[str, str] = {
+    "timeout": "Connection timed out. Check your network and try again.",
+    "auth_required": "This video requires login — not supported for generic URLs.",
+    "unsupported": "This site is not supported. Try a direct video file link instead.",
+    "no_video": "No downloadable video found at this URL.",
+    "download_failed": "Download failed. Check the URL or your network.",
+}
+
 
 def _card() -> QFrame:
     f = QFrame()
@@ -270,7 +278,10 @@ class DownloadSection(QScrollArea):
                 "generic": "Generic URL",
             }
             label = platform_names.get(platform, platform.capitalize())
-            self._platform_label.setText(f"Detected: {label}")
+            if platform == "generic":
+                self._platform_label.setText("Detected: Generic URL — download will be attempted")
+            else:
+                self._platform_label.setText(f"Detected: {label}")
             # Spotify is audio-only
             if platform == "spotify":
                 self._audio_radio.setChecked(True)
@@ -385,9 +396,10 @@ class DownloadSection(QScrollArea):
         _quality, _audio_fmt = quality, audio_fmt
         _start, _end = start_time, end_time
         _out_dir, _video_codec = out_dir, video_codec
-        _cancel_check = None
 
         def do_download():
+            w = self._worker
+            cancel_fn = w.check_cancelled if w else lambda: False
             return download_media(
                 url=_url,
                 platform=_platform,
@@ -398,7 +410,7 @@ class DownloadSection(QScrollArea):
                 audio_format=_audio_fmt,
                 output_dir=_out_dir,
                 video_codec=_video_codec,
-                cancel_check=_cancel_check,
+                cancel_check=cancel_fn,
             )
 
         self._worker = Worker(do_download)
@@ -417,6 +429,9 @@ class DownloadSection(QScrollArea):
         self._set_busy(False)
         self._worker = None
         if result.get("success"):
+            warn = result.get("warning")
+            if warn:
+                self.status_message.emit(warn, False)
             fp = result.get("file_path") or ""
             self._last_result_path = fp
             fn = os.path.basename(fp) if fp else "downloaded file"
@@ -425,13 +440,22 @@ class DownloadSection(QScrollArea):
             get_history_manager().add_item(
                 HistoryItem(task_type="download", file_name=fn, file_path=fp, status="success")
             )
-            self.status_message.emit(f"Download complete → {fn}{size_str}", False)
+            msg = f"Download complete → {fn}{size_str}"
+            if result.get("error_code") == "http_fallback_ok":
+                msg += "\nDownloaded via direct URL (yt-dlp unavailable for this link)."
+            elif result.get("error_code") == "html_scrape_ok":
+                msg += "\nDownloaded via embedded video found in page HTML."
+            elif result.get("error_code") == "gallery_dl_ok":
+                msg += "\nDownloaded via gallery-dl."
+            self.status_message.emit(msg, False)
         else:
             url = self._url_input.text()
             get_history_manager().add_item(
                 HistoryItem(task_type="download", file_name=url, file_path=url, status="error")
             )
-            self.status_message.emit("Download failed. Check the URL or network.", True)
+            code = result.get("error_code")
+            err_text = _GENERIC_ERROR_MESSAGES.get(code) or "Download failed. Check the URL or network."
+            self.status_message.emit(err_text, True)
 
     def _on_error(self, err_tuple: tuple) -> None:
         self._set_busy(False)

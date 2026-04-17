@@ -6,6 +6,7 @@ A comprehensive toolkit for media downloading, conversion, and manipulation with
 
 - **Media Download**
   - Support for multiple platforms: YouTube, Facebook, Instagram, TikTok, Twitter, Spotify
+  - **Generic URL support**: download video from any URL not limited to social media platforms
   - Quality selection for video downloads
   - Audio-only extraction with multiple format options
   - Time-based clip extraction
