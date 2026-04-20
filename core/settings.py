@@ -12,7 +12,8 @@ class UserSettings:
     default_codec: str = "original"
     theme_mode: str = "auto"
     quit_on_close: bool = True
-    version: int = 2
+    intercept_timeout: int = 30
+    version: int = 3
 
 
 class SettingsManager:
@@ -75,8 +76,10 @@ class SettingsManager:
             # Migration support
             if merged_data.get("version", 1) < 2:
                 merged_data["version"] = 2
-                # If we had loaded old data, quit_on_close defaults to True via asdict(default_settings) which is fine.
-                    
+            if merged_data.get("version", 1) < 3:
+                merged_data.setdefault("intercept_timeout", 30)
+                merged_data["version"] = 3
+
             return UserSettings(**merged_data)
         except (json.JSONDecodeError, OSError, TypeError):
             # Fallback to defaults on error
@@ -88,6 +91,9 @@ class SettingsManager:
         config_path = cls.get_config_path()
         temp_path = config_path.with_suffix(".temp")
         
+        # Clamp intercept_timeout to valid range
+        settings.intercept_timeout = max(10, min(300, settings.intercept_timeout))
+
         try:
             # Write to temp file first
             with open(temp_path, "w", encoding="utf-8") as f:

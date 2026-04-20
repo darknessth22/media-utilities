@@ -397,9 +397,12 @@ class DownloadSection(QScrollArea):
         _start, _end = start_time, end_time
         _out_dir, _video_codec = out_dir, video_codec
 
+        self._worker = Worker(lambda: None)  # placeholder; replaced below
+
         def do_download():
             w = self._worker
             cancel_fn = w.check_cancelled if w else lambda: False
+            status_fn = w.signals.intercept_status.emit if w else None
             return download_media(
                 url=_url,
                 platform=_platform,
@@ -411,12 +414,18 @@ class DownloadSection(QScrollArea):
                 output_dir=_out_dir,
                 video_codec=_video_codec,
                 cancel_check=cancel_fn,
+                status_cb=status_fn,
             )
 
         self._worker = Worker(do_download)
         self._worker.signals.result.connect(self._on_result)
         self._worker.signals.error.connect(self._on_error)
+        self._worker.signals.intercept_status.connect(self._on_intercept_status)
         self._worker.start()
+
+    def _on_intercept_status(self, msg: str) -> None:
+        self._progress_label.setText(msg)
+        self._progress_label.setVisible(True)
 
     def _set_busy(self, busy: bool) -> None:
         self._progress_bar.setVisible(busy)
@@ -437,14 +446,17 @@ class DownloadSection(QScrollArea):
             fn = os.path.basename(fp) if fp else "downloaded file"
             size = result.get("file_size")
             size_str = f"  ({size / (1024*1024):.1f} MB)" if size else ""
+            _source = "browser_intercept" if result.get("error_code") == "browser_intercept_ok" else "direct"
             get_history_manager().add_item(
-                HistoryItem(task_type="download", file_name=fn, file_path=fp, status="success")
+                HistoryItem(task_type="download", file_name=fn, file_path=fp, status="success", source=_source)
             )
             msg = f"Download complete → {fn}{size_str}"
             if result.get("error_code") == "http_fallback_ok":
                 msg += "\nDownloaded via direct URL (yt-dlp unavailable for this link)."
             elif result.get("error_code") == "html_scrape_ok":
                 msg += "\nDownloaded via embedded video found in page HTML."
+            elif result.get("error_code") == "browser_intercept_ok":
+                msg += "\nDownloaded via browser stream intercept."
             self.status_message.emit(msg, False)
         else:
             url = self._url_input.text()

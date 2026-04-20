@@ -10,6 +10,7 @@ class HistoryItem:
     status: str
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: float = field(default_factory=time.time)
+    source: str = "direct"
 
     def to_dict(self):
         return {
@@ -18,7 +19,8 @@ class HistoryItem:
             "file_name": self.file_name,
             "file_path": self.file_path,
             "timestamp": self.timestamp,
-            "status": self.status
+            "status": self.status,
+            "source": self.source,
         }
 
     @classmethod
@@ -29,5 +31,6 @@ class HistoryItem:
             file_name=data.get("file_name", ""),
             file_path=data.get("file_path", ""),
             timestamp=data.get("timestamp", time.time()),
-            status=data.get("status", "")
+            status=data.get("status", ""),
+            source=data.get("source", "direct"),
         )

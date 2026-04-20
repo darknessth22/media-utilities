@@ -5,6 +5,34 @@ import sys
 from utils.ffmpeg import ffmpeg_path
 
 
+def check_playwright_installed() -> tuple[bool, str]:
+    """Check if playwright package and Chromium binary are available."""
+    try:
+        from playwright.sync_api import sync_playwright  # noqa: F401
+    except ImportError:
+        return False, "Playwright not installed. Run: pip install playwright && python -m playwright install chromium"
+
+    # Probe binary by launching a minimal context in a subprocess to avoid
+    # polluting the main process on failure.
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c",
+             "from playwright.sync_api import sync_playwright; "
+             "p = sync_playwright().__enter__(); "
+             "b = p.chromium.launch(headless=True); "
+             "b.close(); "
+             "p.__exit__(None,None,None)"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            return False, "Playwright Chromium not installed. Run: python -m playwright install chromium"
+        return True, ""
+    except Exception:
+        return False, "Playwright Chromium not installed. Run: python -m playwright install chromium"
+
+
 def install(package: str) -> None:
     """Install a Python package via pip."""
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])

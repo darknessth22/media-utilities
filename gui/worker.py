@@ -9,6 +9,7 @@ class WorkerSignals(QObject):
     error = Signal(tuple)
     result = Signal(object)
     progress = Signal(int, int, str)
+    intercept_status = Signal(str)
 
 class Worker(QThread):
     """

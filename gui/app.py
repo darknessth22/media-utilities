@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QCheckBox, QLineEdit,
     QComboBox, QFileDialog, QSizeGrip, QMenu,
     QTabBar, QStackedWidget, QScrollArea,
-    QSizePolicy, QStatusBar,
+    QSizePolicy, QStatusBar, QSpinBox,
 )
 
 from core.settings import SettingsManager, UserSettings
@@ -397,6 +397,19 @@ class SettingsSection(QScrollArea):
         layout.addLayout(row)
         layout.addWidget(hint)
 
+        layout.addWidget(self._section_header("ADVANCED"))
+
+        timeout_row = QHBoxLayout()
+        timeout_row.addWidget(QLabel("Browser intercept timeout (s)"))
+        timeout_row.addStretch()
+        self._timeout_spin = QSpinBox()
+        self._timeout_spin.setRange(10, 300)
+        self._timeout_spin.setValue(self._settings.intercept_timeout)
+        self._timeout_spin.setFixedWidth(80)
+        self._timeout_spin.valueChanged.connect(self._on_timeout_changed)
+        timeout_row.addWidget(self._timeout_spin)
+        layout.addLayout(timeout_row)
+
         return card
 
     def _build_paths_card(self) -> QFrame:
@@ -473,6 +486,10 @@ class SettingsSection(QScrollArea):
         self._settings.default_codec = ("original", "h264", "hevc", "vp9")[index]
         self._save()
 
+    def _on_timeout_changed(self, value: int) -> None:
+        self._settings.intercept_timeout = value
+        self._save()
+
     def _save(self) -> None:
         SettingsManager.save(self._settings)
         self.settings_changed.emit(self._settings)
@@ -483,7 +500,7 @@ class SettingsSection(QScrollArea):
         """Refresh controls from *settings* without triggering saves."""
         self._settings = settings
         for widget in (self._theme_combo, self._quit_check,
-                       self._folder_input, self._codec_combo):
+                       self._folder_input, self._codec_combo, self._timeout_spin):
             widget.blockSignals(True)
 
         self._theme_combo.setCurrentIndex(
@@ -494,9 +511,10 @@ class SettingsSection(QScrollArea):
         self._codec_combo.setCurrentIndex(
             {"original": 0, "h264": 1, "hevc": 2, "vp9": 3}.get(settings.default_codec, 0)
         )
+        self._timeout_spin.setValue(settings.intercept_timeout)
 
         for widget in (self._theme_combo, self._quit_check,
-                       self._folder_input, self._codec_combo):
+                       self._folder_input, self._codec_combo, self._timeout_spin):
             widget.blockSignals(False)
 
 
@@ -855,7 +873,8 @@ class MainWindow(QMainWindow):
         """Open the OS file explorer with *file_path* selected."""
         from PySide6.QtGui import QDesktopServices
         from PySide6.QtCore import QUrl
-        import subprocess, sys
+        import subprocess
+        import sys
 
         if os.path.isdir(file_path):
             QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))

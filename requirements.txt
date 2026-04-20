@@ -8,3 +8,4 @@ docx2pdf>=0.1.8
 desktop-notifier>=3.3.2
 curl-cffi>=0.7.1
 PySide6>=6.6.0
+playwright>=1.40.0

@@ -265,6 +265,15 @@ def _scrape_html_video(url: str, output_dir: str | None, cancel_check=None) -> d
 
 
 
+def _get_intercept_timeout() -> int:
+    """Read intercept_timeout from settings; fallback to 30."""
+    try:
+        from core.settings import SettingsManager
+        return SettingsManager.load().intercept_timeout
+    except Exception:
+        return 30
+
+
 def _download_generic_media(
     url: str,
     ydl_opts: dict,
@@ -273,6 +282,7 @@ def _download_generic_media(
     force_codec: bool,
     output_dir: str | None,
     cancel_check=None,
+    status_cb=None,
 ) -> dict:
     """Generic URL path: preflight, playlist cap, yt-dlp + optional HTTP fallback."""
     warning: str | None = None
@@ -310,6 +320,62 @@ def _download_generic_media(
             return {**result, "warning": warning}
         return None
 
+    def try_playwright_intercept(classified: str) -> dict | None:
+        if classified in ("auth_required", "timeout"):
+            return None
+        from core.interceptor import _write_netscape_cookies, intercept_m3u8
+        result = intercept_m3u8(
+            url=url,
+            timeout=_get_intercept_timeout(),
+            cancel_check=cancel_check,
+            status_cb=status_cb,
+        )
+        if not result.success:
+            error_messages = {
+                "launch_failed": (result.error_message or "Playwright not available. Install with: pip install playwright && python -m playwright install chromium"),
+                "no_stream": "No HLS stream detected on this page.",
+                "cancelled": "Download cancelled.",
+                "nav_error": f"Browser navigation failed: {result.error_message}",
+            }
+            return {
+                "success": False,
+                "file_path": None,
+                "file_size": None,
+                "error_code": result.error_code or "no_video",
+                "warning": error_messages.get(result.error_code or "", result.error_message),
+            }
+        cookie_file = _write_netscape_cookies(result.cookies)
+        try:
+            dl_opts = {
+                **ydl_opts,
+                "cookiefile": cookie_file,
+                "http_headers": result.headers,
+            }
+            with YoutubeDL(dl_opts) as ydl:
+                info = ydl.extract_info(result.m3u8_url, download=True)
+                downloaded_file = ydl.prepare_filename(info)
+            final_size = _finalize_downloaded_file(downloaded_file, media_type, video_codec, force_codec)
+            return {
+                "success": True,
+                "file_path": downloaded_file,
+                "file_size": final_size,
+                "error_code": "browser_intercept_ok",
+                "warning": warning,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "file_path": None,
+                "file_size": None,
+                "error_code": "download_failed",
+                "warning": str(e),
+            }
+        finally:
+            try:
+                os.remove(cookie_file)
+            except OSError:
+                pass
+
     # --- Pre-flight (no download) ---
     try:
         with YoutubeDL(opts) as ydl:
@@ -322,6 +388,9 @@ def _download_generic_media(
         html_result = try_html_scrape(code)
         if html_result is not None:
             return html_result
+        pw_result = try_playwright_intercept(code)
+        if pw_result is not None:
+            return pw_result
         return {
             "success": False,
             "file_path": None,
@@ -334,6 +403,9 @@ def _download_generic_media(
         html_result = try_html_scrape("no_video")
         if html_result is not None:
             return html_result
+        pw_result = try_playwright_intercept("no_video")
+        if pw_result is not None:
+            return pw_result
         return {
             "success": False,
             "file_path": None,
@@ -359,6 +431,9 @@ def _download_generic_media(
         html_result = try_html_scrape(code)
         if html_result is not None:
             return html_result
+        pw_result = try_playwright_intercept(code)
+        if pw_result is not None:
+            return pw_result
         return {
             "success": False,
             "file_path": None,
@@ -371,6 +446,9 @@ def _download_generic_media(
         html_result = try_html_scrape("no_video")
         if html_result is not None:
             return html_result
+        pw_result = try_playwright_intercept("no_video")
+        if pw_result is not None:
+            return pw_result
         return {
             "success": False,
             "file_path": None,
@@ -431,6 +509,7 @@ def download_media(
     video_codec: str = "libx264",
     force_codec: bool = False,
     cancel_check=None,
+    status_cb=None,
 ) -> dict:
     """Download media from a URL.
 
@@ -489,7 +568,7 @@ def download_media(
 
     if platform == "generic":
         return _download_generic_media(
-            url, ydl_opts, media_type, video_codec, force_codec, output_dir, cancel_check,
+            url, ydl_opts, media_type, video_codec, force_codec, output_dir, cancel_check, status_cb,
         )
 
     try:
