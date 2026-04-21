@@ -54,3 +54,11 @@ setup.py
 dist/
 build/
 *.spec
+
+# Test and Lint caches
+.pytest_cache/
+.ruff_cache/
+
+# Logs and temporary files
+*.log
+*.tmp

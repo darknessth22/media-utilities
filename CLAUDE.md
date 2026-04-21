@@ -12,6 +12,10 @@ Auto-generated from all feature plans. Last updated: 2026-03-11
 - Download history JSON (existing — no schema changes) (007-generic-url-download)
 - Python 3.10+ (3.12 recommended) + playwright (Python sync API), yt-dlp (existing), PySide6 (existing) (008-playwright-m3u8-intercept)
 - N/A — no new persistent storage; timeout setting added to `UserSettings` (008-playwright-m3u8-intercept)
+- Python 3.12 (3.10+ compatible) + PySide6 (GUI + QtMultimedia for preview), yt-dlp (progress hooks + stream extraction), urllib stdlib (HTTP fallback progress), playwright (existing browser intercept — no change to intercept path for progress) (009-download-preview-progress)
+- N/A — no schema changes; download history JSON unchanged (009-download-preview-progress)
+- Python 3.12 (3.10+ compatible) + PySide6 (QThread, Signal), yt-dlp, playwright (010-fix-download-recovery)
+- N/A — no schema or file-format changes (010-fix-download-recovery)
 
 ## Project Structure
 
@@ -55,9 +59,9 @@ pytest; ruff check .
 Python 3.12 (3.10+ compatible): Follow standard conventions
 
 ## Recent Changes
+- 010-fix-download-recovery: Added Python 3.12 (3.10+ compatible) + PySide6 (QThread, Signal), yt-dlp, playwright
+- 009-download-preview-progress: Added Python 3.12 (3.10+ compatible) + PySide6 (GUI + QtMultimedia for preview), yt-dlp (progress hooks + stream extraction), urllib stdlib (HTTP fallback progress), playwright (existing browser intercept — no change to intercept path for progress)
 - 008-playwright-m3u8-intercept: Added Python 3.10+ (3.12 recommended) + playwright (Python sync API), yt-dlp (existing), PySide6 (existing)
-- 007-generic-url-download: Added Python 3.12 (3.10+ compatible) + yt-dlp (existing), urllib (stdlib — for HTTP fallback), PySide6 (existing GUI)
-- 006-app-icon-rebrand: Added Python 3.10+ (3.12 recommended) + PySide6 (GUI framework), Pillow (icon generation in build script), PyInstaller (executable packaging)
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->

@@ -81,8 +81,37 @@ def _is_direct_video_url(url: str) -> bool:
     return any(path.endswith(ext) for ext in _DIRECT_VIDEO_EXTENSIONS)
 
 
-def _http_fallback_download(url: str, output_dir: str | None, cancel_check=None) -> dict:
+def _fmt_speed(bps: float | None) -> str:
+    """Format bytes per second into a human-readable string."""
+    if bps is None or bps < 0:
+        return ""
+    if bps >= 1024 * 1024:
+        return f"{bps / (1024 * 1024):.1f} MB/s"
+    if bps >= 1024:
+        return f"{bps / 1024:.0f} KB/s"
+    return f"{bps:.0f} B/s"
+
+
+def _make_progress_hook(cancel_check, progress_cb) -> callable:
+    """Return a yt-dlp progress hook that handles cancellation and progress updates."""
+    def _progress_hook(d):
+        if cancel_check and cancel_check():
+            raise Exception("Download cancelled by user")
+        
+        if progress_cb and d["status"] == "downloading":
+            downloaded = d.get("downloaded_bytes", 0)
+            total = d.get("total_bytes") or d.get("total_bytes_estimate")
+            pct = int(downloaded / total * 100) if total else -1
+            eta = d.get("eta", -1)
+            speed = d.get("speed")
+            progress_cb(pct, eta, _fmt_speed(speed))
+            
+    return _progress_hook
+
+
+def _http_fallback_download(url: str, output_dir: str | None, cancel_check=None, progress_cb=None) -> dict:
     """Stream a direct video URL to disk via urllib (see contracts/internal-api.md)."""
+    import time
     try:
         name = PurePosixPath(urlparse(url).path).name
         if not name or name in (".", ".."):
@@ -94,7 +123,11 @@ def _http_fallback_download(url: str, output_dir: str | None, cancel_check=None)
 
         req = Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; media-utilities/1.0)"})
         cancelled = False
+        downloaded = 0
+        start_time = time.monotonic()
+
         with urlopen(req, timeout=30) as resp, open(dest, "wb") as out_f:
+            content_length = int(resp.headers.get("Content-Length", 0)) or None
             while True:
                 if cancel_check and cancel_check():
                     cancelled = True
@@ -103,6 +136,18 @@ def _http_fallback_download(url: str, output_dir: str | None, cancel_check=None)
                 if not chunk:
                     break
                 out_f.write(chunk)
+                downloaded += len(chunk)
+
+                if progress_cb:
+                    elapsed = time.monotonic() - start_time
+                    speed = downloaded / elapsed if elapsed > 0 else 0
+                    if content_length:
+                        pct = int(downloaded / content_length * 100)
+                        eta = int((content_length - downloaded) / speed) if speed > 0 else -1
+                    else:
+                        pct = -1
+                        eta = -1
+                    progress_cb(pct, eta, _fmt_speed(speed))
 
         if cancelled:
             try:
@@ -283,6 +328,7 @@ def _download_generic_media(
     output_dir: str | None,
     cancel_check=None,
     status_cb=None,
+    progress_cb=None,
 ) -> dict:
     """Generic URL path: preflight, playlist cap, yt-dlp + optional HTTP fallback."""
     warning: str | None = None
@@ -293,7 +339,7 @@ def _download_generic_media(
             return None
         if classified in ("auth_required", "timeout"):
             return None
-        fb = _http_fallback_download(url, output_dir, cancel_check)
+        fb = _http_fallback_download(url, output_dir, cancel_check, progress_cb)
         if fb["success"]:
             fp = fb.get("file_path")
             if fp:
@@ -510,6 +556,7 @@ def download_media(
     force_codec: bool = False,
     cancel_check=None,
     status_cb=None,
+    progress_cb=None,
 ) -> dict:
     """Download media from a URL.
 
@@ -535,22 +582,23 @@ def download_media(
     output_template = (
         os.path.join(output_dir, "%(title)s.%(ext)s") if output_dir else "%(title)s.%(ext)s"
     )
-    def _progress_hook(_d):
-        if cancel_check and cancel_check():
-            raise Exception("Download cancelled by user")
 
     ydl_opts: dict = {
         "outtmpl": output_template,
         "cookiefile": "cookies.txt" if os.path.exists("cookies.txt") else None,
         "postprocessor_args": ["-loglevel", "error"],
         "force_keyframes_at_cuts": True,
-        "progress_hooks": [_progress_hook],
+        "progress_hooks": [_make_progress_hook(cancel_check, progress_cb)],
     }
 
     if start_time and end_time:
         start = parse_time(start_time)
         end = parse_time(end_time)
         ydl_opts["merge_output_format"] = "mp4"
+        # US2: Use download_sections for more efficient segment fetching (T019)
+        # This allows yt-dlp to fetch only the required fragments.
+        ydl_opts["download_sections"] = [{"start_time": start, "end_time": end, "title": "segment"}]
+        # Keep postprocessor_args as fallback for extractors that don't support sections
         ydl_opts["postprocessor_args"] = ["-ss", str(start), "-to", str(end)]
         suffix = f"%(title)s_Trimmed_{start}s_{end}s.%(ext)s"
         ydl_opts["outtmpl"] = os.path.join(output_dir, suffix) if output_dir else suffix
@@ -568,7 +616,7 @@ def download_media(
 
     if platform == "generic":
         return _download_generic_media(
-            url, ydl_opts, media_type, video_codec, force_codec, output_dir, cancel_check, status_cb,
+            url, ydl_opts, media_type, video_codec, force_codec, output_dir, cancel_check, status_cb, progress_cb
         )
 
     try:
@@ -642,3 +690,57 @@ def get_available_formats(url: str) -> list[dict]:
         except Exception as e:
             print(f"Error getting formats: {e}")
             return []
+
+
+# ---------------------------------------------------------------------------
+# Preview
+# ---------------------------------------------------------------------------
+
+def get_preview_stream_url(url: str) -> dict:
+    """Extract a playable stream URL for preview (US2)."""
+    try:
+        # Prefer a merged <=720p MP4; fall back to any single-file best format.
+        ydl_opts = {"quiet": True, "format": "best[height<=720][ext=mp4]/best[height<=720]/best"}
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if not info:
+                return {"error": "Could not extract info"}
+
+            if info.get("is_live"):
+                return {"is_live": True, "error": "Live streams not supported for preview"}
+
+            duration_ms = int((info.get("duration") or 0) * 1000)
+            title = info.get("title", "Unknown Title")
+
+            # For single-stream extractors (YouTube etc.) the URL is at top level.
+            stream_url = info.get("url")
+
+            # For multi-format extractors (Facebook, Instagram, TikTok, …) the URL
+            # lives inside the formats list — pick the best non-DASH MP4 we can find.
+            if not stream_url:
+                formats = info.get("formats") or []
+                # Prefer mp4 with both video and audio, <=720p, direct URL (no manifest).
+                def _score(f):
+                    has_av = f.get("vcodec", "none") != "none" and f.get("acodec", "none") != "none"
+                    is_mp4 = f.get("ext") == "mp4"
+                    h = f.get("height") or 0
+                    in_range = h <= 720
+                    tbr = f.get("tbr") or 0
+                    return (has_av, is_mp4, in_range, tbr)
+
+                candidates = [f for f in formats if f.get("url") and not f.get("manifest_url")]
+                if candidates:
+                    best = max(candidates, key=_score)
+                    stream_url = best.get("url")
+
+            if not stream_url:
+                return {"error": "No playable stream URL found"}
+
+            return {
+                "stream_url": stream_url,
+                "duration_ms": duration_ms,
+                "title": title,
+                "is_live": False,
+            }
+    except Exception as e:
+        return {"error": str(e)}
