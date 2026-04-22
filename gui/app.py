@@ -153,6 +153,22 @@ class TitleBar(QWidget):
         layout.addWidget(self._title)
         layout.addStretch()
 
+        # Download queue icon with badge
+        self._btn_queue = self._ctrl_btn("⬇", "Download Queue")
+        queue_px = _load_svg_icon("queue.svg", 18, "#8B949E")
+        if not queue_px.isNull():
+            from PySide6.QtGui import QIcon
+            self._btn_queue.setText("")
+            self._btn_queue.setIcon(QIcon(queue_px))
+        self._queue_badge = QLabel("", self._btn_queue)
+        self._queue_badge.setObjectName("BellBadge")
+        self._queue_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._queue_badge.setFixedSize(16, 16)
+        self._queue_badge.move(20, 4)
+        self._queue_badge.setVisible(False)
+        self._btn_queue.clicked.connect(self._on_queue_btn)
+        layout.addWidget(self._btn_queue)
+
         # Notification bell with badge overlay
         self._btn_bell = self._ctrl_btn("🔔", "Notifications")
         self._bell_badge = QLabel("", self._btn_bell)
@@ -217,6 +233,9 @@ class TitleBar(QWidget):
         pos = self._btn_menu.mapToGlobal(self._btn_menu.rect().bottomLeft())
         menu.exec(pos)
 
+    def _on_queue_btn(self) -> None:
+        self.window()._show_queue_popup(self._btn_queue)
+
     def _on_bell(self) -> None:
         self.window()._show_notifications(self._btn_bell)
 
@@ -226,6 +245,13 @@ class TitleBar(QWidget):
             self._bell_badge.setVisible(True)
         else:
             self._bell_badge.setVisible(False)
+
+    def update_queue_badge(self, count: int) -> None:
+        if count > 0:
+            self._queue_badge.setText(str(min(count, 99)))
+            self._queue_badge.setVisible(True)
+        else:
+            self._queue_badge.setVisible(False)
 
     # ── Drag to move ──────────────────────────────────────────────────────────
 
@@ -544,6 +570,7 @@ class MainWindow(QMainWindow):
         self.theme_manager = theme_manager
         self._current_section: int = 0
         self._notifications: list[dict] = []
+        self._section_busy: dict[int, bool] = {}
 
         # ── Window flags (frameless) ──────────────────────────────────────────
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
@@ -722,6 +749,9 @@ class MainWindow(QMainWindow):
                 lambda busy, i=idx: self._on_section_busy_changed(i, busy)
             )
 
+        # queue_changed → update queue badge in title bar
+        self._download_section.queue_changed.connect(self._on_queue_changed)
+
         for widget in self._section_widgets:
             self._content_stack.addWidget(widget)
 
@@ -778,13 +808,33 @@ class MainWindow(QMainWindow):
         # Show/hide primary action button
         action_label = _SECTIONS[index].get("action_label")
         if action_label:
-            self._primary_btn.setText(action_label)
+            is_busy = self._section_busy.get(index, False)
+            self._primary_btn.setText("Cancel" if is_busy else action_label)
             self._action_btn_container.setVisible(True)
         else:
             self._action_btn_container.setVisible(False)
 
+    def _on_queue_changed(self, count: int) -> None:
+        self.title_bar.update_queue_badge(count)
+
+    def _show_queue_popup(self, anchor) -> None:
+        queue = self._download_section._queue
+        active = [j for j in queue if j["status"] in ("pending", "downloading")]
+        menu = QMenu(self)
+        if not active:
+            empty = menu.addAction("No active downloads")
+            empty.setEnabled(False)
+        else:
+            for job in active:
+                status_icon = "⬇" if job["status"] == "downloading" else "○"
+                act = menu.addAction(f"{status_icon}  {job['display_name']}")
+                act.setEnabled(False)
+        pos = anchor.mapToGlobal(anchor.rect().bottomLeft())
+        menu.exec(pos)
+
     def _on_section_busy_changed(self, section_index: int, busy: bool) -> None:
         """Toggle primary button text between the action label and 'Cancel'."""
+        self._section_busy[section_index] = busy
         if section_index != self._current_section:
             return
         action_label = _SECTIONS[section_index].get("action_label")

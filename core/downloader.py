@@ -9,6 +9,7 @@ from pathlib import PurePosixPath
 from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 
+from core.version import VERSION
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError
 
@@ -93,6 +94,24 @@ def _fmt_speed(bps: float | None) -> str:
     return f"{bps:.0f} B/s"
 
 
+class _StatusLogger:
+    """yt-dlp logger that forwards destination/merger lines to status_cb."""
+    _PATTERNS = ("[download] Destination:", "[Merger]", "has already been downloaded")
+
+    def __init__(self, cb):
+        self._cb = cb
+
+    def debug(self, msg: str) -> None:
+        if self._cb and any(p in msg for p in self._PATTERNS):
+            self._cb(msg)
+
+    def warning(self, msg: str) -> None:
+        pass
+
+    def error(self, msg: str) -> None:
+        pass
+
+
 def _make_progress_hook(cancel_check, progress_cb) -> callable:
     """Return a yt-dlp progress hook that handles cancellation and progress updates."""
     def _progress_hook(d):
@@ -122,7 +141,7 @@ def _http_fallback_download(url: str, output_dir: str | None, cancel_check=None,
         dest = os.path.join(out_dir, name)
         dest = os.path.abspath(dest)
 
-        req = Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; media-utilities/1.0)"})
+        req = Request(url, headers={"User-Agent": f"Mozilla/5.0 (compatible; media-utilities/{VERSION})"})
         cancelled = False
         downloaded = 0
         start_time = time.monotonic()
@@ -591,6 +610,8 @@ def download_media(
         "force_keyframes_at_cuts": True,
         "progress_hooks": [_make_progress_hook(cancel_check, progress_cb)],
     }
+    if status_cb:
+        ydl_opts["logger"] = _StatusLogger(status_cb)
 
     if start_time and end_time:
         start = parse_time(start_time)

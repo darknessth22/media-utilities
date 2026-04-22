@@ -25,6 +25,7 @@ def _qt_message_handler(mode, _context, message):
 qInstallMessageHandler(_qt_message_handler)
 
 from core.settings import SettingsManager
+from core.version import VERSION
 from gui.app import MainWindow
 from gui.theme import ThemeManager
 
@@ -42,6 +43,7 @@ class _DepsChecker(QThread):
 def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("Media Utility")
+    app.setApplicationVersion(VERSION)
     app.setOrganizationName("Omniclouds")
     # Prevent the process from exiting when the last window is hidden to tray.
     app.setQuitOnLastWindowClosed(False)

@@ -10,11 +10,13 @@ datas += collect_data_files('yt_dlp')
 datas += collect_data_files('pillow_heif')
 datas += collect_data_files('fitz')
 
-# Collect PySide6 assets (translations, plugins, etc.)
+# Collect only PySide6 plugin data files (platforms, styles, imageformats)
+pyside6_binaries = []
 try:
-    datas += collect_data_files('PySide6')
-except Exception:
-    pass
+    pyside6_datas = collect_data_files('PySide6', includes=['plugins/platforms/*', 'plugins/styles/*', 'plugins/imageformats/*', 'plugins/multimedia/*'])
+    datas += pyside6_datas
+except Exception as e:
+    print(f"Warning: PySide6 data collection failed: {e}")
 
 # Try to collect spotdl data files for Spotify support
 try:
@@ -27,11 +29,18 @@ assets_dir = os.path.join(os.path.dirname(os.path.abspath('.')), 'assets')
 if os.path.isdir('assets'):
     datas.append(('assets', 'assets'))
 
-# Add FFmpeg and FFprobe executables if they exist in the current directory
-if os.path.exists('ffmpeg.exe'):
-    datas.append(('ffmpeg.exe', '.'))
-if os.path.exists('ffprobe.exe'):
-    datas.append(('ffprobe.exe', '.'))
+# Add FFmpeg and FFprobe executables if they exist in the bin directory (setup by build_executable.py)
+if os.path.exists('bin/ffmpeg.exe'):
+    datas.append(('bin/ffmpeg.exe', '.'))
+if os.path.exists('bin/ffprobe.exe'):
+    datas.append(('bin/ffprobe.exe', '.'))
+
+# Fallback for current directory if bin/ doesn't exist yet
+if not os.path.exists('bin/ffmpeg.exe'):
+    if os.path.exists('ffmpeg.exe'):
+        datas.append(('ffmpeg.exe', '.'))
+    if os.path.exists('ffprobe.exe'):
+        datas.append(('ffprobe.exe', '.'))
 
 # Add spotdl executable if it exists (for Spotify support)
 if os.path.exists('spotdl.exe'):
@@ -84,7 +93,7 @@ block_cipher = None
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
+    binaries=pyside6_binaries,
     datas=datas,
     hiddenimports=hiddenimports + [
         'openpyxl.cell._writer',
@@ -93,7 +102,26 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['tkinter', 'ttkbootstrap', 'darkdetect', '_tkinter'],
+    excludes=[
+        'tkinter', 'ttkbootstrap', 'darkdetect', '_tkinter',
+        # PySide6 unused modules
+        'PySide6.QtWebEngine', 'PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets',
+        'PySide6.Qt3DCore', 'PySide6.Qt3DRender', 'PySide6.Qt3DInput',
+        'PySide6.QtCharts', 'PySide6.QtDataVisualization',
+        'PySide6.QtDesigner', 'PySide6.QtHelp',
+        'PySide6.QtQuick', 'PySide6.QtQuickWidgets', 'PySide6.QtQml',
+        'PySide6.QtLocation', 'PySide6.QtBluetooth', 'PySide6.QtNfc',
+        'PySide6.QtSerialPort', 'PySide6.QtSensors', 'PySide6.QtVirtualKeyboard',
+        # Heavy ML/AI libraries not needed at runtime
+        'torch', 'tensorflow', 'tensorboard', 'keras',
+        'onnxruntime', 'onnx',
+        'numpy.distutils',
+        'scipy', 'sklearn', 'skimage',
+        'matplotlib', 'pandas',
+        'IPython', 'ipykernel', 'ipywidgets', 'notebook', 'jupyter',
+        'cv2', 'torchvision', 'torchaudio',
+        'triton', 'cupy',
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -112,7 +140,12 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
+    upx_exclude=[
+        'vcruntime140.dll', 'msvcp140.dll', 'qwindows.dll', 'qstyles.dll',
+        'Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll', 'Qt6Multimedia.dll',
+        'Qt6MultimediaWidgets.dll', 'Qt6Network.dll', 'Qt6Svg.dll',
+        'Qt6SvgWidgets.dll', 'shiboken6.abi3.dll', 'pyside6.abi3.dll'
+    ],
     runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
@@ -130,6 +163,11 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    upx_exclude=[],
+    upx_exclude=[
+        'vcruntime140.dll', 'msvcp140.dll', 'qwindows.dll', 'qstyles.dll',
+        'Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll', 'Qt6Multimedia.dll',
+        'Qt6MultimediaWidgets.dll', 'Qt6Network.dll', 'Qt6Svg.dll',
+        'Qt6SvgWidgets.dll', 'shiboken6.abi3.dll', 'pyside6.abi3.dll'
+    ],
     name='MediaUtility',
 )

@@ -62,3 +62,12 @@ build/
 # Logs and temporary files
 *.log
 *.tmp
+
+# Build output (large binaries / installer artifacts)
+Output/
+bin/
+ffplay.exe
+
+# AI agent workflow dirs (local tooling only)
+.specify/
+.gemini/

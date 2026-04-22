@@ -190,6 +190,7 @@ class TrimSection(QScrollArea):
         self._player.setAudioOutput(self._audio_output)
         self._player.durationChanged.connect(self._on_duration_changed)
         self._player.playbackStateChanged.connect(self._on_playback_state_changed)
+        self._player.mediaStatusChanged.connect(self._on_media_status_changed)
 
         # Scrubber
         self._scrubber = QSlider(Qt.Orientation.Horizontal)
@@ -365,8 +366,14 @@ class TrimSection(QScrollArea):
     def _load_media(self, path: str) -> None:
         self._player.stop()
         self._player.setSource(QUrl.fromLocalFile(path))
-        # Show video widget only for video files
         self._video_widget.setVisible(not self._is_audio_only)
+
+    def _on_media_status_changed(self, status) -> None:
+        from PySide6.QtMultimedia import QMediaPlayer as _QMP
+        if status == _QMP.MediaStatus.LoadedMedia and not self._is_audio_only:
+            # Play then immediately pause to render the first frame (avoids black screen)
+            self._player.play()
+            QTimer.singleShot(80, self._player.pause)
 
     def _on_duration_changed(self, duration_ms: int) -> None:
         self._duration_ms = duration_ms

@@ -200,6 +200,28 @@ The command-line script offers four main modes of operation:
    - Supports multiple time formats
    - Preserves original quality
 
+## 📦 Windows Installer
+
+For Windows users who prefer a standalone application without installing Python, a pre-compiled installer is available.
+
+### Installation
+1. Download `MediaUtility_Setup.exe`.
+2. Run the installer and follow the on-screen instructions.
+3. **Silent Install**: For automated deployments, run with `/VERYSILENT /SUPPRESSMSGBOXES`.
+
+### Upgrading
+To upgrade to a newer version, simply run the new installer. It will automatically detect and replace the existing installation while preserving your settings and history.
+
+### Uninstallation
+You can uninstall Media Utilities via **Add/Remove Programs** in the Windows Control Panel, or by running `unins000.exe` in the installation directory.
+- **Note**: Your application data (history, settings) stored in `%APPDATA%\media-utilities` is preserved during uninstallation.
+
+### Size Budget (Maintainers)
+This project enforces a size budget for the installer and installed files to prevent bloat.
+- **Configuration**: `size-budget.json` defines the limits.
+- **Enforcement**: The build script `build_executable.py` will fail if the current build exceeds the budget plus a 5% tolerance.
+- **Raising Budget**: If a new feature legitimately increases the size, update the values in `size-budget.json` and include it in your Pull Request.
+
 ## ⚙️ Optional Configuration
 
 - Create a `cookies.txt` file in the same directory for authenticated downloads

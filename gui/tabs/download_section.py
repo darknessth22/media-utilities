@@ -1,19 +1,9 @@
-"""Media Download tab — PySide6 UI bound to core.downloader.download_media.
-
-T012: Reimplement Download tab UI layout and bind to core downloader via
-      worker thread.
-
-Supports:
-  - YouTube, Facebook, Instagram, TikTok, Twitter/X, Spotify, and generic URLs
-  - Video (quality chip selection via "Check Formats") or audio-only download
-  - Audio format selection (MP3 / FLAC / OGG / OPUS / M4A)
-  - Optional time-range trimming (start / end timestamps)
-  - Output folder override
-  - Cancellable background worker with progress feedback
-"""
+"""Media Download tab — PySide6 UI with sequential download queue."""
 from __future__ import annotations
 
 import os
+import re
+import uuid
 
 from PySide6.QtCore import Qt, Signal, QUrl, QTimer
 from PySide6.QtWidgets import (
@@ -74,32 +64,136 @@ def _section_header(text: str) -> QLabel:
 
 
 def _ms_to_str(ms: int) -> str:
-    """Convert milliseconds to HH:MM:SS string (US2)."""
     total_s = max(0, ms // 1000)
     h, rem = divmod(total_s, 3600)
     m, s = divmod(rem, 60)
     return f"{h:02d}:{m:02d}:{s:02d}"
 
 
+class _JobRow(QFrame):
+    """Single row in the download queue — name, progress, status, cancel."""
+
+    cancel_requested = Signal(str)  # job_id
+
+    def __init__(self, job_id: str, display_name: str, parent=None) -> None:
+        super().__init__(parent)
+        self.setObjectName("JobRow")
+        self._job_id = job_id
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(10, 8, 10, 8)
+        outer.setSpacing(4)
+
+        top = QHBoxLayout()
+        top.setSpacing(6)
+
+        self._dot = QLabel("●")
+        self._dot.setFixedWidth(14)
+        self._dot.setStyleSheet("color: #8B949E; font-size: 10px;")
+        top.addWidget(self._dot)
+
+        self._name_lbl = QLabel(display_name)
+        self._name_lbl.setObjectName("TextSecondary")
+        self._name_lbl.setStyleSheet("font-size: 12px;")
+        top.addWidget(self._name_lbl, 1)
+
+        self._status_lbl = QLabel("Pending")
+        self._status_lbl.setObjectName("TextMuted")
+        self._status_lbl.setStyleSheet("font-size: 11px; margin-right: 4px;")
+        top.addWidget(self._status_lbl)
+
+        self._cancel_btn = QPushButton("✕")
+        self._cancel_btn.setObjectName("ChipBtn")
+        self._cancel_btn.setFixedSize(22, 22)
+        self._cancel_btn.setStyleSheet("font-size: 10px; padding: 0;")
+        self._cancel_btn.clicked.connect(lambda: self.cancel_requested.emit(self._job_id))
+        top.addWidget(self._cancel_btn)
+        outer.addLayout(top)
+
+        self._progress_bar = QProgressBar()
+        self._progress_bar.setObjectName("TaskProgressBar")
+        self._progress_bar.setRange(0, 0)
+        self._progress_bar.setFixedHeight(4)
+        self._progress_bar.setTextVisible(False)
+        self._progress_bar.setVisible(False)
+        outer.addWidget(self._progress_bar)
+
+        self._info_lbl = QLabel()
+        self._info_lbl.setObjectName("TextMuted")
+        self._info_lbl.setStyleSheet("font-size: 11px;")
+        self._info_lbl.setVisible(False)
+        outer.addWidget(self._info_lbl)
+
+    def update_name(self, name: str) -> None:
+        self._name_lbl.setText(name)
+
+    def set_downloading(self) -> None:
+        self._dot.setStyleSheet("color: #3B82F6; font-size: 10px;")
+        self._status_lbl.setText("Downloading")
+        self._progress_bar.setVisible(True)
+        self._info_lbl.setVisible(True)
+
+    def update_progress(self, percent: int, speed: str, eta: int) -> None:
+        if percent != -1:
+            self._progress_bar.setRange(0, 100)
+            self._progress_bar.setValue(percent)
+        else:
+            self._progress_bar.setRange(0, 0)
+        parts = []
+        if speed:
+            parts.append(speed)
+        if eta != -1:
+            m, s = divmod(eta, 60) if eta >= 60 else (0, eta)
+            parts.append(f"~{m}:{s:02d} left" if m else f"~{s}s left")
+        if parts:
+            self._info_lbl.setText("  ".join(parts))
+
+    def set_done(self) -> None:
+        self._dot.setStyleSheet("color: #3FB950; font-size: 10px;")
+        self._status_lbl.setText("Done ✓")
+        self._progress_bar.setVisible(False)
+        self._info_lbl.setVisible(False)
+        self._cancel_btn.setEnabled(False)
+
+    def set_error(self, msg: str = "") -> None:
+        self._dot.setStyleSheet("color: #F85149; font-size: 10px;")
+        self._status_lbl.setText("Error")
+        self._progress_bar.setVisible(False)
+        if msg:
+            self._info_lbl.setText(msg[:80])
+            self._info_lbl.setVisible(True)
+        self._cancel_btn.setEnabled(False)
+
+    def set_cancelled(self) -> None:
+        self._dot.setStyleSheet("color: #8B949E; font-size: 10px;")
+        self._status_lbl.setText("Cancelled")
+        self._progress_bar.setVisible(False)
+        self._info_lbl.setVisible(False)
+        self._cancel_btn.setEnabled(False)
+
+
 class DownloadSection(QScrollArea):
-    """Media Download tab — URL-based downloader."""
+    """Media Download tab — URL-based downloader with sequential queue."""
 
     status_message = Signal(str, bool)   # (text, is_error)
-    busy_changed   = Signal(bool)        # True=task started, False=task ended
+    busy_changed   = Signal(bool)        # kept for API compat
+    queue_changed  = Signal(int)         # count of pending + downloading jobs
 
     def __init__(self, settings, parent=None) -> None:
         super().__init__(parent)
         self._settings = settings
         self._worker: Worker | None = None
-        self._download_token: int = 0
-        self._active_output_dir: str | None = None
-        self._formats: list[dict] = []          # from get_available_formats()
-        self._selected_format_id: str | None = None
         self._last_result_path: str | None = None
+        self._formats: list[dict] = []
+        self._selected_format_id: str | None = None
         self._duration_ms: int = 0
-        self._updating = False                  # guard for slider/input sync
+        self._updating = False
 
-        # Initialize multimedia (US2)
+        # Queue state
+        self._queue: list[dict] = []
+        self._job_rows: dict[str, _JobRow] = {}
+        self._active_job: dict | None = None
+
         if _MULTIMEDIA_AVAILABLE:
             self._player = QMediaPlayer()
             self._audio_output = QAudioOutput()
@@ -124,7 +218,7 @@ class DownloadSection(QScrollArea):
         if _MULTIMEDIA_AVAILABLE:
             layout.addWidget(self._build_preview_card())
         layout.addWidget(self._build_output_card())
-        layout.addWidget(self._build_progress_card())
+        layout.addWidget(self._build_queue_card())
 
         self.setWidget(content)
 
@@ -151,7 +245,6 @@ class DownloadSection(QScrollArea):
         self._platform_label.setObjectName("TextMuted")
         self._platform_label.setStyleSheet("font-size: 12px;")
         layout.addWidget(self._platform_label)
-
         return card
 
     def _build_type_card(self) -> QFrame:
@@ -163,7 +256,6 @@ class DownloadSection(QScrollArea):
 
         row = QHBoxLayout()
         row.setSpacing(16)
-
         self._type_group = QButtonGroup(self)
         self._video_radio = QRadioButton("Video")
         self._audio_radio = QRadioButton("Audio only")
@@ -176,7 +268,6 @@ class DownloadSection(QScrollArea):
         row.addStretch()
         layout.addLayout(row)
 
-        # Audio format chips (hidden when video is selected)
         self._audio_fmt_container = QWidget()
         af_row = QHBoxLayout(self._audio_fmt_container)
         af_row.setContentsMargins(0, 0, 0, 0)
@@ -230,16 +321,18 @@ class DownloadSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        
+
         header_row = QHBoxLayout()
         header_row.addWidget(_section_header("TIME RANGE  (optional — HH:MM:SS or MM:SS)"))
         header_row.addStretch()
-        
+
         self._load_preview_btn = QPushButton("Load Preview")
         self._load_preview_btn.setObjectName("BrowseBtn")
         self._load_preview_btn.setFixedWidth(110)
         self._load_preview_btn.setVisible(_MULTIMEDIA_AVAILABLE)
-        self._load_preview_btn.clicked.connect(lambda: self._load_preview(self._url_input.text().strip()))
+        self._load_preview_btn.clicked.connect(
+            lambda: self._load_preview(self._url_input.text().strip())
+        )
         header_row.addWidget(self._load_preview_btn)
         layout.addLayout(header_row)
 
@@ -283,7 +376,6 @@ class DownloadSection(QScrollArea):
         self._player.setVideoOutput(self._video_widget)
         layout.addWidget(self._video_widget)
 
-        # Controls row
         ctrl_row = QHBoxLayout()
         self._play_btn = QPushButton("Play")
         self._play_btn.setObjectName("ChipBtn")
@@ -294,8 +386,12 @@ class DownloadSection(QScrollArea):
         self._reload_preview_btn = QPushButton("Reload")
         self._reload_preview_btn.setObjectName("ChipBtn")
         self._reload_preview_btn.setFixedWidth(70)
-        self._reload_preview_btn.setToolTip("CDN preview links expire — click to re-fetch a fresh URL.")
-        self._reload_preview_btn.clicked.connect(lambda: self._load_preview(self._url_input.text().strip()))
+        self._reload_preview_btn.setToolTip(
+            "CDN preview links expire — click to re-fetch a fresh URL."
+        )
+        self._reload_preview_btn.clicked.connect(
+            lambda: self._load_preview(self._url_input.text().strip())
+        )
         ctrl_row.addWidget(self._reload_preview_btn)
 
         self._scrubber = QSlider(Qt.Orientation.Horizontal)
@@ -308,10 +404,9 @@ class DownloadSection(QScrollArea):
         ctrl_row.addWidget(self._time_label)
         layout.addLayout(ctrl_row)
 
-        # Range sliders (US2 markers)
         range_layout = QVBoxLayout()
         range_layout.setSpacing(4)
-        
+
         lbl_s = QLabel("Start Marker")
         lbl_s.setObjectName("TextMuted")
         lbl_s.setStyleSheet("font-size: 10px;")
@@ -329,16 +424,18 @@ class DownloadSection(QScrollArea):
         self._end_slider.setObjectName("EndSlider")
         self._end_slider.sliderMoved.connect(self._on_end_slider_moved)
         range_layout.addWidget(self._end_slider)
-        
+
         layout.addLayout(range_layout)
 
-        expiry_note = QLabel("Preview links from Facebook / Instagram / LinkedIn expire quickly — use Reload if playback stalls.")
+        expiry_note = QLabel(
+            "Preview links from Facebook / Instagram / LinkedIn expire quickly"
+            " — use Reload if playback stalls."
+        )
         expiry_note.setObjectName("TextMuted")
         expiry_note.setWordWrap(True)
         expiry_note.setStyleSheet("font-size: 11px;")
         layout.addWidget(expiry_note)
 
-        # Fallback/Status message
         self._preview_status = QLabel()
         self._preview_status.setObjectName("TextSecondary")
         self._preview_status.setWordWrap(True)
@@ -370,38 +467,33 @@ class DownloadSection(QScrollArea):
         layout.addLayout(row)
         return card
 
-    def _build_progress_card(self) -> QFrame:
-        card = _card()
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(20, 16, 20, 16)
-        layout.setSpacing(8)
+    def _build_queue_card(self) -> QFrame:
+        self._queue_card = _card()
+        self._queue_card.setVisible(False)
+        outer = QVBoxLayout(self._queue_card)
+        outer.setContentsMargins(20, 16, 20, 16)
+        outer.setSpacing(10)
 
-        self._progress_bar = QProgressBar()
-        self._progress_bar.setObjectName("TaskProgressBar")
-        self._progress_bar.setRange(0, 0)
-        self._progress_bar.setVisible(False)
-        layout.addWidget(self._progress_bar)
+        header_row = QHBoxLayout()
+        header_lbl = _section_header("DOWNLOAD QUEUE")
+        header_lbl.setStyleSheet(
+            "font-size: 11px; font-weight: bold; letter-spacing: 1px;"
+        )
+        header_row.addWidget(header_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+        header_row.addStretch()
+        clear_btn = QPushButton("Clear done")
+        clear_btn.setObjectName("BrowseBtn")
+        clear_btn.setFixedHeight(26)
+        clear_btn.setFixedWidth(80)
+        clear_btn.clicked.connect(self._clear_done_jobs)
+        header_row.addWidget(clear_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        outer.addLayout(header_row)
 
-        # Speed and ETA row
-        info_row = QHBoxLayout()
-        self._speed_label = QLabel()
-        self._speed_label.setObjectName("TextSecondary")
-        self._speed_label.setVisible(False)
-        info_row.addWidget(self._speed_label)
+        self._queue_layout = QVBoxLayout()
+        self._queue_layout.setSpacing(4)
+        outer.addLayout(self._queue_layout)
 
-        info_row.addStretch()
-
-        self._eta_label = QLabel()
-        self._eta_label.setObjectName("TextSecondary")
-        self._eta_label.setVisible(False)
-        info_row.addWidget(self._eta_label)
-        layout.addLayout(info_row)
-
-        self._progress_label = QLabel()
-        self._progress_label.setObjectName("TextSecondary")
-        self._progress_label.setVisible(False)
-        layout.addWidget(self._progress_label)
-        return card
+        return self._queue_card
 
     # ── Control handlers ───────────────────────────────────────────────────────
 
@@ -420,13 +512,11 @@ class DownloadSection(QScrollArea):
                 self._platform_label.setText("Detected: Generic URL — download will be attempted")
             else:
                 self._platform_label.setText(f"Detected: {label}")
-            # Spotify is audio-only
             if platform == "spotify":
                 self._audio_radio.setChecked(True)
         else:
             self._platform_label.setText("")
-        
-        # US2: Reset preview on URL change
+
         if _MULTIMEDIA_AVAILABLE:
             self._player.stop()
             self._preview_card.setVisible(False)
@@ -436,7 +526,6 @@ class DownloadSection(QScrollArea):
 
     def _on_type_toggled(self, is_video: bool) -> None:
         self._audio_fmt_container.setVisible(not is_video)
-        # Quality selection only makes sense for video
         self._quality_combo.setEnabled(is_video)
         self._check_fmt_btn.setEnabled(is_video)
         if _MULTIMEDIA_AVAILABLE:
@@ -460,7 +549,7 @@ class DownloadSection(QScrollArea):
         if d:
             self._out_input.setText(d)
 
-    # ── Preview logic (US2) ───────────────────────────────────────────────────
+    # ── Preview logic ──────────────────────────────────────────────────────────
 
     def _load_preview(self, url: str) -> None:
         if not url:
@@ -468,7 +557,6 @@ class DownloadSection(QScrollArea):
         self._load_preview_btn.setEnabled(False)
         self._load_preview_btn.setText("Loading…")
         self.status_message.emit("Fetching preview stream…", False)
-
         worker = Worker(lambda: get_preview_stream_url(url))
         worker.signals.result.connect(self._on_preview_loaded)
         worker.signals.error.connect(self._on_preview_error)
@@ -478,16 +566,12 @@ class DownloadSection(QScrollArea):
     def _on_preview_loaded(self, result: dict) -> None:
         self._load_preview_btn.setEnabled(True)
         self._load_preview_btn.setText("Load Preview")
-        
         if "error" in result:
             self.status_message.emit(f"Preview unavailable: {result['error']}", True)
             self._preview_card.setVisible(False)
             return
-
         self._duration_ms = result["duration_ms"]
         self._player.setSource(QUrl(result["stream_url"]))
-        
-        # Reset markers
         self._updating = True
         self._scrubber.setRange(0, self._duration_ms)
         self._start_slider.setRange(0, self._duration_ms)
@@ -495,7 +579,6 @@ class DownloadSection(QScrollArea):
         self._start_slider.setValue(0)
         self._end_slider.setValue(self._duration_ms)
         self._updating = False
-        
         self._preview_card.setVisible(True)
         self._preview_status.setVisible(False)
         self._time_label.setText(f"00:00:00 / {_ms_to_str(self._duration_ms)}")
@@ -508,7 +591,6 @@ class DownloadSection(QScrollArea):
         self.status_message.emit(f"Preview error: {msg}", True)
 
     def _on_duration_changed(self, duration: int) -> None:
-        """Update durations from player if it differs from extractor (US2)."""
         if duration <= 0:
             return
         self._duration_ms = duration
@@ -516,10 +598,11 @@ class DownloadSection(QScrollArea):
         self._scrubber.setRange(0, duration)
         self._start_slider.setRange(0, duration)
         self._end_slider.setRange(0, duration)
-        # Only update end slider if it was at the previous "end" or unset
         if self._end_slider.value() >= duration or self._end_slider.value() == 0:
             self._end_slider.setValue(duration)
-        self._time_label.setText(f"{_ms_to_str(self._player.position())} / {_ms_to_str(duration)}")
+        self._time_label.setText(
+            f"{_ms_to_str(self._player.position())} / {_ms_to_str(duration)}"
+        )
         self._updating = False
 
     def _toggle_playback(self) -> None:
@@ -559,10 +642,9 @@ class DownloadSection(QScrollArea):
             self._updating = False
 
     def _on_time_input_changed(self) -> None:
-        """Sync text inputs back to sliders (T015)."""
         if self._updating or not _MULTIMEDIA_AVAILABLE or self._duration_ms == 0:
             return
-            
+
         def _str_to_ms(text: str) -> int | None:
             try:
                 parts = list(map(int, text.split(":")))
@@ -580,7 +662,6 @@ class DownloadSection(QScrollArea):
         s_ms = _str_to_ms(self._start_input.text())
         if s_ms is not None:
             self._start_slider.setValue(min(s_ms, self._duration_ms))
-        
         e_ms = _str_to_ms(self._end_input.text())
         if e_ms is not None:
             self._end_slider.setValue(min(e_ms, self._duration_ms))
@@ -593,21 +674,15 @@ class DownloadSection(QScrollArea):
         if not url:
             self.status_message.emit("Enter a URL first.", True)
             return
-
         self._check_fmt_btn.setEnabled(False)
         self._check_fmt_btn.setText("Checking…")
         self.status_message.emit("Fetching available formats…", False)
-
         _url = url
-
-        def fetch():
-            return get_available_formats(_url)
-
-        worker = Worker(fetch)
+        worker = Worker(lambda: get_available_formats(_url))
         worker.signals.result.connect(self._on_formats_fetched)
         worker.signals.error.connect(self._on_formats_error)
         worker.start()
-        self._fmt_worker = worker   # keep alive
+        self._fmt_worker = worker
 
     def _on_formats_fetched(self, formats: list) -> None:
         self._check_fmt_btn.setEnabled(True)
@@ -628,24 +703,10 @@ class DownloadSection(QScrollArea):
         _, msg, _ = err_tuple
         self.status_message.emit(f"Format check failed: {msg}", True)
 
-    # ── Primary action (Download) ─────────────────────────────────────────────
+    # ── Queue management ───────────────────────────────────────────────────────
 
     def trigger_primary_action(self) -> None:
-        if self._worker and self._worker.isRunning():
-            self._worker.cancel()
-            self._download_token += 1
-            _w = self._worker
-            _out = self._active_output_dir
-            def _on_cancel_done(_w=_w, _out=_out):
-                if self._worker is _w:
-                    self._worker = None
-                self._do_cleanup_partial_files(_out)
-            _w.signals.finished.connect(_on_cancel_done)
-            self._reset_ui()
-            self._active_output_dir = None
-            self.status_message.emit("Download cancelled.", False)
-            return
-
+        """Add current form state as a new download job to the queue."""
         url = self._url_input.text().strip()
         if not url:
             self.status_message.emit("Please enter a URL.", True)
@@ -656,12 +717,12 @@ class DownloadSection(QScrollArea):
         audio_fmt = getattr(self, "_selected_audio_fmt", "mp3").lower()
         out_dir = self._out_input.text().strip() or None
         codec = self._settings.default_codec or "original"
-
-        # Map settings codec to yt-dlp / ffmpeg codec strings
-        codec_map = {"original": "original", "h264": "libx264", "hevc": "libx265", "vp9": "libvpx-vp9"}
+        codec_map = {
+            "original": "original", "h264": "libx264",
+            "hevc": "libx265", "vp9": "libvpx-vp9",
+        }
         video_codec = codec_map.get(codec, "original")
 
-        # Quality
         quality: str | None = None
         if not is_audio:
             idx = self._quality_combo.currentIndex()
@@ -670,8 +731,7 @@ class DownloadSection(QScrollArea):
 
         start_time = self._start_input.text().strip() or None
         end_time = self._end_input.text().strip() or None
-        
-        # US2: Validation
+
         def _str_to_ms(text: str) -> int | None:
             try:
                 parts = list(map(int, text.split(":")))
@@ -696,24 +756,83 @@ class DownloadSection(QScrollArea):
             self.status_message.emit("Please set an end time when specifying a start time.", True)
             return
 
-        self._download_token += 1
-        token = self._download_token
-        self._active_output_dir = out_dir
-        self._set_busy(True)
-        self.status_message.emit("Downloading…", False)
+        job_id = uuid.uuid4().hex[:8]
+        display_name = url if len(url) <= 60 else url[:57] + "…"
+        job = {
+            "job_id": job_id,
+            "url": url,
+            "display_name": display_name,
+            "platform": platform,
+            "media_type": "audio" if is_audio else "video",
+            "quality": quality,
+            "audio_fmt": audio_fmt,
+            "start_time": start_time,
+            "end_time": end_time,
+            "out_dir": out_dir,
+            "video_codec": video_codec,
+            "status": "pending",
+        }
 
-        _url, _platform = url, platform
-        _media_type = "audio" if is_audio else "video"
-        _quality, _audio_fmt = quality, audio_fmt
-        _start, _end = start_time, end_time
-        _out_dir, _video_codec = out_dir, video_codec
+        self._queue.append(job)
+        self._add_job_row(job)
+        self._queue_card.setVisible(True)
+        self._clear_form()
+
+        self._emit_queue_count()
+
+        if self._worker is None or not self._worker.isRunning():
+            self._run_next()
+
+    def _add_job_row(self, job: dict) -> None:
+        row = _JobRow(job["job_id"], job["display_name"])
+        row.cancel_requested.connect(self._cancel_job)
+        self._job_rows[job["job_id"]] = row
+        self._queue_layout.addWidget(row)
+
+    def _clear_form(self) -> None:
+        self._url_input.clear()
+        self._platform_label.setText("")
+        self._quality_combo.clear()
+        self._quality_combo.addItem("Best available (default)")
+        self._start_input.clear()
+        self._end_input.clear()
+        self._video_radio.setChecked(True)
+
+    def _emit_queue_count(self) -> None:
+        count = sum(1 for j in self._queue if j["status"] in ("pending", "downloading"))
+        self.queue_changed.emit(count)
+        self.busy_changed.emit(count > 0)
+
+    def _run_next(self) -> None:
+        pending = next((j for j in self._queue if j["status"] == "pending"), None)
+        if pending is None:
+            return
+
+        pending["status"] = "downloading"
+        self._active_job = pending
+        row = self._job_rows.get(pending["job_id"])
+        if row:
+            row.set_downloading()
+
+        job_id = pending["job_id"]
+        _url = pending["url"]
+        _platform = pending["platform"]
+        _media_type = pending["media_type"]
+        _quality = pending["quality"]
+        _audio_fmt = pending["audio_fmt"]
+        _start = pending["start_time"]
+        _end = pending["end_time"]
+        _out_dir = pending["out_dir"]
+        _video_codec = pending["video_codec"]
+
         def do_download():
             def cancel_fn():
                 w = getattr(self, "_worker", None)
                 return w is None or w.is_cancelled
 
             def p_cb(p, e, s):
-                self._worker.signals.progress.emit(p, e, s)
+                if self._worker:
+                    self._worker.signals.progress.emit(p, e, s)
 
             return download_media(
                 url=_url,
@@ -726,78 +845,179 @@ class DownloadSection(QScrollArea):
                 output_dir=_out_dir,
                 video_codec=_video_codec,
                 cancel_check=cancel_fn,
-                status_cb=lambda msg: self._worker.signals.intercept_status.emit(msg),
+                status_cb=lambda msg: (
+                    self._worker.signals.intercept_status.emit(msg) if self._worker else None
+                ),
                 progress_cb=p_cb,
             )
 
         self._worker = Worker(do_download)
-        self._worker.signals.result.connect(
-            lambda r: self._on_result(r) if token == self._download_token else None
-        )
-        self._worker.signals.error.connect(
-            lambda e: self._on_error(e) if token == self._download_token else None
+        self._worker.signals.result.connect(lambda r: self._on_job_result(job_id, r))
+        self._worker.signals.error.connect(lambda e: self._on_job_error(job_id, e))
+        self._worker.signals.progress.connect(
+            lambda p, e, s: self._on_job_progress(job_id, p, e, s)
         )
         self._worker.signals.intercept_status.connect(
-            lambda m: self._on_intercept_status(m) if token == self._download_token else None
+            lambda m: self._on_intercept_status(job_id, m)
         )
-        self._worker.signals.progress.connect(
-            lambda p, e, s: self._on_progress(p, e, s) if token == self._download_token else None
-        )
+        # finished fires even when cancelled (result/error do not)
+        self._worker.signals.finished.connect(lambda: self._on_worker_finished(job_id))
         self._worker.start()
+        self.status_message.emit(f"Downloading: {pending['display_name']}", False)
 
-    def _on_progress(self, percent: int, eta: int, speed_str: str) -> None:
-        """Update progress bar, speed, and ETA labels."""
-        if percent != -1:
-            self._progress_bar.setRange(0, 100)
-            self._progress_bar.setValue(percent)
+    def _on_intercept_status(self, job_id: str, msg: str) -> None:
+        self.status_message.emit(msg, False)
+        # Parse yt-dlp destination messages to update the job display name
+        for pattern in (
+            r'\[download\] Destination: (.+)',
+            r'\[Merger\] Merging formats into "(.+)"',
+            r'\[download\] (.+) has already been downloaded',
+        ):
+            m = re.search(pattern, msg)
+            if m:
+                title = os.path.splitext(os.path.basename(m.group(1).strip()))[0]
+                if title:
+                    display = title if len(title) <= 60 else title[:57] + "…"
+                    job = next((j for j in self._queue if j["job_id"] == job_id), None)
+                    if job:
+                        job["display_name"] = display
+                    row = self._job_rows.get(job_id)
+                    if row:
+                        row.update_name(display)
+                break
+
+    def _on_job_progress(self, job_id: str, percent: int, eta: int, speed: str) -> None:
+        row = self._job_rows.get(job_id)
+        if row:
+            row.update_progress(percent, speed, eta)
+
+    def _on_job_result(self, job_id: str, result: dict) -> None:
+        job = next((j for j in self._queue if j["job_id"] == job_id), None)
+        self._worker = None
+        self._active_job = None
+
+        row = self._job_rows.get(job_id)
+
+        if result.get("success"):
+            if job:
+                job["status"] = "done"
+            fp = result.get("file_path") or ""
+            if fp:
+                title = os.path.splitext(os.path.basename(fp))[0]
+                display = title if len(title) <= 60 else title[:57] + "…"
+                if job:
+                    job["display_name"] = display
+                if row:
+                    row.update_name(display)
+            if row:
+                row.set_done()
+            self._last_result_path = fp
+            fn = os.path.basename(fp) if fp else "downloaded file"
+            size = result.get("file_size")
+            size_str = f"  ({size / (1024*1024):.1f} MB)" if size else ""
+            _source = (
+                "browser_intercept"
+                if result.get("error_code") == "browser_intercept_ok"
+                else "direct"
+            )
+            get_history_manager().add_item(
+                HistoryItem(
+                    task_type="download", file_name=fn, file_path=fp,
+                    status="success", source=_source,
+                )
+            )
+            msg = f"Download complete → {fn}{size_str}"
+            if result.get("error_code") == "http_fallback_ok":
+                msg += "\nDownloaded via direct URL."
+            elif result.get("error_code") == "html_scrape_ok":
+                msg += "\nDownloaded via embedded video."
+            elif result.get("error_code") == "browser_intercept_ok":
+                msg += "\nDownloaded via browser stream intercept."
+            self.status_message.emit(msg, False)
         else:
-            self._progress_bar.setRange(0, 0)
+            if job:
+                job["status"] = "error"
+            code = result.get("error_code")
+            err_text = _GENERIC_ERROR_MESSAGES.get(code) or "Download failed."
+            if job:
+                get_history_manager().add_item(
+                    HistoryItem(
+                        task_type="download", file_name=job["url"],
+                        file_path=job["url"], status="error",
+                    )
+                )
+            if row:
+                row.set_error(err_text)
+            self.status_message.emit(err_text, True)
 
-        if speed_str:
-            self._speed_label.setText(speed_str)
-            self._speed_label.setVisible(True)
-        else:
-            self._speed_label.setVisible(False)
+        QTimer.singleShot(2000, lambda: self._remove_job(job_id))
 
-        if eta != -1:
-            if eta >= 60:
-                m, s = divmod(eta, 60)
-                eta_text = f"~{m}:{s:02d} left"
-            else:
-                eta_text = f"~{eta}s left"
-            self._eta_label.setText(eta_text)
-            self._eta_label.setVisible(True)
-        else:
-            self._eta_label.setVisible(False)
+    def _on_job_error(self, job_id: str, err_tuple: tuple) -> None:
+        job = next((j for j in self._queue if j["job_id"] == job_id), None)
+        self._worker = None
+        self._active_job = None
 
-    def _on_intercept_status(self, msg: str) -> None:
-        self._progress_label.setText(msg)
-        self._progress_label.setVisible(True)
+        row = self._job_rows.get(job_id)
+        _, msg, _ = err_tuple
+        if job:
+            job["status"] = "error"
+        if row:
+            row.set_error(msg[:80])
+        self.status_message.emit(f"Error: {msg}", True)
+        QTimer.singleShot(2000, lambda: self._remove_job(job_id))
 
-    def _set_busy(self, busy: bool) -> None:
-        self._progress_bar.setVisible(busy)
-        self._progress_label.setVisible(busy)
-        if busy:
-            self._progress_label.setText("Downloading…")
-        else:
-            self._speed_label.setVisible(False)
-            self._eta_label.setVisible(False)
-        self.busy_changed.emit(busy)
+    def _on_worker_finished(self, job_id: str) -> None:
+        """Called after every worker run — handles the cancelled case where result/error don't fire."""
+        job = next((j for j in self._queue if j["job_id"] == job_id), None)
+        if job and job["status"] == "cancelled":
+            self._worker = None
+            self._active_job = None
+            self._do_cleanup_partial_files(job.get("out_dir"))
+            QTimer.singleShot(1000, lambda: self._remove_job(job_id))
+            self._run_next()
 
-    def _reset_ui(self) -> None:
-        """Reset all download-related UI elements to idle state."""
-        self._set_busy(False)
-        self._progress_label.setVisible(False)
-        self._speed_label.setVisible(False)
-        self._eta_label.setVisible(False)
-        self._progress_bar.setRange(0, 0)
-        self._progress_bar.setValue(0)
+    def _cancel_job(self, job_id: str) -> None:
+        job = next((j for j in self._queue if j["job_id"] == job_id), None)
+        if job is None:
+            return
 
-    def _cleanup_partial_files(self) -> None:
-        self._do_cleanup_partial_files(self._active_output_dir)
+        row = self._job_rows.get(job_id)
+        if job["status"] == "downloading" and self._worker:
+            job["status"] = "cancelled"
+            if row:
+                row.set_cancelled()
+            self._worker.cancel()
+            # _on_worker_finished handles cleanup when worker stops
+        elif job["status"] == "pending":
+            job["status"] = "cancelled"
+            if row:
+                row.set_cancelled()
+            QTimer.singleShot(500, lambda: self._remove_job(job_id))
+
+        self._emit_queue_count()
+
+    def _remove_job(self, job_id: str) -> None:
+        self._queue = [j for j in self._queue if j["job_id"] != job_id]
+        row = self._job_rows.pop(job_id, None)
+        if row:
+            self._queue_layout.removeWidget(row)
+            row.deleteLater()
+        if not self._queue:
+            self._queue_card.setVisible(False)
+        self._emit_queue_count()
+        # Start next if queue has pending and nothing running
+        if self._worker is None or not self._worker.isRunning():
+            self._run_next()
+
+    def _clear_done_jobs(self) -> None:
+        done_ids = [
+            j["job_id"] for j in self._queue
+            if j["status"] in ("done", "error", "cancelled")
+        ]
+        for job_id in done_ids:
+            self._remove_job(job_id)
 
     def _do_cleanup_partial_files(self, out_dir: str | None) -> None:
-        """Remove yt-dlp .part files after the download thread has stopped."""
         out = out_dir or "."
         try:
             if os.path.isdir(out):
@@ -809,42 +1029,3 @@ class DownloadSection(QScrollArea):
                             pass
         except OSError:
             pass
-
-    def _on_result(self, result: dict) -> None:
-        self._reset_ui()
-        self._worker = None
-        if result.get("success"):
-            warn = result.get("warning")
-            if warn:
-                self.status_message.emit(warn, False)
-            fp = result.get("file_path") or ""
-            self._last_result_path = fp
-            fn = os.path.basename(fp) if fp else "downloaded file"
-            size = result.get("file_size")
-            size_str = f"  ({size / (1024*1024):.1f} MB)" if size else ""
-            _source = "browser_intercept" if result.get("error_code") == "browser_intercept_ok" else "direct"
-            get_history_manager().add_item(
-                HistoryItem(task_type="download", file_name=fn, file_path=fp, status="success", source=_source)
-            )
-            msg = f"Download complete → {fn}{size_str}"
-            if result.get("error_code") == "http_fallback_ok":
-                msg += "\nDownloaded via direct URL (yt-dlp unavailable for this link)."
-            elif result.get("error_code") == "html_scrape_ok":
-                msg += "\nDownloaded via embedded video found in page HTML."
-            elif result.get("error_code") == "browser_intercept_ok":
-                msg += "\nDownloaded via browser stream intercept."
-            self.status_message.emit(msg, False)
-        else:
-            url = self._url_input.text()
-            get_history_manager().add_item(
-                HistoryItem(task_type="download", file_name=url, file_path=url, status="error")
-            )
-            code = result.get("error_code")
-            err_text = _GENERIC_ERROR_MESSAGES.get(code) or "Download failed. Check the URL or network."
-            self.status_message.emit(err_text, True)
-
-    def _on_error(self, err_tuple: tuple) -> None:
-        self._reset_ui()
-        self._worker = None
-        _, msg, _ = err_tuple
-        self.status_message.emit(f"Error: {msg}", True)

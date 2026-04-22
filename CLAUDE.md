@@ -16,6 +16,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-11
 - N/A — no schema changes; download history JSON unchanged (009-download-preview-progress)
 - Python 3.12 (3.10+ compatible) + PySide6 (QThread, Signal), yt-dlp, playwright (010-fix-download-recovery)
 - N/A — no schema or file-format changes (010-fix-download-recovery)
+- Python 3.12 (3.10+ compatible) + PyInstaller 6.x, Inno Setup 6.x (iscc.exe), PySide6, yt-dlp, playwright, ffmpeg 7.1 (gyan.dev essentials build) (011-windows-installer-build)
+- `size-budget.json` (committed), `build_config.json` (committed), `dist/size-report.json` (build artifact, not committed) (011-windows-installer-build)
 
 ## Project Structure
 
@@ -59,9 +61,9 @@ pytest; ruff check .
 Python 3.12 (3.10+ compatible): Follow standard conventions
 
 ## Recent Changes
+- 011-windows-installer-build: Added Python 3.12 (3.10+ compatible) + PyInstaller 6.x, Inno Setup 6.x (iscc.exe), PySide6, yt-dlp, playwright, ffmpeg 7.1 (gyan.dev essentials build)
 - 010-fix-download-recovery: Added Python 3.12 (3.10+ compatible) + PySide6 (QThread, Signal), yt-dlp, playwright
 - 009-download-preview-progress: Added Python 3.12 (3.10+ compatible) + PySide6 (GUI + QtMultimedia for preview), yt-dlp (progress hooks + stream extraction), urllib stdlib (HTTP fallback progress), playwright (existing browser intercept — no change to intercept path for progress)
-- 008-playwright-m3u8-intercept: Added Python 3.10+ (3.12 recommended) + playwright (Python sync API), yt-dlp (existing), PySide6 (existing)
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->
