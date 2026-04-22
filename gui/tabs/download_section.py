@@ -151,6 +151,7 @@ class DownloadSection(QScrollArea):
         self._platform_label.setObjectName("TextMuted")
         self._platform_label.setStyleSheet("font-size: 12px;")
         layout.addWidget(self._platform_label)
+
         return card
 
     def _build_type_card(self) -> QFrame:
@@ -290,6 +291,13 @@ class DownloadSection(QScrollArea):
         self._play_btn.clicked.connect(self._toggle_playback)
         ctrl_row.addWidget(self._play_btn)
 
+        self._reload_preview_btn = QPushButton("Reload")
+        self._reload_preview_btn.setObjectName("ChipBtn")
+        self._reload_preview_btn.setFixedWidth(70)
+        self._reload_preview_btn.setToolTip("CDN preview links expire — click to re-fetch a fresh URL.")
+        self._reload_preview_btn.clicked.connect(lambda: self._load_preview(self._url_input.text().strip()))
+        ctrl_row.addWidget(self._reload_preview_btn)
+
         self._scrubber = QSlider(Qt.Orientation.Horizontal)
         self._scrubber.setObjectName("PreviewSlider")
         self._scrubber.sliderMoved.connect(self._on_scrubber_moved)
@@ -323,6 +331,12 @@ class DownloadSection(QScrollArea):
         range_layout.addWidget(self._end_slider)
         
         layout.addLayout(range_layout)
+
+        expiry_note = QLabel("Preview links from Facebook / Instagram / LinkedIn expire quickly — use Reload if playback stalls.")
+        expiry_note.setObjectName("TextMuted")
+        expiry_note.setWordWrap(True)
+        expiry_note.setStyleSheet("font-size: 11px;")
+        layout.addWidget(expiry_note)
 
         # Fallback/Status message
         self._preview_status = QLabel()
@@ -398,8 +412,8 @@ class DownloadSection(QScrollArea):
             platform_names = {
                 "youtube": "YouTube", "facebook": "Facebook",
                 "instagram": "Instagram", "tiktok": "TikTok",
-                "twitter": "Twitter / X", "spotify": "Spotify",
-                "generic": "Generic URL",
+                "twitter": "Twitter / X", "linkedin": "LinkedIn",
+                "spotify": "Spotify", "generic": "Generic URL",
             }
             label = platform_names.get(platform, platform.capitalize())
             if platform == "generic":
@@ -693,18 +707,14 @@ class DownloadSection(QScrollArea):
         _quality, _audio_fmt = quality, audio_fmt
         _start, _end = start_time, end_time
         _out_dir, _video_codec = out_dir, video_codec
-
         def do_download():
-            # Create a localized reference for this thread to check
-            # Note: self._worker is replaced below before thread starts
             def cancel_fn():
                 w = getattr(self, "_worker", None)
                 return w is None or w.is_cancelled
-            
-            # Use local token to identify this download's progress signals
+
             def p_cb(p, e, s):
                 self._worker.signals.progress.emit(p, e, s)
-            
+
             return download_media(
                 url=_url,
                 platform=_platform,

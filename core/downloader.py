@@ -29,6 +29,7 @@ def get_platform(url: str) -> str:
         "instagram": ["instagram.com", "instagr.am"],
         "tiktok":    ["tiktok.com"],
         "twitter":   ["twitter.com", "x.com"],
+        "linkedin":  ["linkedin.com"],
         "spotify":   ["spotify.com", "open.spotify.com"],
     }
     for platform, urls in domains.items():
@@ -644,52 +645,47 @@ def get_available_formats(url: str) -> list[dict]:
     downloading a specific video format.
     """
     with YoutubeDL({"quiet": True}) as ydl:
-        try:
-            info = ydl.extract_info(url, download=False)
-            all_formats = info.get("formats", [])
+        info = ydl.extract_info(url, download=False)
+        all_formats = info.get("formats", [])
 
-            # Find the best audio-only stream so we can show a realistic total size.
-            audio_formats = [
-                f for f in all_formats
-                if f.get("vcodec") == "none" and f.get("acodec") not in (None, "none")
-            ]
-            best_audio_size = 0
-            if audio_formats:
-                best_audio = max(
-                    audio_formats,
-                    key=lambda f: f.get("filesize") or f.get("filesize_approx") or 0,
+        audio_formats = [
+            f for f in all_formats
+            if f.get("vcodec") == "none" and f.get("acodec") not in (None, "none")
+        ]
+        best_audio_size = 0
+        if audio_formats:
+            best_audio = max(
+                audio_formats,
+                key=lambda f: f.get("filesize") or f.get("filesize_approx") or 0,
+            )
+            best_audio_size = best_audio.get("filesize") or best_audio.get("filesize_approx") or 0
+
+        formats = []
+        for fmt in all_formats:
+            if fmt.get("vcodec") != "none":
+                res = fmt.get("resolution", "unknown")
+                fps = fmt.get("fps", "?")
+                ext = fmt.get("ext", "?")
+                format_id = fmt.get("format_id", "")
+                video_size = fmt.get("filesize") or fmt.get("filesize_approx") or 0
+
+                if video_size or best_audio_size:
+                    total = video_size + best_audio_size
+                    size_mb = f"~{total / (1024 * 1024):.0f}MB (est.)"
+                else:
+                    size_mb = "unknown size"
+
+                formats.append(
+                    {
+                        "format_id": format_id,
+                        "resolution": res,
+                        "fps": fps,
+                        "ext": ext,
+                        "size": size_mb,
+                        "display": f"{res} {fps}fps | {ext.upper()} | {size_mb}",
+                    }
                 )
-                best_audio_size = best_audio.get("filesize") or best_audio.get("filesize_approx") or 0
-
-            formats = []
-            for fmt in all_formats:
-                if fmt.get("vcodec") != "none":
-                    res = fmt.get("resolution", "unknown")
-                    fps = fmt.get("fps", "?")
-                    ext = fmt.get("ext", "?")
-                    format_id = fmt.get("format_id", "")
-                    video_size = fmt.get("filesize") or fmt.get("filesize_approx") or 0
-
-                    if video_size or best_audio_size:
-                        total = video_size + best_audio_size
-                        size_mb = f"~{total / (1024 * 1024):.0f}MB (est.)"
-                    else:
-                        size_mb = "unknown size"
-
-                    formats.append(
-                        {
-                            "format_id": format_id,
-                            "resolution": res,
-                            "fps": fps,
-                            "ext": ext,
-                            "size": size_mb,
-                            "display": f"{res} {fps}fps | {ext.upper()} | {size_mb}",
-                        }
-                    )
-            return formats
-        except Exception as e:
-            print(f"Error getting formats: {e}")
-            return []
+        return formats
 
 
 # ---------------------------------------------------------------------------
