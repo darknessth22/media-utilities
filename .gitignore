@@ -69,5 +69,10 @@ bin/
 ffplay.exe
 
 # AI agent workflow dirs (local tooling only)
-.specify/
+.agent/
+.claude/
 .gemini/
+.specify/
+
+# Legacy files
+gui.html
