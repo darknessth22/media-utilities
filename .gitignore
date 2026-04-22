@@ -46,7 +46,33 @@ ffprobe.exe
 
 # Specific files to exclude
 media_util.py
-requirements.txt
 run_cli.py
 run_gui.py
 setup.py
+
+# PyInstaller build artifacts
+dist/
+build/
+*.spec
+
+# Test and Lint caches
+.pytest_cache/
+.ruff_cache/
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# Build output (large binaries / installer artifacts)
+Output/
+bin/
+ffplay.exe
+
+# AI agent workflow dirs (local tooling only)
+.agent/
+.claude/
+.gemini/
+.specify/
+
+# Legacy files
+gui.html
