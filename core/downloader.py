@@ -22,6 +22,14 @@ _WIN_FLAGS = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
 # Helpers
 # ---------------------------------------------------------------------------
 
+def normalize_url(url: str) -> str:
+    """Normalize platform-specific URL variants to canonical form."""
+    m = re.match(r'https?://(?:www\.)?youtube\.com/shorts/([A-Za-z0-9_-]+)', url)
+    if m:
+        return f"https://www.youtube.com/watch?v={m.group(1)}"
+    return url
+
+
 def get_platform(url: str) -> str:
     """Return a short platform name for a given URL."""
     domains = {
@@ -537,31 +545,115 @@ def _download_generic_media(
 # Spotify
 # ---------------------------------------------------------------------------
 
-def download_spotify(url: str, audio_format: str = "mp3", output_dir: str | None = None) -> bool:
-    """Download a Spotify track via spotdl (audio sourced from YouTube)."""
+def _scrape_spotify_track(url: str) -> tuple[str, str] | None:
+    """Scrape track title and primary artist from Spotify page HTML. No API key needed.
+
+    Returns (title, artist) or None on failure.
+    """
     try:
-        cmd = ["spotdl", "download", url]
-        if output_dir:
-            cmd.extend(["--output", output_dir])
-        cmd.extend(["--format", audio_format if audio_format in ("mp3", "flac", "ogg", "opus", "m4a") else "mp3"])
-        cmd.extend(["--bitrate", "320k", "--threads", "4", "--sponsor-block"])
-        print(f"Running spotdl command: {' '.join(cmd)}")
-        subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=3600, **_WIN_FLAGS)
-        print("Spotify download completed successfully!")
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"spotdl error: {e}")
-        if e.stderr:
-            print(f"Error details: {e.stderr}")
-        return False
+        req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urlopen(req, timeout=15) as resp:
+            html = resp.read(131072).decode("utf-8", errors="replace")
+
+        title_m = re.search(r'<meta\s+property="og:title"\s+content="([^"]+)"', html)
+        desc_m = re.search(r'<meta\s+property="og:description"\s+content="([^"]+)"', html)
+        if not title_m:
+            return None
+
+        track_title = title_m.group(1).strip()
+        artist = ""
+        if desc_m:
+            # og:description is typically "Song · Artist · Album"
+            parts = [p.strip() for p in desc_m.group(1).split("·")]
+            if len(parts) >= 2:
+                artist = parts[1]
+        return track_title, artist
     except Exception as e:
-        print(f"Error downloading from Spotify: {e}")
-        return False
+        print(f"Spotify scrape error: {e}")
+        return None
+
+
+def download_spotify(
+    url: str,
+    audio_format: str = "mp3",
+    output_dir: str | None = None,
+    client_id: str = "",
+    client_secret: str = "",
+) -> tuple[bool, str, str | None]:
+    """Download a Spotify track by scraping metadata then searching YouTube via yt-dlp.
+
+    No Spotify API credentials required — avoids all rate-limit issues.
+    Returns (success, error_message, file_path).
+    """
+    info = _scrape_spotify_track(url)
+    if not info:
+        return False, "Could not read track info from Spotify page.", None
+
+    track_title, artist = info
+    query = f"{artist} - {track_title}".strip(" -") if artist else track_title
+    print(f"Spotify: searching YouTube for: {query}")
+
+    fmt = audio_format if audio_format in ("mp3", "flac", "ogg", "opus", "m4a") else "mp3"
+    output_template = (
+        os.path.join(output_dir, "%(title)s.%(ext)s") if output_dir else "%(title)s.%(ext)s"
+    )
+
+    final_path: list[str] = []
+
+    def _post_hook(filepath: str) -> None:
+        final_path.append(filepath)
+
+    ydl_opts = {
+        "format": "bestaudio/best",
+        "outtmpl": output_template,
+        "quiet": True,
+        "postprocessors": [
+            {"key": "FFmpegExtractAudio", "preferredcodec": fmt, "preferredquality": "320"}
+        ],
+        "postprocessor_args": ["-loglevel", "error"],
+        "ffmpeg_location": os.path.dirname(ffmpeg_path),
+        "post_hooks": [_post_hook],
+    }
+
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            ydl.download([f"ytsearch1:{query}"])
+        fp = final_path[-1] if final_path else None
+        return True, "", fp
+    except Exception as e:
+        return False, str(e), None
 
 
 # ---------------------------------------------------------------------------
 # Generic download
 # ---------------------------------------------------------------------------
+
+_VIDEO_AUDIO_CODEC_MAP = {
+    "aac": ("aac", "mp4"),
+    "mp3": ("libmp3lame", "mp4"),
+    "opus": ("libopus", "mkv"),
+}
+
+
+def _reencode_video_audio(filepath: str, audio_codec: str) -> str:
+    """Re-encode the audio track of a video file in-place. Returns final path."""
+    if not os.path.exists(filepath):
+        return filepath
+    base, ext = os.path.splitext(filepath)
+    tmp = f"{base}_audiofmt{ext}"
+    cmd = [ffmpeg_path, "-y", "-i", filepath, "-c:v", "copy", "-c:a", audio_codec, tmp]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
+        os.remove(filepath)
+        os.rename(tmp, filepath)
+    except Exception as e:
+        print(f"Audio re-encode failed: {e}")
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+    return filepath
+
 
 def download_media(
     url: str,
@@ -571,6 +663,7 @@ def download_media(
     start_time: str | None = None,
     end_time: str | None = None,
     audio_format: str = "mp3",
+    video_audio_format: str = "Original",
     output_dir: str | None = None,
     video_codec: str = "libx264",
     force_codec: bool = False,
@@ -596,9 +689,17 @@ def download_media(
     """
     if platform == "spotify":
         print("Detected Spotify URL — using spotdl")
-        ok = download_spotify(url, audio_format, output_dir)
-        return {"success": ok, "file_path": None, "file_size": None, "error_code": None, "warning": None}
+        try:
+            from core.settings import SettingsManager
+            _s = SettingsManager.load()
+            _cid, _csec = _s.spotify_client_id, _s.spotify_client_secret
+        except Exception:
+            _cid, _csec = "", ""
+        ok, err, fp = download_spotify(url, audio_format, output_dir, _cid, _csec)
+        sz = os.path.getsize(fp) if fp and os.path.exists(fp) else None
+        return {"success": ok, "file_path": fp, "file_size": sz, "error_code": None, "warning": err or None}
 
+    url = normalize_url(url)
     output_template = (
         os.path.join(output_dir, "%(title)s.%(ext)s") if output_dir else "%(title)s.%(ext)s"
     )
@@ -634,7 +735,9 @@ def download_media(
         # When a specific format ID is selected it is usually video-only.
         # Append +bestaudio so yt-dlp always merges in the best audio stream.
         ydl_opts["format"] = f"{quality}+bestaudio/best" if quality else "bestvideo+bestaudio/best"
-        ydl_opts["merge_output_format"] = "mp4"
+        vaf_key = video_audio_format.lower()
+        _vaf_container = _VIDEO_AUDIO_CODEC_MAP[vaf_key][1] if vaf_key in _VIDEO_AUDIO_CODEC_MAP else "mp4"
+        ydl_opts["merge_output_format"] = _vaf_container
 
     if platform == "generic":
         return _download_generic_media(
@@ -647,6 +750,12 @@ def download_media(
             downloaded_file = ydl.prepare_filename(info)
 
         final_size = _finalize_downloaded_file(downloaded_file, media_type, video_codec, force_codec)
+
+        vaf_key = video_audio_format.lower()
+        if media_type != "audio" and vaf_key in _VIDEO_AUDIO_CODEC_MAP:
+            audio_codec = _VIDEO_AUDIO_CODEC_MAP[vaf_key][0]
+            downloaded_file = _reencode_video_audio(downloaded_file, audio_codec)
+            final_size = os.path.getsize(downloaded_file) if os.path.exists(downloaded_file) else final_size
 
         return {"success": True, "file_path": downloaded_file, "file_size": final_size, "error_code": None, "warning": None}
     except Exception as e:
@@ -665,6 +774,7 @@ def get_available_formats(url: str) -> list[dict]:
     best available audio stream, because yt-dlp always merges audio in when
     downloading a specific video format.
     """
+    url = normalize_url(url)
     with YoutubeDL({"quiet": True}) as ydl:
         info = ydl.extract_info(url, download=False)
         all_formats = info.get("formats", [])

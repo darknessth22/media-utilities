@@ -13,7 +13,9 @@ class UserSettings:
     theme_mode: str = "auto"
     quit_on_close: bool = True
     intercept_timeout: int = 30
-    version: int = 3
+    spotify_client_id: str = ""
+    spotify_client_secret: str = ""
+    version: int = 4
 
 
 class SettingsManager:
@@ -79,6 +81,10 @@ class SettingsManager:
             if merged_data.get("version", 1) < 3:
                 merged_data.setdefault("intercept_timeout", 30)
                 merged_data["version"] = 3
+            if merged_data.get("version", 1) < 4:
+                merged_data.setdefault("spotify_client_id", "")
+                merged_data.setdefault("spotify_client_secret", "")
+                merged_data["version"] = 4
 
             return UserSettings(**merged_data)
         except (json.JSONDecodeError, OSError, TypeError):

@@ -37,6 +37,7 @@ from core.history.models import HistoryItem
 from gui.worker import Worker
 
 _AUDIO_FORMATS = ["MP3", "FLAC", "OGG", "OPUS", "M4A"]
+_VIDEO_AUDIO_FORMATS = ["Original", "AAC", "MP3", "OPUS"]
 
 _GENERIC_ERROR_MESSAGES: dict[str, str] = {
     "timeout": "Connection timed out. Check your network and try again.",
@@ -235,7 +236,7 @@ class DownloadSection(QScrollArea):
         self._url_input = QLineEdit()
         self._url_input.setObjectName("PillInput")
         self._url_input.setPlaceholderText(
-            "YouTube, Facebook, Instagram, TikTok, Twitter/X, Spotify…"
+            "YouTube, Facebook, Instagram, TikTok, Twitter/X, Twitch, Spotify…"
         )
         self._url_input.textChanged.connect(self._on_url_changed)
         row.addWidget(self._url_input)
@@ -269,6 +270,8 @@ class DownloadSection(QScrollArea):
         layout.addLayout(row)
 
         self._audio_fmt_container = QWidget()
+        self._audio_fmt_container.setStyleSheet("background: transparent;")
+
         af_row = QHBoxLayout(self._audio_fmt_container)
         af_row.setContentsMargins(0, 0, 0, 0)
         af_row.setSpacing(8)
@@ -277,6 +280,7 @@ class DownloadSection(QScrollArea):
             btn = QPushButton(fmt)
             btn.setObjectName("ChipBtn")
             btn.setCheckable(True)
+            btn.setFlat(True)
             btn.setFixedWidth(64)
             btn.clicked.connect(lambda _c, f=fmt: self._select_audio_fmt(f))
             self._audio_fmt_btns[fmt] = btn
@@ -285,6 +289,34 @@ class DownloadSection(QScrollArea):
         layout.addWidget(self._audio_fmt_container)
         self._audio_fmt_container.setVisible(False)
         self._select_audio_fmt("MP3")
+
+        self._video_audio_fmt_container = QWidget()
+        self._video_audio_fmt_container.setStyleSheet("background: transparent;")
+        vaf_layout = QVBoxLayout(self._video_audio_fmt_container)
+        vaf_layout.setContentsMargins(0, 4, 0, 0)
+        vaf_layout.setSpacing(4)
+        vaf_lbl = QLabel("Audio format in video:")
+        vaf_lbl.setObjectName("TextMuted")
+        vaf_lbl.setStyleSheet("font-size: 11px;")
+        vaf_layout.addWidget(vaf_lbl)
+        vaf_row = QHBoxLayout()
+        vaf_row.setContentsMargins(0, 0, 0, 0)
+        vaf_row.setSpacing(8)
+        self._video_audio_fmt_btns: dict[str, QPushButton] = {}
+        for fmt in _VIDEO_AUDIO_FORMATS:
+            btn = QPushButton(fmt)
+            btn.setObjectName("ChipBtn")
+            btn.setCheckable(True)
+            btn.setFlat(True)
+            btn.setFixedWidth(70)
+            btn.clicked.connect(lambda _c, f=fmt: self._select_video_audio_fmt(f))
+            self._video_audio_fmt_btns[fmt] = btn
+            vaf_row.addWidget(btn)
+        vaf_row.addStretch()
+        vaf_layout.addLayout(vaf_row)
+        layout.addWidget(self._video_audio_fmt_container)
+        self._video_audio_fmt_container.setVisible(True)
+        self._select_video_audio_fmt("Original")
         return card
 
     def _build_quality_card(self) -> QFrame:
@@ -526,6 +558,7 @@ class DownloadSection(QScrollArea):
 
     def _on_type_toggled(self, is_video: bool) -> None:
         self._audio_fmt_container.setVisible(not is_video)
+        self._video_audio_fmt_container.setVisible(is_video)
         self._quality_combo.setEnabled(is_video)
         self._check_fmt_btn.setEnabled(is_video)
         if _MULTIMEDIA_AVAILABLE:
@@ -537,6 +570,15 @@ class DownloadSection(QScrollArea):
     def _select_audio_fmt(self, fmt: str) -> None:
         self._selected_audio_fmt = fmt
         for name, btn in self._audio_fmt_btns.items():
+            active = name == fmt
+            btn.setChecked(active)
+            btn.setProperty("selected", "true" if active else "false")
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+
+    def _select_video_audio_fmt(self, fmt: str) -> None:
+        self._selected_video_audio_fmt = fmt
+        for name, btn in self._video_audio_fmt_btns.items():
             active = name == fmt
             btn.setChecked(active)
             btn.setProperty("selected", "true" if active else "false")
@@ -715,6 +757,7 @@ class DownloadSection(QScrollArea):
         is_audio = self._audio_radio.isChecked()
         platform = get_platform(url)
         audio_fmt = getattr(self, "_selected_audio_fmt", "mp3").lower()
+        video_audio_fmt = getattr(self, "_selected_video_audio_fmt", "Original")
         out_dir = self._out_input.text().strip() or None
         codec = self._settings.default_codec or "original"
         codec_map = {
@@ -766,6 +809,7 @@ class DownloadSection(QScrollArea):
             "media_type": "audio" if is_audio else "video",
             "quality": quality,
             "audio_fmt": audio_fmt,
+            "video_audio_fmt": video_audio_fmt,
             "start_time": start_time,
             "end_time": end_time,
             "out_dir": out_dir,
@@ -820,6 +864,7 @@ class DownloadSection(QScrollArea):
         _media_type = pending["media_type"]
         _quality = pending["quality"]
         _audio_fmt = pending["audio_fmt"]
+        _video_audio_fmt = pending.get("video_audio_fmt", "Original")
         _start = pending["start_time"]
         _end = pending["end_time"]
         _out_dir = pending["out_dir"]
@@ -842,6 +887,7 @@ class DownloadSection(QScrollArea):
                 start_time=_start,
                 end_time=_end,
                 audio_format=_audio_fmt,
+                video_audio_format=_video_audio_fmt,
                 output_dir=_out_dir,
                 video_codec=_video_codec,
                 cancel_check=cancel_fn,
@@ -938,7 +984,7 @@ class DownloadSection(QScrollArea):
             if job:
                 job["status"] = "error"
             code = result.get("error_code")
-            err_text = _GENERIC_ERROR_MESSAGES.get(code) or "Download failed."
+            err_text = _GENERIC_ERROR_MESSAGES.get(code) or result.get("warning") or "Download failed."
             if job:
                 get_history_manager().add_item(
                     HistoryItem(

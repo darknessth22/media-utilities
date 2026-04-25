@@ -393,20 +393,28 @@ QScrollArea > QWidget > QWidget {
 QPushButton#ChipBtn {
     background-color: transparent;
     color: #8B949E;
-    border: 1px solid #30363D;
+    border: none;
     border-radius: 14px;
     padding: 5px 0px;
     font-size: 12px;
     font-weight: bold;
+    outline: none;
+}
+QPushButton#ChipBtn:focus {
+    outline: none;
+    border: none;
 }
 QPushButton#ChipBtn:hover {
-    border-color: rgba(59, 130, 246, 102);
+    border: 1px solid rgba(59, 130, 246, 102);
     color: #E6EDF3;
 }
 QPushButton#ChipBtn:checked {
     background-color: #3B82F6;
     color: #ffffff;
-    border-color: #3B82F6;
+    border: 1px solid #3B82F6;
+}
+QPushButton#ChipBtn:checked:focus {
+    outline: none;
 }
 
 /* ── Secondary / danger buttons (History, player controls) ────────────── */
@@ -859,20 +867,28 @@ QScrollArea > QWidget > QWidget {
 QPushButton#ChipBtn {
     background-color: transparent;
     color: #57606A;
-    border: 1px solid #D0D7DE;
+    border: none;
     border-radius: 14px;
     padding: 5px 0px;
     font-size: 12px;
     font-weight: bold;
+    outline: none;
+}
+QPushButton#ChipBtn:focus {
+    outline: none;
+    border: none;
 }
 QPushButton#ChipBtn:hover {
-    border-color: rgba(37, 99, 235, 89);
+    border: 1px solid rgba(37, 99, 235, 89);
     color: #0D1117;
 }
 QPushButton#ChipBtn:checked {
     background-color: #2563EB;
     color: #ffffff;
-    border-color: #2563EB;
+    border: 1px solid #2563EB;
+}
+QPushButton#ChipBtn:checked:focus {
+    outline: none;
 }
 
 /* ── Secondary / danger buttons (History, player controls) ────────────── */

@@ -115,6 +115,7 @@ class DocumentSection(QScrollArea):
             btn = QPushButton(fmt)
             btn.setObjectName("ChipBtn")
             btn.setCheckable(True)
+            btn.setFlat(True)
             btn.setFixedWidth(72)
             btn.clicked.connect(lambda _checked, f=fmt: self._select_format(f))
             self._format_btns[fmt] = btn

@@ -46,7 +46,7 @@ _VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv"}
 
 _IMAGE_FORMATS = ["JPG", "PNG", "WEBP", "BMP", "GIF", "HEIC"]
 _AUDIO_FORMATS = ["MP3", "WAV", "AAC", "FLAC", "OGG", "M4A"]
-_VIDEO_FORMATS = ["MP4", "MKV", "AVI", "MOV", "WEBM", "FLV"]
+_VIDEO_FORMATS = ["MP4", "MKV", "AVI", "MOV", "WEBM", "FLV", "MP3"]
 
 
 def _detect_media_type(path: str) -> str:
@@ -67,11 +67,15 @@ def _ffmpeg_convert(src: str, target_fmt: str, output_dir: str | None) -> dict:
     os.makedirs(out_dir, exist_ok=True)
     dest = os.path.join(out_dir, f"{base}_converted.{target_fmt.lower()}")
     flags = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
+    src_ext = os.path.splitext(src)[1].lower().lstrip(".")
+    target_is_audio = target_fmt.lower() in {f.lower() for f in _AUDIO_FORMATS}
+    src_is_video = src_ext in {e.lstrip(".") for e in _VIDEO_EXTS}
+    cmd = [ffmpeg_path, "-y", "-i", src]
+    if src_is_video and target_is_audio:
+        cmd += ["-vn"]
+    cmd.append(dest)
     try:
-        subprocess.run(
-            [ffmpeg_path, "-y", "-i", src, dest],
-            check=True, capture_output=True, timeout=3600, **flags,
-        )
+        subprocess.run(cmd, check=True, capture_output=True, timeout=3600, **flags)
         return {"success": True, "file_path": dest}
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -158,6 +162,7 @@ class _SingleConvertView(QWidget):
         layout.addWidget(_section_header("TARGET FORMAT"))
 
         self._format_container = QWidget()
+        self._format_container.setStyleSheet("background: transparent;")
         self._format_layout = QHBoxLayout(self._format_container)
         self._format_layout.setContentsMargins(0, 0, 0, 0)
         self._format_layout.setSpacing(8)
@@ -234,6 +239,7 @@ class _SingleConvertView(QWidget):
             btn = QPushButton(fmt)
             btn.setObjectName("ChipBtn")
             btn.setCheckable(True)
+            btn.setFlat(True)
             btn.setFixedWidth(64)
             btn.clicked.connect(lambda _checked, f=fmt: self._select_format(f))
             self._format_btns[fmt] = btn
@@ -435,6 +441,7 @@ class _BatchConvertView(QWidget):
             btn = QPushButton(fmt)
             btn.setObjectName("ChipBtn")
             btn.setCheckable(True)
+            btn.setFlat(True)
             btn.setFixedWidth(64)
             btn.clicked.connect(lambda _c, f=fmt: self._select_format(f))
             self._format_btns[fmt] = btn

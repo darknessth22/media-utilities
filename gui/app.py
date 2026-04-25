@@ -352,6 +352,9 @@ class SettingsSection(QScrollArea):
         layout.addWidget(self._build_appearance_card())
         layout.addWidget(self._build_behavior_card())
         layout.addWidget(self._build_paths_card())
+        spotify_card = self._build_spotify_card()
+        spotify_card.setVisible(False)
+        layout.addWidget(spotify_card)
 
         self.setWidget(content)
 
@@ -485,6 +488,44 @@ class SettingsSection(QScrollArea):
 
         return card
 
+    def _build_spotify_card(self) -> QFrame:
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
+
+        layout.addWidget(self._section_header("SPOTIFY CREDENTIALS"))
+
+        hint = QLabel(
+            "The default spotdl credentials are shared and rate-limited. "
+            "Create a free app at developer.spotify.com → set Redirect URI to "
+            "http://127.0.0.1:8888/callback (required by Spotify but never used) "
+            "→ paste your Client ID and Secret below."
+        )
+        hint.setObjectName("TextMuted")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("font-size: 12px;")
+        layout.addWidget(hint)
+
+        layout.addWidget(QLabel("Client ID"))
+        self._spotify_id_input = QLineEdit()
+        self._spotify_id_input.setObjectName("PillInput")
+        self._spotify_id_input.setPlaceholderText("Leave blank to use spotdl default (rate-limited)")
+        self._spotify_id_input.setText(self._settings.spotify_client_id)
+        self._spotify_id_input.textChanged.connect(self._on_spotify_id_changed)
+        layout.addWidget(self._spotify_id_input)
+
+        layout.addWidget(QLabel("Client Secret"))
+        self._spotify_secret_input = QLineEdit()
+        self._spotify_secret_input.setObjectName("PillInput")
+        self._spotify_secret_input.setPlaceholderText("Leave blank to use spotdl default (rate-limited)")
+        self._spotify_secret_input.setText(self._settings.spotify_client_secret)
+        self._spotify_secret_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._spotify_secret_input.textChanged.connect(self._on_spotify_secret_changed)
+        layout.addWidget(self._spotify_secret_input)
+
+        return card
+
     # ── Control handlers (all auto-save) ──────────────────────────────────────
 
     def _on_theme_changed(self, index: int) -> None:
@@ -516,6 +557,14 @@ class SettingsSection(QScrollArea):
         self._settings.intercept_timeout = value
         self._save()
 
+    def _on_spotify_id_changed(self, text: str) -> None:
+        self._settings.spotify_client_id = text.strip()
+        self._save()
+
+    def _on_spotify_secret_changed(self, text: str) -> None:
+        self._settings.spotify_client_secret = text.strip()
+        self._save()
+
     def _save(self) -> None:
         SettingsManager.save(self._settings)
         self.settings_changed.emit(self._settings)
@@ -525,8 +574,9 @@ class SettingsSection(QScrollArea):
     def reload_settings(self, settings: UserSettings) -> None:
         """Refresh controls from *settings* without triggering saves."""
         self._settings = settings
-        for widget in (self._theme_combo, self._quit_check,
-                       self._folder_input, self._codec_combo, self._timeout_spin):
+        for widget in (self._theme_combo, self._quit_check, self._folder_input,
+                       self._codec_combo, self._timeout_spin,
+                       self._spotify_id_input, self._spotify_secret_input):
             widget.blockSignals(True)
 
         self._theme_combo.setCurrentIndex(
@@ -538,9 +588,12 @@ class SettingsSection(QScrollArea):
             {"original": 0, "h264": 1, "hevc": 2, "vp9": 3}.get(settings.default_codec, 0)
         )
         self._timeout_spin.setValue(settings.intercept_timeout)
+        self._spotify_id_input.setText(settings.spotify_client_id)
+        self._spotify_secret_input.setText(settings.spotify_client_secret)
 
-        for widget in (self._theme_combo, self._quit_check,
-                       self._folder_input, self._codec_combo, self._timeout_spin):
+        for widget in (self._theme_combo, self._quit_check, self._folder_input,
+                       self._codec_combo, self._timeout_spin,
+                       self._spotify_id_input, self._spotify_secret_input):
             widget.blockSignals(False)
 
 
