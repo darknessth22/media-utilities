@@ -5,7 +5,7 @@ from core.history.models import HistoryItem
 from core.settings import SettingsManager
 
 class HistoryManager:
-    MAX_ITEMS = 10
+    MAX_ITEMS = 200
     FILENAME = "history.json"
 
     def __init__(self):

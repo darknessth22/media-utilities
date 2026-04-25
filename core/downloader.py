@@ -660,6 +660,8 @@ def download_media(
     platform: str,
     media_type: str = "video",
     quality: str | None = None,
+    quality_height: int | None = None,
+    playlist_mode: str = "single",
     start_time: str | None = None,
     end_time: str | None = None,
     audio_format: str = "mp3",
@@ -700,9 +702,21 @@ def download_media(
         return {"success": ok, "file_path": fp, "file_size": sz, "error_code": None, "warning": err or None}
 
     url = normalize_url(url)
-    output_template = (
-        os.path.join(output_dir, "%(title)s.%(ext)s") if output_dir else "%(title)s.%(ext)s"
-    )
+
+    if playlist_mode == "full":
+        output_template = (
+            os.path.join(output_dir, "%(playlist_index)s - %(title)s.%(ext)s")
+            if output_dir else "%(playlist_index)s - %(title)s.%(ext)s"
+        )
+    else:
+        output_template = (
+            os.path.join(output_dir, "%(title)s.%(ext)s") if output_dir else "%(title)s.%(ext)s"
+        )
+
+    final_paths: list[str] = []
+
+    def _post_hook(filepath: str) -> None:
+        final_paths.append(filepath)
 
     ydl_opts: dict = {
         "outtmpl": output_template,
@@ -710,7 +724,10 @@ def download_media(
         "postprocessor_args": ["-loglevel", "error"],
         "force_keyframes_at_cuts": True,
         "progress_hooks": [_make_progress_hook(cancel_check, progress_cb)],
+        "post_hooks": [_post_hook],
     }
+    if playlist_mode == "single":
+        ydl_opts["noplaylist"] = True
     if status_cb:
         ydl_opts["logger"] = _StatusLogger(status_cb)
 
@@ -732,9 +749,17 @@ def download_media(
             {"key": "FFmpegExtractAudio", "preferredcodec": audio_format, "preferredquality": "320"}
         ]
     else:
-        # When a specific format ID is selected it is usually video-only.
-        # Append +bestaudio so yt-dlp always merges in the best audio stream.
-        ydl_opts["format"] = f"{quality}+bestaudio/best" if quality else "bestvideo+bestaudio/best"
+        if playlist_mode == "full" and quality_height:
+            # Height-based selector so it applies consistently across all playlist videos
+            ydl_opts["format"] = (
+                f"bestvideo[height<={quality_height}]+bestaudio/best"
+                f"/bestvideo[height<={quality_height}]+bestaudio"
+                f"/best[height<={quality_height}]/best"
+            )
+        else:
+            # When a specific format ID is selected it is usually video-only.
+            # Append +bestaudio so yt-dlp always merges in the best audio stream.
+            ydl_opts["format"] = f"{quality}+bestaudio/best" if quality else "bestvideo+bestaudio/best"
         vaf_key = video_audio_format.lower()
         _vaf_container = _VIDEO_AUDIO_CODEC_MAP[vaf_key][1] if vaf_key in _VIDEO_AUDIO_CODEC_MAP else "mp4"
         ydl_opts["merge_output_format"] = _vaf_container
@@ -747,6 +772,20 @@ def download_media(
     try:
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
+
+            if info.get("_type") == "playlist":
+                out_path = output_dir or "."
+                return {
+                    "success": True,
+                    "file_path": out_path,
+                    "file_size": None,
+                    "error_code": None,
+                    "warning": None,
+                    "is_playlist": True,
+                    "playlist_count": len(final_paths),
+                    "playlist_files": list(final_paths),
+                }
+
             downloaded_file = ydl.prepare_filename(info)
 
         final_size = _finalize_downloaded_file(downloaded_file, media_type, video_codec, force_codec)
@@ -770,13 +809,20 @@ def download_media(
 def get_available_formats(url: str) -> list[dict]:
     """Return a list of available video formats for a URL.
 
+    For playlist URLs, formats are fetched from the first video only.
     The displayed size is the combined estimate of the video stream plus the
     best available audio stream, because yt-dlp always merges audio in when
     downloading a specific video format.
     """
     url = normalize_url(url)
-    with YoutubeDL({"quiet": True}) as ydl:
+    with YoutubeDL({"quiet": True, "playlist_items": "1"}) as ydl:
         info = ydl.extract_info(url, download=False)
+        if info.get("_type") == "playlist":
+            entries = [e for e in (info.get("entries") or []) if e]
+            if not entries:
+                return []
+            info = entries[0]
+
         all_formats = info.get("formats", [])
 
         audio_formats = [
@@ -798,6 +844,7 @@ def get_available_formats(url: str) -> list[dict]:
                 fps = fmt.get("fps", "?")
                 ext = fmt.get("ext", "?")
                 format_id = fmt.get("format_id", "")
+                height = fmt.get("height") or 0
                 video_size = fmt.get("filesize") or fmt.get("filesize_approx") or 0
 
                 if video_size or best_audio_size:
@@ -810,6 +857,7 @@ def get_available_formats(url: str) -> list[dict]:
                     {
                         "format_id": format_id,
                         "resolution": res,
+                        "height": height,
                         "fps": fps,
                         "ext": ext,
                         "size": size_mb,

@@ -1005,6 +1005,7 @@ class MainWindow(QMainWindow):
             or "complete" in lowered
             or "cancelled" in lowered
             or "failed" in lowered
+            or "playlist complete" in lowered
         )
 
     # ── T018 / T020: Tray helpers ─────────────────────────────────────────────

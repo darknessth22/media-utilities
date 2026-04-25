@@ -213,6 +213,7 @@ class DownloadSection(QScrollArea):
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         layout.addWidget(self._build_url_card())
+        layout.addWidget(self._build_playlist_card())
         layout.addWidget(self._build_type_card())
         layout.addWidget(self._build_quality_card())
         layout.addWidget(self._build_trim_card())
@@ -247,6 +248,40 @@ class DownloadSection(QScrollArea):
         self._platform_label.setStyleSheet("font-size: 12px;")
         layout.addWidget(self._platform_label)
         return card
+
+    def _is_playlist_url(self, url: str) -> bool:
+        return bool(re.search(r'[?&]list=', url)) and ('youtube.com' in url or 'youtu.be' in url)
+
+    def _build_playlist_card(self) -> QFrame:
+        self._playlist_card = _card()
+        self._playlist_card.setVisible(False)
+        layout = QVBoxLayout(self._playlist_card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
+        layout.addWidget(_section_header("PLAYLIST OPTIONS"))
+
+        row = QHBoxLayout()
+        row.setSpacing(16)
+        self._playlist_btn_group = QButtonGroup(self)
+        self._playlist_single_radio = QRadioButton("This video only")
+        self._playlist_full_radio = QRadioButton("Full playlist")
+        self._playlist_single_radio.setChecked(True)
+        self._playlist_btn_group.addButton(self._playlist_single_radio, 0)
+        self._playlist_btn_group.addButton(self._playlist_full_radio, 1)
+        row.addWidget(self._playlist_single_radio)
+        row.addWidget(self._playlist_full_radio)
+        row.addStretch()
+        layout.addLayout(row)
+
+        hint = QLabel(
+            "Full playlist: quality is matched by resolution across all videos."
+            " Check Formats to pick resolution — formats loaded from first video."
+        )
+        hint.setObjectName("TextMuted")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("font-size: 12px;")
+        layout.addWidget(hint)
+        return self._playlist_card
 
     def _build_type_card(self) -> QFrame:
         card = _card()
@@ -546,8 +581,10 @@ class DownloadSection(QScrollArea):
                 self._platform_label.setText(f"Detected: {label}")
             if platform == "spotify":
                 self._audio_radio.setChecked(True)
+            self._playlist_card.setVisible(self._is_playlist_url(url))
         else:
             self._platform_label.setText("")
+            self._playlist_card.setVisible(False)
 
         if _MULTIMEDIA_AVAILABLE:
             self._player.stop()
@@ -733,7 +770,10 @@ class DownloadSection(QScrollArea):
         self._quality_combo.clear()
         self._quality_combo.addItem("Best available (default)", None)
         for fmt in formats:
-            self._quality_combo.addItem(fmt["display"], fmt["format_id"])
+            self._quality_combo.addItem(
+                fmt["display"],
+                {"format_id": fmt["format_id"], "height": fmt.get("height", 0)},
+            )
         if formats:
             self.status_message.emit(f"{len(formats)} format(s) loaded.", False)
         else:
@@ -767,10 +807,19 @@ class DownloadSection(QScrollArea):
         video_codec = codec_map.get(codec, "original")
 
         quality: str | None = None
+        quality_height: int | None = None
+        playlist_mode = "single"
+        if self._is_playlist_url(url) and self._playlist_full_radio.isChecked():
+            playlist_mode = "full"
         if not is_audio:
             idx = self._quality_combo.currentIndex()
             if idx > 0:
-                quality = self._quality_combo.itemData(idx)
+                data = self._quality_combo.itemData(idx)
+                if isinstance(data, dict):
+                    quality = data.get("format_id")
+                    quality_height = data.get("height") or None
+                else:
+                    quality = data
 
         start_time = self._start_input.text().strip() or None
         end_time = self._end_input.text().strip() or None
@@ -808,6 +857,8 @@ class DownloadSection(QScrollArea):
             "platform": platform,
             "media_type": "audio" if is_audio else "video",
             "quality": quality,
+            "quality_height": quality_height,
+            "playlist_mode": playlist_mode,
             "audio_fmt": audio_fmt,
             "video_audio_fmt": video_audio_fmt,
             "start_time": start_time,
@@ -836,6 +887,8 @@ class DownloadSection(QScrollArea):
     def _clear_form(self) -> None:
         self._url_input.clear()
         self._platform_label.setText("")
+        self._playlist_card.setVisible(False)
+        self._playlist_single_radio.setChecked(True)
         self._quality_combo.clear()
         self._quality_combo.addItem("Best available (default)")
         self._start_input.clear()
@@ -863,6 +916,8 @@ class DownloadSection(QScrollArea):
         _platform = pending["platform"]
         _media_type = pending["media_type"]
         _quality = pending["quality"]
+        _quality_height = pending.get("quality_height")
+        _playlist_mode = pending.get("playlist_mode", "single")
         _audio_fmt = pending["audio_fmt"]
         _video_audio_fmt = pending.get("video_audio_fmt", "Original")
         _start = pending["start_time"]
@@ -884,6 +939,8 @@ class DownloadSection(QScrollArea):
                 platform=_platform,
                 media_type=_media_type,
                 quality=_quality,
+                quality_height=_quality_height,
+                playlist_mode=_playlist_mode,
                 start_time=_start,
                 end_time=_end,
                 audio_format=_audio_fmt,
@@ -948,6 +1005,38 @@ class DownloadSection(QScrollArea):
             if job:
                 job["status"] = "done"
             fp = result.get("file_path") or ""
+            if result.get("is_playlist"):
+                count = result.get("playlist_count", 0)
+                playlist_files = result.get("playlist_files", [])
+                display = f"Playlist — {count} video(s) downloaded"
+                if job:
+                    job["display_name"] = display
+                if row:
+                    row.update_name(display)
+                    row.set_done()
+                self._last_result_path = fp
+                if playlist_files:
+                    for pf in playlist_files:
+                        fn = os.path.basename(pf)
+                        get_history_manager().add_item(
+                            HistoryItem(
+                                task_type="download", file_name=fn, file_path=pf,
+                                status="success", source="direct",
+                            )
+                        )
+                        self.status_message.emit(f"Download complete → {fn}", False)
+                else:
+                    if job:
+                        get_history_manager().add_item(
+                            HistoryItem(
+                                task_type="download", file_name=display,
+                                file_path=fp, status="success", source="direct",
+                            )
+                        )
+                    self.status_message.emit(f"Playlist complete: {count} video(s) downloaded", False)
+                QTimer.singleShot(2000, lambda: self._remove_job(job_id))
+                self._emit_queue_count()
+                return
             if fp:
                 title = os.path.splitext(os.path.basename(fp))[0]
                 display = title if len(title) <= 60 else title[:57] + "…"
