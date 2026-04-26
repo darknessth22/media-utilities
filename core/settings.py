@@ -15,7 +15,8 @@ class UserSettings:
     intercept_timeout: int = 30
     spotify_client_id: str = ""
     spotify_client_secret: str = ""
-    version: int = 4
+    tutorial_seen: bool = False
+    version: int = 5
 
 
 class SettingsManager:
@@ -85,6 +86,9 @@ class SettingsManager:
                 merged_data.setdefault("spotify_client_id", "")
                 merged_data.setdefault("spotify_client_secret", "")
                 merged_data["version"] = 4
+            if merged_data.get("version", 1) < 5:
+                merged_data.setdefault("tutorial_seen", False)
+                merged_data["version"] = 5
 
             return UserSettings(**merged_data)
         except (json.JSONDecodeError, OSError, TypeError):

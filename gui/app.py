@@ -21,11 +21,14 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from PySide6.QtCore import Qt, QPoint, Signal
-from PySide6.QtGui import QPixmap, QPainter
+import math
+
+from PySide6.QtCore import Qt, QPoint, QTimer, Signal
+from PySide6.QtGui import QColor, QPixmap, QPainter
 from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtWidgets import QGraphicsDropShadowEffect
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QFrame,
+    QMainWindow, QDialog, QWidget, QFrame,
     QHBoxLayout, QVBoxLayout,
     QLabel, QPushButton, QCheckBox, QLineEdit,
     QComboBox, QFileDialog, QSizeGrip, QMenu,
@@ -41,6 +44,7 @@ from gui.tabs.convert_section import ConvertSection
 from gui.tabs.trim_section import TrimSection
 from gui.tabs.document_section import DocumentSection
 from gui.tabs.history_section import HistorySection
+from gui.tabs.tutorial_section import TutorialSection
 
 # ── Asset path ────────────────────────────────────────────────────────────────
 _ICONS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "icons")
@@ -88,6 +92,13 @@ _SECTIONS = [
         "label": "Settings",
         "icon": "settings.svg",
         "tabs": ["SETTINGS"],
+        "action_label": None,
+    },
+    {
+        "id": "tutorial",
+        "label": "How to Use",
+        "icon": "help.svg",
+        "tabs": ["HOW TO USE"],
         "action_label": None,
     },
 ]
@@ -311,6 +322,17 @@ class NavButton(QPushButton):
         self._icon_filename = icon_filename
         self._update_icon(active=False)
 
+        # Glow animation state (used for the tutorial nav item)
+        self._glow_phase: float = 0.0
+        self._glow_timer = QTimer(self)
+        self._glow_timer.setInterval(40)
+        self._glow_timer.timeout.connect(self._tick_glow)
+        self._glow_effect = QGraphicsDropShadowEffect(self)
+        self._glow_effect.setColor(QColor(245, 158, 11, 0))
+        self._glow_effect.setBlurRadius(0)
+        self._glow_effect.setOffset(0, 0)
+        self._icon_label.setGraphicsEffect(self._glow_effect)
+
     def _update_icon(self, active: bool) -> None:
         color = "#3B82F6" if active else "#8B949E"
         px = _load_svg_icon(self._icon_filename, 24, color)
@@ -323,6 +345,28 @@ class NavButton(QPushButton):
         # Force QSS re-evaluation for property-based selectors.
         self.style().unpolish(self)
         self.style().polish(self)
+
+    def start_glow(self) -> None:
+        """Begin pulsing amber glow — call this to draw the user's attention."""
+        self._glow_phase = 0.0
+        px = _load_svg_icon(self._icon_filename, 24, "#F59E0B")
+        self._icon_label.setPixmap(px)
+        self._glow_timer.start()
+
+    def stop_glow(self) -> None:
+        """Stop the glow animation and restore normal icon state."""
+        self._glow_timer.stop()
+        self._glow_effect.setBlurRadius(0)
+        self._glow_effect.setColor(QColor(245, 158, 11, 0))
+        self._update_icon(active=False)
+
+    def _tick_glow(self) -> None:
+        self._glow_phase = (self._glow_phase + 0.07) % (2 * math.pi)
+        intensity = (math.sin(self._glow_phase) + 1) / 2  # 0.0 → 1.0
+        blur = 6 + intensity * 18          # 6 → 24 px
+        alpha = int(80 + intensity * 175)  # 80 → 255
+        self._glow_effect.setBlurRadius(blur)
+        self._glow_effect.setColor(QColor(245, 158, 11, alpha))
 
 
 # ── T011: Settings section ────────────────────────────────────────────────────
@@ -597,6 +641,127 @@ class SettingsSection(QScrollArea):
             widget.blockSignals(False)
 
 
+# ── Welcome dialog (first launch) ────────────────────────────────────────────
+
+class WelcomeDialog(QDialog):
+    """Shown once on first launch — directs the user to the How to Use section."""
+
+    go_to_tutorial = Signal()
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setObjectName("WelcomeDialog")
+        self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setFixedWidth(420)
+        self.setModal(True)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # Card body
+        card = QFrame()
+        card.setObjectName("WelcomeCard")
+        card.setStyleSheet(
+            "QFrame#WelcomeCard {"
+            "  background-color: #1C2333;"
+            "  border: 1px solid #30363D;"
+            "  border-radius: 12px;"
+            "}"
+        )
+        v = QVBoxLayout(card)
+        v.setContentsMargins(32, 28, 32, 24)
+        v.setSpacing(16)
+
+        # Logo + title row
+        hdr = QHBoxLayout()
+        hdr.setSpacing(12)
+        logo = QLabel()
+        logo.setFixedSize(36, 36)
+        px = _load_svg_icon("dashboard.svg", 36, "#3B82F6")
+        if not px.isNull():
+            logo.setPixmap(px)
+        hdr.addWidget(logo)
+        title = QLabel("Welcome to Media Utility")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #E6EDF3;")
+        hdr.addWidget(title)
+        hdr.addStretch()
+        v.addLayout(hdr)
+
+        # Separator
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setObjectName("Separator")
+        sep.setFixedHeight(1)
+        v.addWidget(sep)
+
+        # Body text
+        body = QLabel(
+            "Looks like this is your first time here.\n\n"
+            "Head over to How to Use in the sidebar to get up to speed "
+            "with all the features — downloading, converting, trimming, and more."
+        )
+        body.setWordWrap(True)
+        body.setStyleSheet("color: #8B949E; font-size: 13px; line-height: 1.5;")
+        v.addWidget(body)
+
+        # Hint row showing the glowing icon
+        hint = QHBoxLayout()
+        hint.setSpacing(8)
+        hint_icon = QLabel()
+        hint_icon.setFixedSize(18, 18)
+        hint_px = _load_svg_icon("help.svg", 18, "#F59E0B")
+        if not hint_px.isNull():
+            hint_icon.setPixmap(hint_px)
+        hint.addWidget(hint_icon)
+        hint_lbl = QLabel('Look for the glowing icon in the sidebar.')
+        hint_lbl.setStyleSheet("color: #F59E0B; font-size: 12px;")
+        hint.addWidget(hint_lbl)
+        hint.addStretch()
+        v.addLayout(hint)
+
+        # Button row
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(10)
+        btn_row.addStretch()
+
+        dismiss_btn = QPushButton("Maybe later")
+        dismiss_btn.setObjectName("SecondaryBtn")
+        dismiss_btn.setFixedHeight(36)
+        dismiss_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        dismiss_btn.setStyleSheet(
+            "QPushButton#SecondaryBtn {"
+            "  background-color: transparent;"
+            "  color: #8B949E;"
+            "  border: 1px solid #30363D;"
+            "  border-radius: 6px;"
+            "  padding: 0 16px;"
+            "  font-size: 13px;"
+            "}"
+            "QPushButton#SecondaryBtn:hover {"
+            "  background-color: #21262D;"
+            "  color: #E6EDF3;"
+            "}"
+        )
+        dismiss_btn.clicked.connect(self.reject)
+        btn_row.addWidget(dismiss_btn)
+
+        go_btn = QPushButton("Take me there  →")
+        go_btn.setObjectName("PrimaryActionBtn")
+        go_btn.setFixedHeight(36)
+        go_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        go_btn.clicked.connect(self._on_go)
+        btn_row.addWidget(go_btn)
+
+        v.addLayout(btn_row)
+        root.addWidget(card)
+
+    def _on_go(self) -> None:
+        self.go_to_tutorial.emit()
+        self.accept()
+
+
 # ── T007 / T008 / T009 / T010: Main Window ───────────────────────────────────
 
 class MainWindow(QMainWindow):
@@ -689,6 +854,13 @@ class MainWindow(QMainWindow):
         # Navigate to the first section on startup
         self._navigate_to(0)
 
+        # Always keep the tutorial nav item glowing so it's easy to find
+        self._nav_buttons[6].start_glow()
+
+        # Show welcome dialog on first launch
+        if not self.settings.tutorial_seen:
+            QTimer.singleShot(400, self._show_welcome)
+
     # ── T009: Sidebar ─────────────────────────────────────────────────────────
 
     def _build_sidebar(self) -> QWidget:
@@ -775,14 +947,16 @@ class MainWindow(QMainWindow):
         self._history_section = HistorySection()
         self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
+        self._tutorial_section = TutorialSection()
 
         self._section_widgets: list[QWidget] = [
-            self._download_section,   # index 0 — download
-            self._convert_section,    # index 1 — convert / batch convert
-            self._trim_section,       # index 2 — trim
-            self._document_section,   # index 3 — document convert
-            self._history_section,    # index 4 — history
+            self._download_section,         # index 0 — download
+            self._convert_section,          # index 1 — convert / batch convert
+            self._trim_section,             # index 2 — trim
+            self._document_section,         # index 3 — document convert
+            self._history_section,          # index 4 — history
             self._settings_section_widget,  # index 5 — settings
+            self._tutorial_section,         # index 6 — how to use
         ]
 
         # Connect status signals from all operation sections.
@@ -847,6 +1021,9 @@ class MainWindow(QMainWindow):
         for i, btn in enumerate(self._nav_buttons):
             btn.set_active(i == index)
 
+        # Keep tutorial icon amber regardless of active state
+        self._nav_buttons[6].start_glow()
+
         # Switch content
         self._content_stack.setCurrentIndex(index)
 
@@ -866,6 +1043,20 @@ class MainWindow(QMainWindow):
             self._action_btn_container.setVisible(True)
         else:
             self._action_btn_container.setVisible(False)
+
+    def _show_welcome(self) -> None:
+        dlg = WelcomeDialog(self)
+        dlg.go_to_tutorial.connect(lambda: self._navigate_to(6))
+        # Center over the main window
+        geo = self.geometry()
+        dlg.move(
+            geo.x() + (geo.width() - dlg.width()) // 2,
+            geo.y() + (geo.height() - dlg.height()) // 2,
+        )
+        dlg.exec()
+        # Mark seen regardless of which button was pressed
+        self.settings.tutorial_seen = True
+        SettingsManager.save(self.settings)
 
     def _on_queue_changed(self, count: int) -> None:
         self.title_bar.update_queue_badge(count)
