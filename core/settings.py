@@ -16,7 +16,9 @@ class UserSettings:
     spotify_client_id: str = ""
     spotify_client_secret: str = ""
     tutorial_seen: bool = False
-    version: int = 5
+    cookies_browser: str = ""
+    cookies_file: str = ""
+    version: int = 6
 
 
 class SettingsManager:
@@ -89,6 +91,9 @@ class SettingsManager:
             if merged_data.get("version", 1) < 5:
                 merged_data.setdefault("tutorial_seen", False)
                 merged_data["version"] = 5
+            if merged_data.get("version", 1) < 6:
+                merged_data.setdefault("cookies_browser", "")
+                merged_data["version"] = 6
 
             return UserSettings(**merged_data)
         except (json.JSONDecodeError, OSError, TypeError):

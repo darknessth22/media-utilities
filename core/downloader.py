@@ -718,14 +718,32 @@ def download_media(
     def _post_hook(filepath: str) -> None:
         final_paths.append(filepath)
 
+    # Resolve cookie source — file wins over browser (more reliable)
+    _cookie_file: str | None = None
+    _cookie_browser: str | None = None
+    try:
+        from core.settings import SettingsManager as _SM
+        _s = _SM.load()
+        if _s.cookies_file and os.path.exists(_s.cookies_file):
+            _cookie_file = _s.cookies_file
+        elif _s.cookies_browser.strip():
+            _cookie_browser = _s.cookies_browser.strip().lower()
+    except Exception:
+        pass
+    # Fallback: cookies.txt dropped next to the executable
+    if not _cookie_file and os.path.exists("cookies.txt"):
+        _cookie_file = "cookies.txt"
+
     ydl_opts: dict = {
         "outtmpl": output_template,
-        "cookiefile": "cookies.txt" if os.path.exists("cookies.txt") else None,
+        "cookiefile": _cookie_file,
         "postprocessor_args": ["-loglevel", "error"],
         "force_keyframes_at_cuts": True,
         "progress_hooks": [_make_progress_hook(cancel_check, progress_cb)],
         "post_hooks": [_post_hook],
     }
+    if _cookie_browser:
+        ydl_opts["cookiesfrombrowser"] = (_cookie_browser,)
     if playlist_mode == "single":
         ydl_opts["noplaylist"] = True
     if status_cb:
@@ -815,7 +833,17 @@ def get_available_formats(url: str) -> list[dict]:
     downloading a specific video format.
     """
     url = normalize_url(url)
-    with YoutubeDL({"quiet": True, "playlist_items": "1"}) as ydl:
+    _fmt_opts: dict = {"quiet": True, "playlist_items": "1"}
+    try:
+        from core.settings import SettingsManager as _SM
+        _s = _SM.load()
+        if _s.cookies_file and os.path.exists(_s.cookies_file):
+            _fmt_opts["cookiefile"] = _s.cookies_file
+        elif _s.cookies_browser.strip():
+            _fmt_opts["cookiesfrombrowser"] = (_s.cookies_browser.strip().lower(),)
+    except Exception:
+        pass
+    with YoutubeDL(_fmt_opts) as ydl:
         info = ydl.extract_info(url, download=False)
         if info.get("_type") == "playlist":
             entries = [e for e in (info.get("entries") or []) if e]

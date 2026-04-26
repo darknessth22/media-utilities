@@ -47,7 +47,10 @@ def convert_images(file_paths: list[str], target_format: str, output_dir: str | 
                         chroma_subsampling="420", save_all=False,
                     )
                 else:
-                    image.save(output_path, format=pil_format, quality=95)
+                    save_image = image
+                    if pil_format == "JPEG" and image.mode not in ("RGB", "L"):
+                        save_image = image.convert("RGB")
+                    save_image.save(output_path, format=pil_format, quality=95)
             success_count += 1
         except Exception as e:
             print(f"Conversion failed for {file_path}: {e}")

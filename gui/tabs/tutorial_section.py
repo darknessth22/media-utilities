@@ -24,6 +24,7 @@ _TUTORIAL_DATA = [
         ],
         "tips": [
             "Spotify links are matched to YouTube automatically — no API keys needed.",
+            "Instagram and TikTok now require a cookies file. Go to Settings → Cookies, install 'Get cookies.txt LOCALLY' in your browser, export from instagram.com while logged in, then select the file in settings.",
             "The queue badge in the title bar shows active download count.",
             "Multiple downloads can be queued — they run one at a time.",
         ],
@@ -79,6 +80,68 @@ _TUTORIAL_DATA = [
         "tips": [
             "DOCX → PDF on Linux requires LibreOffice installed.",
             "Images → PDF accepts JPG, PNG, WEBP, and BMP.",
+        ],
+    },
+    {
+        "emoji": "🎞",
+        "title": "GIF Creator",
+        "description": (
+            "Convert any segment of a video into a high-quality animated GIF "
+            "using FFmpeg's two-pass palette method for accurate colours."
+        ),
+        "steps": [
+            "Click Browse and select a video file.",
+            "Set Start Time (seconds) to choose where the GIF begins.",
+            "Set Duration (seconds) — how long the GIF plays.",
+            "Adjust Width (px) to scale the output; height is calculated automatically.",
+            "Set FPS — 10–15 is standard for GIFs, 24+ for smoother motion.",
+            "Click Create GIF. Output is saved next to the source video by default.",
+        ],
+        "tips": [
+            "Keep duration short (under 10 s) for a reasonable file size.",
+            "Lower FPS and smaller width reduce file size significantly.",
+            "Output file is named <original>_name.gif in the output folder.",
+        ],
+    },
+    {
+        "emoji": "🗜",
+        "title": "Compress Media",
+        "description": (
+            "Reduce file size for images and videos. "
+            "Browse any file — the app auto-detects the type and shows the relevant options."
+        ),
+        "steps": [
+            "Click Browse and select an image (JPG, PNG, WEBP, BMP) or video file.",
+            "Image: set Quality (1–100) and optional Max Dimension to downscale large images.",
+            "Video: set CRF (18–51) — higher value = smaller file, lower quality. "
+            "Also pick an encoding Preset — slower presets produce smaller files.",
+            "Optionally set an output folder, then click Compress.",
+            "The status bar shows the file name and how much smaller the output is.",
+        ],
+        "tips": [
+            "Image quality 80–90 is usually indistinguishable from the original.",
+            "Video CRF 28 is a good default; go lower (e.g. 23) to preserve more quality.",
+            "Compressed files are saved with a '_compressed' suffix.",
+        ],
+    },
+    {
+        "emoji": "⊞",
+        "title": "Merge Videos",
+        "description": (
+            "Join multiple video files into one in the order you specify. "
+            "Uses FFmpeg stream copy — no re-encoding, so it's fast and lossless."
+        ),
+        "steps": [
+            "Click Add Files… and select two or more video files.",
+            "Drag rows in the list or use the ▲ / ▼ buttons to set the playback order.",
+            "Enter an output filename (defaults to merged.mp4) and optionally an output folder.",
+            "Click Merge. The combined file appears in the output folder.",
+        ],
+        "tips": [
+            "All input files should have the same codec, resolution, and frame rate "
+            "for a seamless result. Different formats may cause audio/video sync issues.",
+            "For files with different specs, convert them to the same format first "
+            "using the Convert Media section.",
         ],
     },
     {
@@ -166,7 +229,8 @@ class TutorialSection(QScrollArea):
         v.addWidget(title)
 
         body = QLabel(
-            "A desktop tool for downloading, converting, trimming, and managing media files. "
+            "A desktop tool for downloading, converting, trimming, compressing, "
+            "merging, and managing media files. "
             "Navigate with the sidebar on the left. This guide explains each section."
         )
         body.setWordWrap(True)

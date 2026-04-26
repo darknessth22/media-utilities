@@ -43,6 +43,9 @@ from gui.tabs.download_section import DownloadSection
 from gui.tabs.convert_section import ConvertSection
 from gui.tabs.trim_section import TrimSection
 from gui.tabs.document_section import DocumentSection
+from gui.tabs.gif_section import GifSection
+from gui.tabs.compress_section import CompressSection
+from gui.tabs.merge_section import MergeSection
 from gui.tabs.history_section import HistorySection
 from gui.tabs.tutorial_section import TutorialSection
 
@@ -79,6 +82,27 @@ _SECTIONS = [
         "icon": "document.svg",
         "tabs": ["DOCUMENT CONVERT"],
         "action_label": "Convert",
+    },
+    {
+        "id": "gif",
+        "label": "GIF Creator",
+        "icon": "gif.svg",
+        "tabs": ["GIF FROM VIDEO"],
+        "action_label": "Create GIF",
+    },
+    {
+        "id": "compress",
+        "label": "Compress Media",
+        "icon": "compress.svg",
+        "tabs": ["COMPRESS MEDIA"],
+        "action_label": "Compress",
+    },
+    {
+        "id": "merge",
+        "label": "Merge Videos",
+        "icon": "merge.svg",
+        "tabs": ["MERGE VIDEOS"],
+        "action_label": "Merge",
     },
     {
         "id": "history",
@@ -234,7 +258,7 @@ class TitleBar(QWidget):
 
         menu.addSeparator()
         settings_act = menu.addAction("Settings")
-        settings_act.triggered.connect(lambda: win._navigate_to(5))
+        settings_act.triggered.connect(lambda: win._navigate_to(8))
 
         menu.addSeparator()
         from PySide6.QtWidgets import QApplication
@@ -396,6 +420,7 @@ class SettingsSection(QScrollArea):
         layout.addWidget(self._build_appearance_card())
         layout.addWidget(self._build_behavior_card())
         layout.addWidget(self._build_paths_card())
+        layout.addWidget(self._build_cookies_card())
         spotify_card = self._build_spotify_card()
         spotify_card.setVisible(False)
         layout.addWidget(spotify_card)
@@ -532,6 +557,86 @@ class SettingsSection(QScrollArea):
 
         return card
 
+    def _build_cookies_card(self) -> QFrame:
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(14)
+
+        layout.addWidget(self._section_header("COOKIES (INSTAGRAM / TIKTOK / ETC.)"))
+
+        # -- Option A: cookies.txt file (recommended) --
+        layout.addWidget(QLabel("Cookies file  (recommended)"))
+
+        hint_file = QLabel(
+            "Export your browser cookies to a .txt file using the "
+            "“Get cookies.txt LOCALLY” extension (Chrome/Brave/Edge/Firefox), "
+            "then select it here. Log into Instagram first, then export from instagram.com."
+        )
+        hint_file.setObjectName("TextMuted")
+        hint_file.setWordWrap(True)
+        hint_file.setStyleSheet("font-size: 12px;")
+        layout.addWidget(hint_file)
+
+        file_row = QHBoxLayout()
+        self._cookies_file_input = QLineEdit()
+        self._cookies_file_input.setObjectName("PillInput")
+        self._cookies_file_input.setPlaceholderText("No cookies file selected")
+        self._cookies_file_input.setText(self._settings.cookies_file or "")
+        self._cookies_file_input.setReadOnly(True)
+        file_row.addWidget(self._cookies_file_input)
+        browse_cookies_btn = QPushButton("Browse…")
+        browse_cookies_btn.setObjectName("BrowseBtn")
+        browse_cookies_btn.setFixedWidth(90)
+        browse_cookies_btn.clicked.connect(self._browse_cookies_file)
+        file_row.addWidget(browse_cookies_btn)
+        clear_cookies_btn = QPushButton("Clear")
+        clear_cookies_btn.setObjectName("BrowseBtn")
+        clear_cookies_btn.setFixedWidth(60)
+        clear_cookies_btn.clicked.connect(self._clear_cookies_file)
+        file_row.addWidget(clear_cookies_btn)
+        layout.addLayout(file_row)
+
+        # -- Option B: browser (fallback, less reliable) --
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setObjectName("Separator")
+        sep.setFixedHeight(1)
+        layout.addWidget(sep)
+
+        layout.addWidget(self._section_header("OR — READ FROM BROWSER (LESS RELIABLE)"))
+
+        hint_browser = QLabel(
+            "Browser must be closed or unlocked. May fail on Brave/Chrome due to "
+            "OS-level cookie encryption. Ignored if a cookies file is set above."
+        )
+        hint_browser.setObjectName("TextMuted")
+        hint_browser.setWordWrap(True)
+        hint_browser.setStyleSheet("font-size: 12px;")
+        layout.addWidget(hint_browser)
+
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Use cookies from browser"))
+        row.addStretch()
+        self._cookies_combo = QComboBox()
+        self._cookies_combo.addItems([
+            "Disabled", "Chrome", "Firefox", "Edge",
+            "Brave", "Opera", "Chromium", "Safari",
+        ])
+        _browser_map = {
+            "": 0, "chrome": 1, "firefox": 2, "edge": 3,
+            "brave": 4, "opera": 5, "chromium": 6, "safari": 7,
+        }
+        self._cookies_combo.setCurrentIndex(
+            _browser_map.get(self._settings.cookies_browser.lower(), 0)
+        )
+        self._cookies_combo.setFixedWidth(160)
+        self._cookies_combo.currentIndexChanged.connect(self._on_cookies_changed)
+        row.addWidget(self._cookies_combo)
+        layout.addLayout(row)
+
+        return card
+
     def _build_spotify_card(self) -> QFrame:
         card = self._card()
         layout = QVBoxLayout(card)
@@ -601,6 +706,26 @@ class SettingsSection(QScrollArea):
         self._settings.intercept_timeout = value
         self._save()
 
+    def _browse_cookies_file(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select cookies.txt", os.path.expanduser("~"),
+            "Cookies file (*.txt);;All files (*)"
+        )
+        if path:
+            self._cookies_file_input.setText(path)
+            self._settings.cookies_file = path
+            self._save()
+
+    def _clear_cookies_file(self) -> None:
+        self._cookies_file_input.clear()
+        self._settings.cookies_file = ""
+        self._save()
+
+    def _on_cookies_changed(self, index: int) -> None:
+        browsers = ("", "chrome", "firefox", "edge", "brave", "opera", "chromium", "safari")
+        self._settings.cookies_browser = browsers[index]
+        self._save()
+
     def _on_spotify_id_changed(self, text: str) -> None:
         self._settings.spotify_client_id = text.strip()
         self._save()
@@ -620,6 +745,7 @@ class SettingsSection(QScrollArea):
         self._settings = settings
         for widget in (self._theme_combo, self._quit_check, self._folder_input,
                        self._codec_combo, self._timeout_spin,
+                       self._cookies_combo, self._cookies_file_input,
                        self._spotify_id_input, self._spotify_secret_input):
             widget.blockSignals(True)
 
@@ -634,9 +760,18 @@ class SettingsSection(QScrollArea):
         self._timeout_spin.setValue(settings.intercept_timeout)
         self._spotify_id_input.setText(settings.spotify_client_id)
         self._spotify_secret_input.setText(settings.spotify_client_secret)
+        _browser_map = {
+            "": 0, "chrome": 1, "firefox": 2, "edge": 3,
+            "brave": 4, "opera": 5, "chromium": 6, "safari": 7,
+        }
+        self._cookies_combo.setCurrentIndex(
+            _browser_map.get(settings.cookies_browser.lower(), 0)
+        )
+        self._cookies_file_input.setText(settings.cookies_file or "")
 
         for widget in (self._theme_combo, self._quit_check, self._folder_input,
                        self._codec_combo, self._timeout_spin,
+                       self._cookies_combo, self._cookies_file_input,
                        self._spotify_id_input, self._spotify_secret_input):
             widget.blockSignals(False)
 
@@ -802,7 +937,7 @@ class MainWindow(QMainWindow):
         # ── System tray (T018 / T020) ─────────────────────────────────────────
         self._tray = SystemTrayIcon(self)
         self._tray.restore_requested.connect(self._restore_from_tray)
-        self._tray.settings_requested.connect(lambda: self._navigate_to(5))
+        self._tray.settings_requested.connect(lambda: self._navigate_to(8))
         self._tray.quit_requested.connect(self._quit_from_tray)
 
         # ── Central widget ────────────────────────────────────────────────────
@@ -855,7 +990,7 @@ class MainWindow(QMainWindow):
         self._navigate_to(0)
 
         # Always keep the tutorial nav item glowing so it's easy to find
-        self._nav_buttons[6].start_glow()
+        self._nav_buttons[9].start_glow()
 
         # Show welcome dialog on first launch
         if not self.settings.tutorial_seen:
@@ -944,6 +1079,9 @@ class MainWindow(QMainWindow):
         self._convert_section = ConvertSection(self.settings)
         self._trim_section = TrimSection(self.settings)
         self._document_section = DocumentSection(self.settings)
+        self._gif_section = GifSection(self.settings)
+        self._compress_section = CompressSection(self.settings)
+        self._merge_section = MergeSection(self.settings)
         self._history_section = HistorySection()
         self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
@@ -954,9 +1092,12 @@ class MainWindow(QMainWindow):
             self._convert_section,          # index 1 — convert / batch convert
             self._trim_section,             # index 2 — trim
             self._document_section,         # index 3 — document convert
-            self._history_section,          # index 4 — history
-            self._settings_section_widget,  # index 5 — settings
-            self._tutorial_section,         # index 6 — how to use
+            self._gif_section,              # index 4 — gif creator
+            self._compress_section,         # index 5 — compress media
+            self._merge_section,            # index 6 — merge videos
+            self._history_section,          # index 7 — history
+            self._settings_section_widget,  # index 8 — settings
+            self._tutorial_section,         # index 9 — how to use
         ]
 
         # Connect status signals from all operation sections.
@@ -966,6 +1107,9 @@ class MainWindow(QMainWindow):
             self._convert_section,    # index 1
             self._trim_section,       # index 2
             self._document_section,   # index 3
+            self._gif_section,        # index 4
+            self._compress_section,   # index 5
+            self._merge_section,      # index 6
         )
         for section in _op_sections:
             section.status_message.connect(self._on_status_message)
@@ -1014,7 +1158,7 @@ class MainWindow(QMainWindow):
         self._current_section = index
 
         # Refresh history whenever the history section is activated
-        if index == 4:
+        if index == 7:
             self._history_section.refresh()
 
         # Update nav button active states
@@ -1022,7 +1166,7 @@ class MainWindow(QMainWindow):
             btn.set_active(i == index)
 
         # Keep tutorial icon amber regardless of active state
-        self._nav_buttons[6].start_glow()
+        self._nav_buttons[9].start_glow()
 
         # Switch content
         self._content_stack.setCurrentIndex(index)
@@ -1046,7 +1190,7 @@ class MainWindow(QMainWindow):
 
     def _show_welcome(self) -> None:
         dlg = WelcomeDialog(self)
-        dlg.go_to_tutorial.connect(lambda: self._navigate_to(6))
+        dlg.go_to_tutorial.connect(lambda: self._navigate_to(9))
         # Center over the main window
         geo = self.geometry()
         dlg.move(
