@@ -1,17 +1,13 @@
 """Media download logic — yt-dlp and spotdl wrappers."""
-import html.parser
 import json
 import os
 import re
 import subprocess
 import sys
-from pathlib import PurePosixPath
-from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 
 from core.version import VERSION
 from yt_dlp import YoutubeDL
-from yt_dlp.utils import DownloadError
 
 from utils.ffmpeg import ffmpeg_path, ffprobe_path
 
@@ -30,21 +26,24 @@ def normalize_url(url: str) -> str:
     return url
 
 
+_ALLOWED_PLATFORMS: dict[str, list[str]] = {
+    "youtube":   ["youtube.com", "youtu.be", "music.youtube.com"],
+    "facebook":  ["facebook.com", "fb.watch"],
+    "instagram": ["instagram.com", "instagr.am"],
+    "tiktok":    ["tiktok.com"],
+    "twitter":   ["twitter.com", "x.com"],
+    "linkedin":  ["linkedin.com"],
+    "spotify":   ["spotify.com", "open.spotify.com"],
+    "twitch":    ["twitch.tv", "clips.twitch.tv"],
+}
+
+
 def get_platform(url: str) -> str:
-    """Return a short platform name for a given URL."""
-    domains = {
-        "youtube":   ["youtube.com", "youtu.be"],
-        "facebook":  ["facebook.com", "fb.watch"],
-        "instagram": ["instagram.com", "instagr.am"],
-        "tiktok":    ["tiktok.com"],
-        "twitter":   ["twitter.com", "x.com"],
-        "linkedin":  ["linkedin.com"],
-        "spotify":   ["spotify.com", "open.spotify.com"],
-    }
-    for platform, urls in domains.items():
-        if any(domain in url for domain in urls):
+    """Return a short platform name, or 'unsupported' for non-allowlisted sites."""
+    for platform, domains in _ALLOWED_PLATFORMS.items():
+        if any(domain in url for domain in domains):
             return platform
-    return "generic"
+    return "unsupported"
 
 
 def parse_time(time_str: str) -> int:
@@ -58,37 +57,6 @@ def parse_time(time_str: str) -> int:
         return parts[0] * 3600 + parts[1] * 60 + parts[2]
     raise ValueError("Invalid time format. Use H:MM:SS, M:SS, or S")
 
-
-_DIRECT_VIDEO_EXTENSIONS = (".mp4", ".mkv", ".webm", ".avi", ".mov", ".flv", ".m4v", ".ts")
-_HTTP_CHUNK = 8192
-
-
-def _classify_yt_dlp_error(msg: str) -> str:
-    """Map yt-dlp DownloadError text to a machine-readable error_code."""
-    lower = msg.lower()
-    if any(s in lower for s in ("timed out", "read timed out", "connection timed out")):
-        return "timeout"
-    if any(
-        s in lower
-        for s in (
-            "login required",
-            "http error 401",
-            "http error 403",
-            "members only",
-            "this video is private",
-        )
-    ):
-        return "auth_required"
-    if "private" in lower and "video" in lower:
-        return "auth_required"
-    if any(s in lower for s in ("unsupported url", "unable to extract")):
-        return "no_video"
-    return "no_video"
-
-
-def _is_direct_video_url(url: str) -> bool:
-    path = urlparse(url).path.lower()
-    return any(path.endswith(ext) for ext in _DIRECT_VIDEO_EXTENSIONS)
 
 
 def _fmt_speed(bps: float | None) -> str:
@@ -144,78 +112,6 @@ def _make_progress_hook(cancel_check, progress_cb) -> callable:
             progress_cb(pct, eta, _fmt_speed(speed))
             
     return _progress_hook
-
-
-def _http_fallback_download(url: str, output_dir: str | None, cancel_check=None, progress_cb=None) -> dict:
-    """Stream a direct video URL to disk via urllib (see contracts/internal-api.md)."""
-    import time
-    try:
-        name = PurePosixPath(urlparse(url).path).name
-        if not name or name in (".", ".."):
-            name = "download"
-        name = os.path.basename(name)
-        out_dir = output_dir or "."
-        dest = os.path.join(out_dir, name)
-        dest = os.path.abspath(dest)
-
-        req = Request(url, headers={"User-Agent": f"Mozilla/5.0 (compatible; media-utilities/{VERSION})"})
-        cancelled = False
-        downloaded = 0
-        start_time = time.monotonic()
-
-        with urlopen(req, timeout=30) as resp, open(dest, "wb") as out_f:
-            content_length = int(resp.headers.get("Content-Length", 0)) or None
-            while True:
-                if cancel_check and cancel_check():
-                    cancelled = True
-                    break
-                chunk = resp.read(_HTTP_CHUNK)
-                if not chunk:
-                    break
-                out_f.write(chunk)
-                downloaded += len(chunk)
-
-                if progress_cb:
-                    elapsed = time.monotonic() - start_time
-                    speed = downloaded / elapsed if elapsed > 0 else 0
-                    if content_length:
-                        pct = int(downloaded / content_length * 100)
-                        eta = int((content_length - downloaded) / speed) if speed > 0 else -1
-                    else:
-                        pct = -1
-                        eta = -1
-                    progress_cb(pct, eta, _fmt_speed(speed))
-
-        if cancelled:
-            try:
-                os.remove(dest)
-            except OSError:
-                pass
-            return {
-                "success": False,
-                "file_path": None,
-                "file_size": None,
-                "error_code": "download_failed",
-                "warning": None,
-            }
-
-        final_size = os.path.getsize(dest) if os.path.exists(dest) else None
-        return {
-            "success": True,
-            "file_path": dest,
-            "file_size": final_size,
-            "error_code": "http_fallback_ok",
-            "warning": None,
-        }
-    except Exception as e:
-        print(f"HTTP fallback error: {e}")
-        return {
-            "success": False,
-            "file_path": None,
-            "file_size": None,
-            "error_code": "download_failed",
-            "warning": None,
-        }
 
 
 def _finalize_downloaded_file(
@@ -284,270 +180,6 @@ def _finalize_downloaded_file(
     return None
 
 
-def _merge_http_fallback_result(
-    fb: dict,
-    warning: str | None,
-) -> dict:
-    """Attach playlist (or other) warning to an HTTP-fallback success dict."""
-    if fb.get("success"):
-        return {**fb, "warning": warning}
-    return {
-        "success": False,
-        "file_path": None,
-        "file_size": None,
-        "error_code": "download_failed",
-        "warning": warning,
-    }
-
-
-def _scrape_html_video(url: str, output_dir: str | None, cancel_check=None) -> dict | None:
-    """Fetch page HTML and look for <video>/<source> src attrs pointing to a video file.
-
-    Returns a success dict (error_code='html_scrape_ok') on first successful
-    download, or None if no candidate found or all attempts fail.
-    """
-    class _TagParser(html.parser.HTMLParser):
-        def __init__(self):
-            super().__init__()
-            self.candidates: list[str] = []
-
-        def handle_starttag(self, tag, attrs):
-            if tag in ("video", "source"):
-                for attr, val in attrs:
-                    if attr == "src" and val:
-                        self.candidates.append(val)
-
-    try:
-        req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urlopen(req, timeout=10) as resp:
-            raw = resp.read(524288)  # 512 KB cap
-        text = raw.decode("utf-8", errors="replace")
-    except Exception:
-        return None
-
-    parser = _TagParser()
-    parser.feed(text)
-
-    # Also grab bare video URLs from JS/JSON blobs in the page source
-    extra = re.findall(
-        r'https?://[^\s"\'<>]+(?:' + "|".join(re.escape(e) for e in _DIRECT_VIDEO_EXTENSIONS) + r')',
-        text,
-    )
-    candidates = parser.candidates + extra
-
-    for raw_href in candidates:
-        candidate = urljoin(url, raw_href)
-        if not _is_direct_video_url(candidate):
-            continue
-        result = _http_fallback_download(candidate, output_dir, cancel_check)
-        if result.get("success"):
-            return {**result, "error_code": "html_scrape_ok"}
-
-    return None
-
-
-
-def _get_intercept_timeout() -> int:
-    """Read intercept_timeout from settings; fallback to 30."""
-    try:
-        from core.settings import SettingsManager
-        return SettingsManager.load().intercept_timeout
-    except Exception:
-        return 30
-
-
-def _download_generic_media(
-    url: str,
-    ydl_opts: dict,
-    media_type: str,
-    video_codec: str,
-    force_codec: bool,
-    output_dir: str | None,
-    cancel_check=None,
-    status_cb=None,
-    progress_cb=None,
-) -> dict:
-    """Generic URL path: preflight, playlist cap, yt-dlp + optional HTTP fallback."""
-    warning: str | None = None
-    opts = {**ydl_opts, "socket_timeout": 30}
-
-    def try_http_fallback(classified: str) -> dict | None:
-        if not _is_direct_video_url(url):
-            return None
-        if classified in ("auth_required", "timeout"):
-            return None
-        fb = _http_fallback_download(url, output_dir, cancel_check, progress_cb)
-        if fb["success"]:
-            fp = fb.get("file_path")
-            if fp:
-                final_sz = _finalize_downloaded_file(fp, media_type, video_codec, force_codec)
-                fb = {**fb, "file_size": final_sz}
-            return _merge_http_fallback_result(fb, warning)
-        return {
-            "success": False,
-            "file_path": None,
-            "file_size": None,
-            "error_code": "download_failed",
-            "warning": warning,
-        }
-
-    def try_html_scrape(classified: str) -> dict | None:
-        if classified in ("auth_required", "timeout"):
-            return None
-        result = _scrape_html_video(url, output_dir, cancel_check)
-        if result and result.get("success"):
-            fp = result.get("file_path")
-            if fp:
-                final_sz = _finalize_downloaded_file(fp, media_type, video_codec, force_codec)
-                result = {**result, "file_size": final_sz}
-            return {**result, "warning": warning}
-        return None
-
-    def try_playwright_intercept(classified: str) -> dict | None:
-        if classified in ("auth_required", "timeout"):
-            return None
-        from core.interceptor import _write_netscape_cookies, intercept_m3u8
-        result = intercept_m3u8(
-            url=url,
-            timeout=_get_intercept_timeout(),
-            cancel_check=cancel_check,
-            status_cb=status_cb,
-        )
-        if not result.success:
-            error_messages = {
-                "launch_failed": (result.error_message or "Playwright not available. Install with: pip install playwright && python -m playwright install chromium"),
-                "no_stream": "No HLS stream detected on this page.",
-                "cancelled": "Download cancelled.",
-                "nav_error": f"Browser navigation failed: {result.error_message}",
-            }
-            return {
-                "success": False,
-                "file_path": None,
-                "file_size": None,
-                "error_code": result.error_code or "no_video",
-                "warning": error_messages.get(result.error_code or "", result.error_message),
-            }
-        cookie_file = _write_netscape_cookies(result.cookies)
-        try:
-            dl_opts = {
-                **ydl_opts,
-                "cookiefile": cookie_file,
-                "http_headers": result.headers,
-            }
-            with YoutubeDL(dl_opts) as ydl:
-                info = ydl.extract_info(result.m3u8_url, download=True)
-                downloaded_file = ydl.prepare_filename(info)
-            final_size = _finalize_downloaded_file(downloaded_file, media_type, video_codec, force_codec)
-            return {
-                "success": True,
-                "file_path": downloaded_file,
-                "file_size": final_size,
-                "error_code": "browser_intercept_ok",
-                "warning": warning,
-            }
-        except Exception as e:
-            return {
-                "success": False,
-                "file_path": None,
-                "file_size": None,
-                "error_code": "download_failed",
-                "warning": str(e),
-            }
-        finally:
-            try:
-                os.remove(cookie_file)
-            except OSError:
-                pass
-
-    # --- Pre-flight (no download) ---
-    try:
-        with YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-    except DownloadError as e:
-        code = _classify_yt_dlp_error(str(e))
-        fb_result = try_http_fallback(code)
-        if fb_result is not None:
-            return fb_result
-        html_result = try_html_scrape(code)
-        if html_result is not None:
-            return html_result
-        pw_result = try_playwright_intercept(code)
-        if pw_result is not None:
-            return pw_result
-        return {
-            "success": False,
-            "file_path": None,
-            "file_size": None,
-            "error_code": code,
-            "warning": warning,
-        }
-    except Exception as e:
-        print(f"Error downloading: {e}")
-        html_result = try_html_scrape("no_video")
-        if html_result is not None:
-            return html_result
-        pw_result = try_playwright_intercept("no_video")
-        if pw_result is not None:
-            return pw_result
-        return {
-            "success": False,
-            "file_path": None,
-            "file_size": None,
-            "error_code": "download_failed",
-            "warning": warning,
-        }
-
-    if info.get("_type") == "playlist":
-        opts = {**opts, "playlist_items": "1"}
-        warning = "Playlist detected — downloading first video only."
-
-    # --- Full download ---
-    try:
-        with YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            downloaded_file = ydl.prepare_filename(info)
-    except DownloadError as e:
-        code = _classify_yt_dlp_error(str(e))
-        fb_result = try_http_fallback(code)
-        if fb_result is not None:
-            return fb_result
-        html_result = try_html_scrape(code)
-        if html_result is not None:
-            return html_result
-        pw_result = try_playwright_intercept(code)
-        if pw_result is not None:
-            return pw_result
-        return {
-            "success": False,
-            "file_path": None,
-            "file_size": None,
-            "error_code": code,
-            "warning": warning,
-        }
-    except Exception as e:
-        print(f"Error downloading: {e}")
-        html_result = try_html_scrape("no_video")
-        if html_result is not None:
-            return html_result
-        pw_result = try_playwright_intercept("no_video")
-        if pw_result is not None:
-            return pw_result
-        return {
-            "success": False,
-            "file_path": None,
-            "file_size": None,
-            "error_code": "download_failed",
-            "warning": warning,
-        }
-
-    final_size = _finalize_downloaded_file(downloaded_file, media_type, video_codec, force_codec)
-    return {
-        "success": True,
-        "file_path": downloaded_file,
-        "file_size": final_size,
-        "error_code": None,
-        "warning": warning,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -793,10 +425,14 @@ def download_media(
         _vaf_container = _VIDEO_AUDIO_CODEC_MAP[vaf_key][1] if vaf_key in _VIDEO_AUDIO_CODEC_MAP else "mp4"
         ydl_opts["merge_output_format"] = _vaf_container
 
-    if platform == "generic":
-        return _download_generic_media(
-            url, ydl_opts, media_type, video_codec, force_codec, output_dir, cancel_check, status_cb, progress_cb
-        )
+    if platform == "unsupported":
+        return {
+            "success": False,
+            "file_path": None,
+            "file_size": None,
+            "error_code": "unsupported_platform",
+            "warning": None,
+        }
 
     try:
         with YoutubeDL(ydl_opts) as ydl:

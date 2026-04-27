@@ -78,17 +78,42 @@ _TUTORIAL_DATA = [
         "emoji": "✂",
         "title": "Trim Media",
         "description": (
-            "Cut video or audio files to a specific time range. "
-            "Preview inline before trimming to find the exact start and end points."
+            "Cut, delete segments from, or insert a clip into video and audio files. "
+            "Three sub-tabs handle different editing operations: Trim, Ripple Delete, and Insert Clip. "
+            "A built-in preview player with fullscreen mode helps you find exact timestamps before processing."
         ),
         "steps": [
-            "Click Browse to load a video or audio file.",
-            "Set Start Time and End Time — use HH:MM:SS or MM:SS format.",
-            "Press Play to preview your selection in the built-in player.",
-            "Click Trim to export the clipped file.",
+            "Click Browse to load a video or audio file into the SOURCE FILE card. "
+            "The preview player loads it automatically.",
+            "Use the scrubber and ▶ / ⏸ button to navigate the video. "
+            "Click ⛶ to open a fullscreen preview — scrub to any point and use the "
+            "Set Start / Set End / Set Insert Point buttons to write timestamps directly into the inputs.",
+            "TRIM TAB — keep a segment: set Start Time and End Time (HH:MM:SS), "
+            "then click the action button. Output: <filename>_trimmed.<ext>.",
+            "RIPPLE DELETE TAB — remove one or more segments and join the rest seamlessly. "
+            "Each row has a From and To time. Click + Add Segment to add more rows. "
+            "The coloured timeline bar above the rows shows all delete zones as red bands. "
+            "Use Set start / Set end per row, or scrub in fullscreen and the buttons there "
+            "write to the last row automatically. Output: <filename>_trimmed.<ext>.",
+            "INSERT CLIP TAB — embed a second video inside the source at any point. "
+            "Browse the Clip to insert, enter Insert at (timestamp in the source), "
+            "then click the action button. "
+            "The clip is re-encoded to match the source video's resolution, frame rate, and audio sample rate — "
+            "no compatibility issues regardless of the clip's original format. "
+            "Output: <filename>_inserted.<ext>.",
+            "Optionally set an OUTPUT FOLDER below the sub-tabs; defaults to the source file's directory.",
         ],
         "tips": [
-            "Trimmed files are saved with a '_trimmed' suffix in the same folder.",
+            "Ripple Delete uses stream copy (no re-encoding) so it finishes in seconds even on large files. "
+            "Cuts snap to the nearest keyframe — typically within 0.5 s.",
+            "Insert Clip re-encodes only the inserted clip, not the main video. "
+            "A 5-second clip inserted into a 2-hour video takes roughly the same time "
+            "as encoding those 5 seconds, not 2 hours.",
+            "You can add as many delete segments as you want in Ripple Delete — "
+            "they are sorted and processed in a single FFmpeg pass.",
+            "The fullscreen preview is context-aware: in the Trim tab it shows Set Start / Set End; "
+            "in Ripple Delete it writes to the last segment row; "
+            "in Insert Clip it shows Set Insert Point.",
         ],
     },
     {

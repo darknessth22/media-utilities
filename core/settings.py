@@ -21,7 +21,8 @@ class UserSettings:
     hw_accel: str = "none"
     output_name_template: str = "{name}_converted"
     presets: dict = field(default_factory=dict)
-    version: int = 8
+    start_with_windows: bool = False
+    version: int = 9
 
 
 class SettingsManager:
@@ -104,6 +105,9 @@ class SettingsManager:
                 merged_data.setdefault("output_name_template", "{name}_converted")
                 merged_data.setdefault("presets", {})
                 merged_data["version"] = 8
+            if merged_data.get("version", 1) < 9:
+                merged_data.setdefault("start_with_windows", False)
+                merged_data["version"] = 9
 
             return UserSettings(**merged_data)
         except (json.JSONDecodeError, OSError, TypeError):

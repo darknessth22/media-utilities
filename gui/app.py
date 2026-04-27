@@ -544,6 +544,26 @@ class SettingsSection(QScrollArea):
         layout.addLayout(row)
         layout.addWidget(hint)
 
+        import sys
+        if sys.platform == "win32":
+            from utils.startup import is_startup_enabled
+            startup_row = QHBoxLayout()
+            startup_lbl = QLabel("Start with Windows")
+            startup_row.addWidget(startup_lbl)
+            startup_hint = QLabel("Launch automatically when you log in.")
+            startup_hint.setObjectName("TextMuted")
+            startup_hint.setWordWrap(True)
+            startup_hint.setStyleSheet("font-size: 12px;")
+            self._startup_check = QCheckBox()
+            self._startup_check.setChecked(is_startup_enabled())
+            self._startup_check.stateChanged.connect(self._on_startup_changed)
+            startup_row.addStretch()
+            startup_row.addWidget(self._startup_check)
+            layout.addLayout(startup_row)
+            layout.addWidget(startup_hint)
+        else:
+            self._startup_check = None
+
         layout.addWidget(self._section_header("ADVANCED"))
 
         timeout_row = QHBoxLayout()
@@ -780,6 +800,10 @@ class SettingsSection(QScrollArea):
         self._settings.quit_on_close = self._quit_check.isChecked()
         self._save()
 
+    def _on_startup_changed(self, _state: int) -> None:
+        from utils.startup import set_startup
+        set_startup(self._startup_check.isChecked())
+
     def _on_folder_changed(self, text: str) -> None:
         self._settings.output_folder = text.strip() or None
         self._save()
@@ -835,11 +859,14 @@ class SettingsSection(QScrollArea):
     def reload_settings(self, settings: UserSettings) -> None:
         """Refresh controls from *settings* without triggering saves."""
         self._settings = settings
-        for widget in (self._theme_combo, self._quit_check, self._folder_input,
-                       self._codec_combo, self._timeout_spin,
-                       self._cookies_combo, self._cookies_file_input,
-                       self._spotify_id_input, self._spotify_secret_input,
-                       self._template_input):
+        widgets = [self._theme_combo, self._quit_check, self._folder_input,
+                   self._codec_combo, self._timeout_spin,
+                   self._cookies_combo, self._cookies_file_input,
+                   self._spotify_id_input, self._spotify_secret_input,
+                   self._template_input]
+        if self._startup_check is not None:
+            widgets.append(self._startup_check)
+        for widget in widgets:
             widget.blockSignals(True)
 
         self._theme_combo.setCurrentIndex(
@@ -862,12 +889,18 @@ class SettingsSection(QScrollArea):
         )
         self._cookies_file_input.setText(settings.cookies_file or "")
         self._template_input.setText(settings.output_name_template)
+        if self._startup_check is not None:
+            from utils.startup import is_startup_enabled
+            self._startup_check.setChecked(is_startup_enabled())
 
-        for widget in (self._theme_combo, self._quit_check, self._folder_input,
-                       self._codec_combo, self._timeout_spin,
-                       self._cookies_combo, self._cookies_file_input,
-                       self._spotify_id_input, self._spotify_secret_input,
-                       self._template_input):
+        widgets = [self._theme_combo, self._quit_check, self._folder_input,
+                   self._codec_combo, self._timeout_spin,
+                   self._cookies_combo, self._cookies_file_input,
+                   self._spotify_id_input, self._spotify_secret_input,
+                   self._template_input]
+        if self._startup_check is not None:
+            widgets.append(self._startup_check)
+        for widget in widgets:
             widget.blockSignals(False)
 
         self._update_template_preview(settings.output_name_template)

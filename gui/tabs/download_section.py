@@ -46,11 +46,11 @@ _VIDEO_AUDIO_FORMATS = ["Original", "AAC", "MP3", "OPUS"]
 
 _GENERIC_ERROR_MESSAGES: dict[str, str] = {
     "timeout": "Connection timed out. Check your network and try again.",
-    "auth_required": "This video requires login — not supported for generic URLs.",
-    "unsupported": "This site is not supported. Try a direct video file link instead.",
+    "auth_required": "This video requires login or authentication.",
     "no_video": "No downloadable video found at this URL.",
     "download_failed": "Download failed. Check the URL or your network.",
     "cancelled": "Download cancelled.",
+    "unsupported_platform": "This site is not supported. Supported: YouTube, YouTube Music, Spotify, Facebook, Instagram, TikTok, Twitter/X, LinkedIn, Twitch.",
 }
 
 
@@ -290,7 +290,7 @@ class DownloadSection(QScrollArea):
         self._url_input = QLineEdit()
         self._url_input.setObjectName("PillInput")
         self._url_input.setPlaceholderText(
-            "YouTube, Facebook, Instagram, TikTok, Twitter/X, Twitch, Spotify…"
+            "YouTube, YouTube Music, Spotify, Facebook, Instagram, TikTok, Twitter/X, LinkedIn, Twitch…"
         )
         self._url_input.textChanged.connect(self._on_url_changed)
         row.addWidget(self._url_input)
@@ -661,18 +661,23 @@ class DownloadSection(QScrollArea):
                 "youtube": "YouTube", "facebook": "Facebook",
                 "instagram": "Instagram", "tiktok": "TikTok",
                 "twitter": "Twitter / X", "linkedin": "LinkedIn",
-                "spotify": "Spotify", "generic": "Generic URL",
+                "spotify": "Spotify", "twitch": "Twitch",
             }
-            label = platform_names.get(platform, platform.capitalize())
-            if platform == "generic":
-                self._platform_label.setText("Detected: Generic URL — download will be attempted")
+            if platform == "unsupported":
+                self._platform_label.setText(
+                    "⚠ Unsupported site — only YouTube, YouTube Music, Spotify, Facebook, Instagram, TikTok, Twitter/X, LinkedIn, and Twitch are supported."
+                )
+                self._platform_label.setStyleSheet("font-size: 12px; color: #F85149;")
             else:
+                label = platform_names.get(platform, platform.capitalize())
                 self._platform_label.setText(f"Detected: {label}")
+                self._platform_label.setStyleSheet("font-size: 12px;")
             if platform == "spotify":
                 self._audio_radio.setChecked(True)
             self._playlist_card.setVisible(self._is_playlist_url(url))
         else:
             self._platform_label.setText("")
+            self._platform_label.setStyleSheet("font-size: 12px;")
             self._playlist_card.setVisible(False)
         self._reset_playlist_table()
 
@@ -1038,6 +1043,12 @@ class DownloadSection(QScrollArea):
 
         is_audio = self._audio_radio.isChecked()
         platform = get_platform(url)
+        if platform == "unsupported":
+            self.status_message.emit(
+                "Unsupported site. Supported: YouTube, YouTube Music, Spotify, Facebook, Instagram, TikTok, Twitter/X, LinkedIn.",
+                True,
+            )
+            return
         audio_fmt = getattr(self, "_selected_audio_fmt", "mp3").lower()
         video_audio_fmt = getattr(self, "_selected_video_audio_fmt", "Original")
         out_dir = self._out_input.text().strip() or None
