@@ -24,8 +24,9 @@ from PySide6.QtWidgets import (
 
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
+from gui.presets_bar import PresetsBar
 from gui.worker import Worker
-from utils.ffmpeg import ffmpeg_path
+from utils.ffmpeg import ffmpeg_path, detect_hw_encoders
 
 _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 _VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv", ".wmv", ".m4v"}
@@ -67,6 +68,7 @@ class CompressSection(QWidget):
         self._worker: Worker | None = None
         self._last_result_path: str | None = None
         self._media_type = "unknown"
+        self._available_hw: set[str] = detect_hw_encoders()
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -78,6 +80,7 @@ class CompressSection(QWidget):
         layout.setSpacing(16)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
+        layout.addWidget(self._build_presets_card())
         layout.addWidget(self._build_source_card())
         layout.addWidget(self._build_options_card())
         layout.addWidget(self._build_output_card())
@@ -88,6 +91,51 @@ class CompressSection(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.addWidget(scroll)
+
+    # ── Preset support ─────────────────────────────────────────────────────────
+
+    def get_preset_data(self) -> dict:
+        return {
+            "img_quality": self._quality_spin.value(),
+            "img_max_dim": self._max_dim_spin.value(),
+            "vid_crf": self._crf_spin.value(),
+            "vid_preset": self._preset_combo.currentText(),
+            "vid_hw": self._hw_combo.currentData(),
+            "output_dir": self._out_input.text().strip(),
+        }
+
+    def load_preset_data(self, data: dict) -> None:
+        if (q := data.get("img_quality")) is not None:
+            self._quality_spin.setValue(q)
+        if (d := data.get("img_max_dim")) is not None:
+            self._max_dim_spin.setValue(d)
+        if hw := data.get("vid_hw"):
+            idx = self._hw_combo.findData(hw)
+            if idx >= 0:
+                self._hw_combo.setCurrentIndex(idx)
+        if (crf := data.get("vid_crf")) is not None:
+            self._crf_spin.setValue(crf)
+        if p := data.get("vid_preset"):
+            idx = self._preset_combo.findText(p)
+            if idx >= 0:
+                self._preset_combo.setCurrentIndex(idx)
+        if out := data.get("output_dir"):
+            self._out_input.setText(out)
+
+    def _build_presets_card(self) -> QFrame:
+        card = _card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 12, 20, 12)
+        layout.setSpacing(0)
+        layout.addWidget(
+            PresetsBar(
+                "compress",
+                self._settings,
+                self.get_preset_data,
+                self.load_preset_data,
+            )
+        )
+        return card
 
     # ── Cards ──────────────────────────────────────────────────────────────────
 
@@ -187,10 +235,10 @@ class CompressSection(QWidget):
 
         preset_row = QHBoxLayout()
         preset_row.addWidget(QLabel("Preset"))
-        preset_hint = QLabel("Slower = smaller file at same quality")
-        preset_hint.setObjectName("TextMuted")
-        preset_hint.setStyleSheet("font-size: 11px;")
-        preset_row.addWidget(preset_hint)
+        self._preset_hint = QLabel("Slower = smaller file at same quality")
+        self._preset_hint.setObjectName("TextMuted")
+        self._preset_hint.setStyleSheet("font-size: 11px;")
+        preset_row.addWidget(self._preset_hint)
         preset_row.addStretch()
         self._preset_combo = QComboBox()
         self._preset_combo.addItems([
@@ -201,6 +249,30 @@ class CompressSection(QWidget):
         self._preset_combo.setFixedWidth(110)
         preset_row.addWidget(self._preset_combo)
         vid_layout.addLayout(preset_row)
+
+        hw_row = QHBoxLayout()
+        hw_row.addWidget(QLabel("Hardware Acceleration"))
+        hw_hint = QLabel("GPU encoder — faster encode, slightly lower quality ceiling")
+        hw_hint.setObjectName("TextMuted")
+        hw_hint.setStyleSheet("font-size: 11px;")
+        hw_row.addWidget(hw_hint)
+        hw_row.addStretch()
+        self._hw_combo = QComboBox()
+        self._hw_combo.setFixedWidth(130)
+        self._hw_combo.addItem("None (CPU)", "none")
+        if "nvidia" in self._available_hw:
+            self._hw_combo.addItem("NVIDIA (NVENC)", "nvidia")
+        if "amd" in self._available_hw:
+            self._hw_combo.addItem("AMD (AMF)", "amd")
+        if "intel" in self._available_hw:
+            self._hw_combo.addItem("Intel (QuickSync)", "intel")
+        saved_hw = getattr(self._settings, "hw_accel", "none")
+        idx = self._hw_combo.findData(saved_hw)
+        if idx >= 0:
+            self._hw_combo.setCurrentIndex(idx)
+        self._hw_combo.currentIndexChanged.connect(self._on_hw_changed)
+        hw_row.addWidget(self._hw_combo)
+        vid_layout.addLayout(hw_row)
 
         self._opts_stack.addWidget(vid_widget)
 
@@ -258,6 +330,23 @@ class CompressSection(QWidget):
         self._progress_label.setVisible(False)
         layout.addWidget(self._progress_label)
         return card
+
+    _PRESET_OPTIONS = {
+        "none":   (["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"], "medium", "Slower = smaller file at same quality"),
+        "nvidia": (["p1", "p2", "p3", "p4", "p5", "p6", "p7"], "p4", "p1 = fastest · p7 = best quality — file size controlled by QP, not preset"),
+        "amd":    (["speed", "balanced", "quality"], "balanced", "Tradeoff between encode speed and compression"),
+        "intel":  (["veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"], "medium", "Slower = smaller file at same quality"),
+    }
+
+    def _on_hw_changed(self, _idx: int) -> None:
+        hw = self._hw_combo.currentData()
+        presets, default, hint = self._PRESET_OPTIONS.get(hw, self._PRESET_OPTIONS["none"])
+        self._preset_combo.blockSignals(True)
+        self._preset_combo.clear()
+        self._preset_combo.addItems(presets)
+        self._preset_combo.setCurrentText(default)
+        self._preset_combo.blockSignals(False)
+        self._preset_hint.setText(hint)
 
     # ── Source change handler ──────────────────────────────────────────────────
 
@@ -327,9 +416,10 @@ class CompressSection(QWidget):
         else:
             crf = self._crf_spin.value()
             preset = self._preset_combo.currentText()
+            hw_accel = self._hw_combo.currentData()
 
             def do_work():
-                return _compress_video(src, out_dir, crf, preset)
+                return _compress_video(src, out_dir, crf, preset, hw_accel)
 
         self._worker = Worker(do_work)
         self._worker.signals.result.connect(self._on_result)
@@ -407,22 +497,39 @@ def _compress_image(src: str, out_dir: str, quality: int, max_dim: int) -> dict:
         return {"success": False, "error": str(exc)}
 
 
-def _compress_video(src: str, out_dir: str, crf: int, preset: str) -> dict:
+def _build_video_cmd(src: str, dest: str, crf: int, preset: str, hw_accel: str) -> list[str]:
+    base = [ffmpeg_path, "-y", "-i", src]
+    audio = ["-c:a", "copy"]
+
+    if hw_accel == "nvidia":
+        # constqp = true constant-quality mode; -b:v 0 disables bitrate target so
+        # the encoder doesn't overshoot the original file size
+        return [*base, "-c:v", "h264_nvenc", "-preset", preset, "-rc", "constqp", "-qp", str(crf), "-b:v", "0", *audio, dest]
+
+    if hw_accel == "amd":
+        # AMF constant-QP mode; set all three QP params so B-frames don't drift
+        return [*base, "-c:v", "h264_amf", "-quality", preset,
+                "-rc", "1", "-qp_i", str(crf), "-qp_p", str(crf), "-qp_b", str(crf), *audio, dest]
+
+    if hw_accel == "intel":
+        # QSV global_quality is equivalent to CRF; look_ahead improves efficiency
+        return [*base, "-c:v", "h264_qsv", "-preset", preset, "-global_quality", str(crf), "-look_ahead", "1", *audio, dest]
+
+    # CPU default
+    return [*base, "-c:v", "libx264", "-crf", str(crf), "-preset", preset, *audio, dest]
+
+
+def _compress_video(src: str, out_dir: str, crf: int, preset: str, hw_accel: str = "none") -> dict:
     try:
         ext = os.path.splitext(src)[1].lower() or ".mp4"
         base = os.path.splitext(os.path.basename(src))[0]
         os.makedirs(out_dir, exist_ok=True)
         dest = os.path.join(out_dir, f"{base}_compressed{ext}")
         flags = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
-        cmd = [
-            ffmpeg_path, "-y", "-i", src,
-            "-c:v", "libx264",
-            "-crf", str(crf),
-            "-preset", preset,
-            "-c:a", "copy",
-            dest,
-        ]
+
+        cmd = _build_video_cmd(src, dest, crf, preset, hw_accel)
         subprocess.run(cmd, check=True, capture_output=True, timeout=7200, **flags)
+
         orig_size = os.path.getsize(src)
         new_size = os.path.getsize(dest)
         ratio = (1 - new_size / orig_size) * 100 if orig_size else 0

@@ -602,7 +602,7 @@ def download_spotify(
     query = f"{artist} - {track_title}".strip(" -") if artist else track_title
     print(f"Spotify: searching YouTube for: {query}")
 
-    fmt = audio_format if audio_format in ("mp3", "flac", "ogg", "opus", "m4a") else "mp3"
+    fmt = audio_format if audio_format in ("mp3", "wav", "aac", "flac", "ogg", "opus", "m4a") else "mp3"
     output_template = (
         os.path.join(output_dir, "%(title)s.%(ext)s") if output_dir else "%(title)s.%(ext)s"
     )

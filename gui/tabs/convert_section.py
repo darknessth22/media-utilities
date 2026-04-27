@@ -37,6 +37,7 @@ from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 from gui.worker import Worker
 from utils.ffmpeg import ffmpeg_path
+from utils.naming import apply_name_template
 
 # ── Format tables ──────────────────────────────────────────────────────────────
 
@@ -60,12 +61,14 @@ def _detect_media_type(path: str) -> str:
     return "unknown"
 
 
-def _ffmpeg_convert(src: str, target_fmt: str, output_dir: str | None) -> dict:
+def _ffmpeg_convert(
+    src: str, target_fmt: str, output_dir: str | None, name_template: str = "{name}_converted"
+) -> dict:
     """Convert video/audio to *target_fmt* via FFmpeg."""
-    base = os.path.splitext(os.path.basename(src))[0]
+    stem = apply_name_template(name_template, src, ext=target_fmt.lower())
     out_dir = output_dir or os.path.dirname(src)
     os.makedirs(out_dir, exist_ok=True)
-    dest = os.path.join(out_dir, f"{base}_converted.{target_fmt.lower()}")
+    dest = os.path.join(out_dir, f"{stem}.{target_fmt.lower()}")
     flags = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
     src_ext = os.path.splitext(src)[1].lower().lstrip(".")
     target_is_audio = target_fmt.lower() in {f.lower() for f in _AUDIO_FORMATS}
@@ -312,6 +315,7 @@ class _SingleConvertView(QWidget):
         mt = self._media_type
         fmt = self._selected_format
         out_dir = self._out_input.text().strip() or None
+        name_tmpl = self._settings.output_name_template
 
         self._set_busy(True)
         self.status_message.emit("Converting…", False)
@@ -320,13 +324,13 @@ class _SingleConvertView(QWidget):
             if mt == "image":
                 ok = convert_images([src], fmt.lower(), out_dir)
                 if ok:
-                    base = os.path.splitext(os.path.basename(src))[0]
+                    stem = apply_name_template(name_tmpl, src, ext=fmt.lower())
                     dest_dir = out_dir or os.path.dirname(src)
-                    dest = os.path.join(dest_dir, f"{base}.{fmt.lower()}")
+                    dest = os.path.join(dest_dir, f"{stem}.{fmt.lower()}")
                     return {"success": True, "file_path": dest}
                 return {"success": False, "error": "Image conversion failed."}
             else:
-                return _ffmpeg_convert(src, fmt, out_dir)
+                return _ffmpeg_convert(src, fmt, out_dir, name_tmpl)
 
         self._worker = Worker(do_convert)
         self._worker.signals.result.connect(self._on_result)

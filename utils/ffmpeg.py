@@ -53,3 +53,32 @@ def get_ffprobe_path() -> str:
 # Module-level singletons — resolved once at import time
 ffmpeg_path: str = get_ffmpeg_path()
 ffprobe_path: str = get_ffprobe_path()
+
+
+_HW_ENCODER_IDS = {
+    "h264_nvenc": "nvidia",
+    "h264_amf": "amd",
+    "h264_qsv": "intel",
+}
+
+
+def detect_hw_encoders() -> set[str]:
+    """Return set of available HW encoder keys: 'nvidia', 'amd', 'intel'.
+
+    Runs `ffmpeg -encoders` once; silently returns empty set on any failure.
+    """
+    import subprocess
+    try:
+        flags = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
+        result = subprocess.run(
+            [ffmpeg_path, "-encoders"],
+            capture_output=True, text=True, timeout=10, **flags,
+        )
+        available: set[str] = set()
+        for line in result.stdout.splitlines():
+            for enc_id, label in _HW_ENCODER_IDS.items():
+                if enc_id in line:
+                    available.add(label)
+        return available
+    except Exception:
+        return set()

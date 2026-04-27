@@ -38,9 +38,10 @@ except ImportError:
 from core.downloader import download_media, fetch_playlist_entries, get_available_formats, get_platform, get_preview_stream_url
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
+from gui.presets_bar import PresetsBar
 from gui.worker import Worker
 
-_AUDIO_FORMATS = ["MP3", "FLAC", "OGG", "OPUS", "M4A"]
+_AUDIO_FORMATS = ["MP3", "WAV", "AAC", "FLAC", "OGG", "M4A"]
 _VIDEO_AUDIO_FORMATS = ["Original", "AAC", "MP3", "OPUS"]
 
 _GENERIC_ERROR_MESSAGES: dict[str, str] = {
@@ -216,6 +217,7 @@ class DownloadSection(QScrollArea):
         layout.setSpacing(16)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
+        layout.addWidget(self._build_presets_card())
         layout.addWidget(self._build_url_card())
         layout.addWidget(self._build_playlist_card())
         layout.addWidget(self._build_type_card())
@@ -227,6 +229,53 @@ class DownloadSection(QScrollArea):
         layout.addWidget(self._build_queue_card())
 
         self.setWidget(content)
+
+    # ── Preset support ─────────────────────────────────────────────────────────
+
+    def get_preset_data(self) -> dict:
+        return {
+            "media_type": "audio" if self._audio_radio.isChecked() else "video",
+            "audio_fmt": next(
+                (f for f, b in self._audio_fmt_btns.items() if b.isChecked()), "MP3"
+            ),
+            "video_audio_fmt": next(
+                (f for f, b in self._video_audio_fmt_btns.items() if b.isChecked()),
+                "Original",
+            ),
+            "quality": self._quality_combo.currentText(),
+            "output_dir": self._out_input.text().strip(),
+        }
+
+    def load_preset_data(self, data: dict) -> None:
+        if data.get("media_type") == "audio":
+            self._audio_radio.setChecked(True)
+        else:
+            self._video_radio.setChecked(True)
+        if af := data.get("audio_fmt"):
+            self._select_audio_fmt(af)
+        if vaf := data.get("video_audio_fmt"):
+            self._select_video_audio_fmt(vaf)
+        if out := data.get("output_dir"):
+            self._out_input.setText(out)
+
+    def _build_presets_card(self) -> QFrame:
+        card = _card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 12, 20, 12)
+        layout.setSpacing(0)
+        layout.addWidget(
+            PresetsBar(
+                "download",
+                self._settings,
+                self.get_preset_data,
+                self.load_preset_data,
+            )
+        )
+        return card
+
+    def paste_url(self, url: str) -> None:
+        """Set the URL input and trigger format check."""
+        self._url_input.setText(url)
 
     # ── Card builders ──────────────────────────────────────────────────────────
 

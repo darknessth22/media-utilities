@@ -113,6 +113,21 @@ def download_ffmpeg_pinned(cfg):
         if zip_path.exists(): zip_path.unlink()
         if sha_path.exists(): sha_path.unlink()
 
+def generate_icon():
+    """Render assets/icons/dashboard.svg → icon.ico via PySide6 + Pillow (no native Cairo needed)."""
+    print_step("Generating icon.ico from dashboard.svg")
+
+    helper = Path("_gen_icon.py")
+    if not helper.exists():
+        print(f"⚠️ {helper} not found — keeping existing icon.ico")
+        return
+
+    try:
+        subprocess.check_call([sys.executable, str(helper)])
+    except subprocess.CalledProcessError as exc:
+        print(f"⚠️ Icon generation failed (exit {exc.returncode}) — keeping existing icon.ico")
+
+
 def build_executable():
     """Build the executable using PyInstaller"""
     print_step("Building Executable with PyInstaller")
@@ -244,16 +259,19 @@ def main():
     # Step 2: Download ffmpeg
     if not download_ffmpeg_pinned(config['ffmpeg']):
         sys.exit(1)
-        
-    # Step 3: PyInstaller
+
+    # Step 3: Regenerate icon from in-app dashboard.svg
+    generate_icon()
+
+    # Step 4: PyInstaller
     if not build_executable():
         sys.exit(1)
         
-    # Step 4: Inno Setup
+    # Step 5: Inno Setup
     if not compile_installer(version):
         sys.exit(1)
-        
-    # Step 5: Measure
+
+    # Step 6: Measure
     # Output of PyInstaller with COLLECT(name='MediaUtility') is in dist/MediaUtility
     installer_path = "Output/MediaUtility_Setup.exe" # Inno Setup default output
     # Check if installer was actually created elsewhere (custom script might use different path)
@@ -264,11 +282,11 @@ def main():
             installer_path = "installer/MediaUtility_Setup.exe"
 
     installer_mb, installed_mb, top10 = measure_sizes("dist/MediaUtility", installer_path)
-    
-    # Step 6: Budget
+
+    # Step 7: Budget
     check_budget(installer_mb, installed_mb, top10)
-    
-    # Step 7: Report
+
+    # Step 8: Report
     write_size_report(installer_mb, installed_mb, top10)
     
     print("\n🎉 Build Complete!")

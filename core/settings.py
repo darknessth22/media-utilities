@@ -1,7 +1,7 @@
 import os
 import json
 import platform
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 
 
@@ -18,7 +18,10 @@ class UserSettings:
     tutorial_seen: bool = False
     cookies_browser: str = ""
     cookies_file: str = ""
-    version: int = 6
+    hw_accel: str = "none"
+    output_name_template: str = "{name}_converted"
+    presets: dict = field(default_factory=dict)
+    version: int = 8
 
 
 class SettingsManager:
@@ -94,6 +97,13 @@ class SettingsManager:
             if merged_data.get("version", 1) < 6:
                 merged_data.setdefault("cookies_browser", "")
                 merged_data["version"] = 6
+            if merged_data.get("version", 1) < 7:
+                merged_data.setdefault("hw_accel", "none")
+                merged_data["version"] = 7
+            if merged_data.get("version", 1) < 8:
+                merged_data.setdefault("output_name_template", "{name}_converted")
+                merged_data.setdefault("presets", {})
+                merged_data["version"] = 8
 
             return UserSettings(**merged_data)
         except (json.JSONDecodeError, OSError, TypeError):

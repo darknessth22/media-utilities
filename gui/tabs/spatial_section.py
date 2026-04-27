@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from core.spatial import crop_media, extract_frame, resize_media, rotate_flip_chain
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
+from gui.presets_bar import PresetsBar
 from gui.worker import Worker
 
 _VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv", ".wmv", ".m4v"}
@@ -118,6 +119,60 @@ class SpatialSection(QScrollArea):
 
         self.setWidget(content)
 
+    # ── Preset support ─────────────────────────────────────────────────────────
+
+    def get_resize_preset_data(self) -> dict:
+        return {
+            "preset": self._resize_preset_combo.currentText(),
+            "width": self._resize_w_spin.value(),
+            "height": self._resize_h_spin.value(),
+            "output_dir": self._out_input.text().strip(),
+        }
+
+    def load_resize_preset_data(self, data: dict) -> None:
+        if p := data.get("preset"):
+            self._resize_preset_combo.blockSignals(True)
+            idx = self._resize_preset_combo.findText(p)
+            if idx >= 0:
+                self._resize_preset_combo.setCurrentIndex(idx)
+            self._resize_preset_combo.blockSignals(False)
+        if (w := data.get("width")) is not None:
+            self._resize_w_spin.setValue(w)
+        if (h := data.get("height")) is not None:
+            self._resize_h_spin.setValue(h)
+        if out := data.get("output_dir"):
+            self._out_input.setText(out)
+        self._refresh_preview()
+
+    def get_crop_preset_data(self) -> dict:
+        return {
+            "aspect_ratio": self._crop_ar_combo.currentText(),
+            "width": self._crop_w_spin.value(),
+            "height": self._crop_h_spin.value(),
+            "x": self._crop_x_spin.value(),
+            "y": self._crop_y_spin.value(),
+            "output_dir": self._out_input.text().strip(),
+        }
+
+    def load_crop_preset_data(self, data: dict) -> None:
+        if ar := data.get("aspect_ratio"):
+            self._crop_ar_combo.blockSignals(True)
+            idx = self._crop_ar_combo.findText(ar)
+            if idx >= 0:
+                self._crop_ar_combo.setCurrentIndex(idx)
+            self._crop_ar_combo.blockSignals(False)
+        if (w := data.get("width")) is not None:
+            self._crop_w_spin.setValue(w)
+        if (h := data.get("height")) is not None:
+            self._crop_h_spin.setValue(h)
+        if (x := data.get("x")) is not None:
+            self._crop_x_spin.setValue(x)
+        if (y := data.get("y")) is not None:
+            self._crop_y_spin.setValue(y)
+        if out := data.get("output_dir"):
+            self._out_input.setText(out)
+        self._refresh_preview()
+
     # ── Card builders ──────────────────────────────────────────────────────────
 
     def _build_source_card(self) -> QFrame:
@@ -176,6 +231,15 @@ class SpatialSection(QScrollArea):
         inner.setContentsMargins(20, 16, 20, 16)
         inner.setSpacing(12)
         inner.addWidget(_section_header("RESIZE OPTIONS"))
+
+        inner.addWidget(
+            PresetsBar(
+                "transform_resize",
+                self._settings,
+                self.get_resize_preset_data,
+                self.load_resize_preset_data,
+            )
+        )
 
         # Preset resolutions
         preset_row = QHBoxLayout()
@@ -251,6 +315,15 @@ class SpatialSection(QScrollArea):
         inner.setContentsMargins(20, 16, 20, 16)
         inner.setSpacing(12)
         inner.addWidget(_section_header("CROP OPTIONS"))
+
+        inner.addWidget(
+            PresetsBar(
+                "transform_crop",
+                self._settings,
+                self.get_crop_preset_data,
+                self.load_crop_preset_data,
+            )
+        )
 
         # Aspect ratio preset
         ar_row = QHBoxLayout()

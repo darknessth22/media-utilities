@@ -220,6 +220,11 @@ class TitleBar(QWidget):
         self._btn_queue.clicked.connect(self._on_queue_btn)
         layout.addWidget(self._btn_queue)
 
+        # Keyboard shortcuts reference button
+        self._btn_shortcuts = self._ctrl_btn("⌨", "Keyboard Shortcuts")
+        self._btn_shortcuts.clicked.connect(self._on_shortcuts_btn)
+        layout.addWidget(self._btn_shortcuts)
+
         # Notification bell with badge overlay
         self._btn_bell = self._ctrl_btn("🔔", "Notifications")
         self._bell_badge = QLabel("", self._btn_bell)
@@ -282,6 +287,33 @@ class TitleBar(QWidget):
         quit_act.triggered.connect(QApplication.quit)
 
         pos = self._btn_menu.mapToGlobal(self._btn_menu.rect().bottomLeft())
+        menu.exec(pos)
+
+    def _on_shortcuts_btn(self) -> None:
+        menu = QMenu(self)
+        menu.setToolTipsVisible(False)
+
+        def _heading(text: str) -> None:
+            act = menu.addAction(text)
+            act.setEnabled(False)
+            font = act.font()
+            font.setBold(True)
+            act.setFont(font)
+
+        _heading("Keyboard Shortcuts")
+        menu.addSeparator()
+        for shortcut, description in [
+            ("Ctrl + Enter", "Trigger primary action (Download / Convert / Trim…)"),
+            ("Esc",          "Cancel in-progress operation"),
+            ("Ctrl + V",     "Paste clipboard URL → Download section"),
+        ]:
+            act = menu.addAction(f"  {shortcut:<18}  {description}")
+            act.setEnabled(False)
+        menu.addSeparator()
+        see_act = menu.addAction("See full guide →  How to Use")
+        see_act.triggered.connect(lambda: self.window()._navigate_to(11))
+
+        pos = self._btn_shortcuts.mapToGlobal(self._btn_shortcuts.rect().bottomLeft())
         menu.exec(pos)
 
     def _on_queue_btn(self) -> None:
@@ -436,6 +468,7 @@ class SettingsSection(QScrollArea):
         layout.addWidget(self._build_appearance_card())
         layout.addWidget(self._build_behavior_card())
         layout.addWidget(self._build_paths_card())
+        layout.addWidget(self._build_naming_card())
         layout.addWidget(self._build_cookies_card())
         spotify_card = self._build_spotify_card()
         spotify_card.setVisible(False)
@@ -572,6 +605,49 @@ class SettingsSection(QScrollArea):
         layout.addLayout(codec_row)
 
         return card
+
+    def _build_naming_card(self) -> QFrame:
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
+
+        layout.addWidget(self._section_header("OUTPUT NAMING TEMPLATE"))
+
+        hint = QLabel(
+            "Controls how converted/processed files are named. "
+            "Placeholders: {name} (source stem), {ext} (target extension), "
+            "{date} (YYYYMMDD), {datetime} (YYYYMMDD_HHMMSS)."
+        )
+        hint.setObjectName("TextMuted")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("font-size: 12px;")
+        layout.addWidget(hint)
+
+        self._template_input = QLineEdit()
+        self._template_input.setObjectName("PillInput")
+        self._template_input.setPlaceholderText("{name}_converted")
+        self._template_input.setText(self._settings.output_name_template)
+        self._template_input.textChanged.connect(self._on_template_changed)
+        layout.addWidget(self._template_input)
+
+        self._template_preview = QLabel()
+        self._template_preview.setObjectName("TextMuted")
+        self._template_preview.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._template_preview)
+        self._update_template_preview(self._settings.output_name_template)
+
+        return card
+
+    def _on_template_changed(self, text: str) -> None:
+        self._settings.output_name_template = text.strip() or "{name}_converted"
+        self._update_template_preview(self._settings.output_name_template)
+        self._save()
+
+    def _update_template_preview(self, template: str) -> None:
+        from utils.naming import apply_name_template
+        example = apply_name_template(template, "my_video.mp4", ext="mp4")
+        self._template_preview.setText(f"Preview: {example}.mp4")
 
     def _build_cookies_card(self) -> QFrame:
         card = self._card()
@@ -762,7 +838,8 @@ class SettingsSection(QScrollArea):
         for widget in (self._theme_combo, self._quit_check, self._folder_input,
                        self._codec_combo, self._timeout_spin,
                        self._cookies_combo, self._cookies_file_input,
-                       self._spotify_id_input, self._spotify_secret_input):
+                       self._spotify_id_input, self._spotify_secret_input,
+                       self._template_input):
             widget.blockSignals(True)
 
         self._theme_combo.setCurrentIndex(
@@ -784,12 +861,16 @@ class SettingsSection(QScrollArea):
             _browser_map.get(settings.cookies_browser.lower(), 0)
         )
         self._cookies_file_input.setText(settings.cookies_file or "")
+        self._template_input.setText(settings.output_name_template)
 
         for widget in (self._theme_combo, self._quit_check, self._folder_input,
                        self._codec_combo, self._timeout_spin,
                        self._cookies_combo, self._cookies_file_input,
-                       self._spotify_id_input, self._spotify_secret_input):
+                       self._spotify_id_input, self._spotify_secret_input,
+                       self._template_input):
             widget.blockSignals(False)
+
+        self._update_template_preview(settings.output_name_template)
 
 
 # ── Welcome dialog (first launch) ────────────────────────────────────────────
@@ -1007,6 +1088,23 @@ class MainWindow(QMainWindow):
 
         # Navigate to the first section on startup
         self._navigate_to(0)
+
+        # ── Keyboard shortcuts ────────────────────────────────────────────────
+        from PySide6.QtGui import QShortcut, QKeySequence
+        # Ctrl+Enter — trigger the primary action for the current section
+        QShortcut(QKeySequence("Ctrl+Return"), self).activated.connect(
+            self._on_primary_action
+        )
+        # Esc — cancel an ongoing operation (same as clicking the busy button)
+        QShortcut(QKeySequence(Qt.Key.Key_Escape), self).activated.connect(
+            self._on_primary_action
+        )
+        # Ctrl+V — paste clipboard URL into the download URL field and navigate there.
+        # QLineEdit children consume Ctrl+V themselves, so this only fires when
+        # no text input has focus (e.g., user clicks elsewhere first).
+        QShortcut(QKeySequence("Ctrl+V"), self).activated.connect(
+            self._paste_url_from_clipboard
+        )
 
         # Always keep the tutorial nav item glowing so it's easy to find
         self._nav_buttons[11].start_glow()
@@ -1379,6 +1477,14 @@ class MainWindow(QMainWindow):
             or "failed" in lowered
             or "playlist complete" in lowered
         )
+
+    def _paste_url_from_clipboard(self) -> None:
+        """Paste a URL from the clipboard into the download section's URL field."""
+        from PySide6.QtWidgets import QApplication
+        text = QApplication.clipboard().text().strip()
+        if text and (text.startswith("http://") or text.startswith("https://")):
+            self._navigate_to(0)
+            self._download_section.paste_url(text)
 
     # ── T018 / T020: Tray helpers ─────────────────────────────────────────────
 

@@ -17,7 +17,8 @@ _TUTORIAL_DATA = [
             "Choose output format, quality, and — for playlists — exactly which videos to grab."
         ),
         "steps": [
-            "Paste a URL into the SOURCE URL field.",
+            "Paste a URL into the SOURCE URL field — or press Ctrl+V anywhere on the window "
+            "(when no text box is focused) to auto-paste and jump to this section.",
             "Single video: optionally click Check Formats to pick a resolution. "
             "Select Video or Audio only.",
             "Video: under 'Audio format in video' choose Original (keep source audio), AAC, MP3, "
@@ -33,6 +34,8 @@ _TUTORIAL_DATA = [
             "Each job shows its own progress bar, speed, ETA, and a cancel (✕) button. "
             "Jobs run one at a time automatically.",
             "Completed files are saved to the folder set in the OUTPUT FOLDER card.",
+            "PRESETS — use the Preset bar at the top to save your current type, format, quality, "
+            "and output folder as a named preset. Load it next time in one click.",
         ],
         "tips": [
             "Spotify links are matched to YouTube automatically — no API keys needed.",
@@ -58,10 +61,17 @@ _TUTORIAL_DATA = [
             "Single: click Browse, choose output format, click Convert.",
             "Batch: add multiple files, set target format, click Convert.",
             "Output lands in the same folder as the source by default.",
+            "PRESETS — the Preset bar at the top of each tab lets you save your chosen format "
+            "and output folder as a named profile. Select a preset and click Load to restore it.",
+            "OUTPUT NAMING — the filename of converted files follows the template set in "
+            "Settings → Output Naming Template. Default: {name}_converted. "
+            "You can use {name}, {ext}, {date}, or {datetime} as placeholders.",
         ],
         "tips": [
             "Drag and drop files onto the window to auto-load them into the right tab.",
             "Batch Convert is faster than converting files one by one.",
+            "Change the naming template in Settings to skip the '_converted' suffix "
+            "or add a datestamp — e.g. {name}_{date}.{ext}.",
         ],
     },
     {
@@ -240,23 +250,33 @@ _TUTORIAL_DATA = [
     {
         "emoji": "⚙",
         "title": "Settings",
-        "description": "Configure appearance, output folder, default codec, and more.",
+        "description": "Configure appearance, output folder, default codec, hardware acceleration, naming templates, and more.",
         "steps": [
             "Theme — choose Auto (follows system), Light, or Dark.",
-            "Output Folder — where downloaded and converted files are saved.",
+            "Output Folder — where downloaded and converted files are saved by default.",
             "Default Codec — used when no codec is selected during conversion.",
             "Quit on Close — when off, closing hides the window to the system tray.",
-            "Intercept Timeout — wait time for browser-based download interception.",
+            "Intercept Timeout — how long the browser intercept waits before giving up (10–300 s).",
+            "Output Naming Template — controls how converted files are named. "
+            "Use {name} (source stem), {ext} (target format), {date} (YYYYMMDD), or "
+            "{datetime} (YYYYMMDD_HHMMSS). Example: {name}_{date} → myvideo_20260101.mp4. "
+            "A live preview updates as you type.",
+            "Hardware Acceleration — found in Settings → File Paths & Encoding. "
+            "Selects the GPU decoder/encoder FFmpeg uses: None (CPU only, safest), "
+            "NVENC/NVDEC (NVIDIA), QSV (Intel), VideoToolbox (macOS), AMF (AMD). "
+            "Enable this if you have a supported GPU to speed up video conversions significantly. "
+            "If a conversion fails after enabling, switch back to None.",
         ],
         "tips": [
             "Right-click the system tray icon to restore or quit from the taskbar.",
             "Use the ⋯ menu in the title bar to switch themes without opening Settings.",
+            "Hardware acceleration only helps for video — image and audio conversions run on CPU regardless.",
         ],
     },
     {
         "emoji": "★",
         "title": "Tips & Power Features",
-        "description": "Quick shortcuts and features worth knowing.",
+        "description": "Keyboard shortcuts, presets, naming templates, and other time-savers.",
         "steps": [
             "Drag and drop media files onto the window — routed to the right tab automatically.",
             "Notification bell (top-right) tracks completed and failed operations.",
@@ -264,8 +284,29 @@ _TUTORIAL_DATA = [
             "Double-click the title bar to maximize or restore the window.",
             "Resize grip is in the bottom-right corner of the status bar.",
             "Right-click the status bar to copy a long error message to the clipboard.",
+            "PRESETS — the Download and Convert tabs each have a Preset bar. "
+            "Configure your settings once, click Save…, give it a name, and reload it instantly next time.",
+            "NAMING TEMPLATES — set a custom output filename pattern in Settings → "
+            "Output Naming Template. Supports {name}, {ext}, {date}, {datetime}.",
         ],
         "tips": [],
+    },
+    {
+        "emoji": "⌨",
+        "title": "Keyboard Shortcuts",
+        "description": "Keyboard bindings available anywhere in the app.",
+        "steps": [
+            "Ctrl + Enter — trigger the primary action for the current section "
+            "(Download, Convert, Trim, Compress, etc.).",
+            "Esc — cancel an in-progress operation (same as clicking the button while it shows 'Cancel').",
+            "Ctrl + V — when no text field is focused, pastes your clipboard URL directly into "
+            "the Download URL bar and jumps to the Download section.",
+        ],
+        "tips": [
+            "The ⌨ icon in the title bar shows this shortcuts reference at a glance.",
+            "Ctrl+V only intercepts when a text input doesn't have focus — "
+            "normal paste in text fields always works as expected.",
+        ],
     },
 ]
 
