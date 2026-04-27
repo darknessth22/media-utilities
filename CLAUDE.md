@@ -26,30 +26,59 @@ media-utilities/
 ├── main.py                    # Entry point
 ├── media_util_gui.py          # Legacy entry point (delegates to main.py)
 ├── build_executable.py        # PyInstaller build script
+├── build.bat                  # Windows build shorthand
 ├── media_util_gui.spec        # PyInstaller spec
+├── installer.iss              # Inno Setup installer script
+├── build_config.json          # Build metadata
+├── size-budget.json           # Installer/dist size limits
+├── icon.ico                   # App icon
+├── assets/
+│   └── icons/                 # SVG + PNG sidebar and UI icons
+├── bin/
+│   ├── ffmpeg.exe             # Bundled FFmpeg (Windows)
+│   ├── ffprobe.exe
+│   └── ffplay.exe
 ├── gui/
 │   ├── app.py                 # MainWindow (frameless, sidebar nav)
 │   ├── theme.py               # ThemeManager + QSS stylesheets
 │   ├── worker.py              # Worker(QThread) for async operations
 │   ├── dnd_handler.py         # Drag-and-drop via QDropEvent.mimeData().urls()
 │   └── tabs/
-│       ├── download_section.py
-│       ├── convert_section.py
-│       ├── trim_section.py
-│       ├── document_section.py
-│       ├── history_section.py
-│       └── settings_section.py
+│       ├── download_section.py   # Download tab — queue, interactive playlist manager
+│       ├── convert_section.py    # Single + batch media/image conversion
+│       ├── trim_section.py       # Time-range trimming with preview
+│       ├── document_section.py   # PDF / DOCX / XLSX / PPTX conversion
+│       ├── gif_section.py        # Video → GIF creator
+│       ├── compress_section.py   # Image + video compression
+│       ├── merge_section.py      # Multi-file video merge
+│       ├── mux_section.py        # Audio muxing (replace / mute audio track)
+│       ├── spatial_section.py    # Resize, crop, rotate, flip
+│       ├── history_section.py    # Operation history log
+│       └── tutorial_section.py   # In-app how-to guide
 ├── core/
-│   ├── downloader.py
-│   ├── converter.py
-│   ├── trimmer.py
-│   ├── document.py
+│   ├── downloader.py          # download_media, fetch_playlist_entries, get_available_formats
+│   ├── converter.py           # convert_images, convert_media
+│   ├── trimmer.py             # trim_media
+│   ├── document.py            # convert_document (PDF/DOCX/XLSX/PPTX)
+│   ├── muxer.py               # mute_video, replace_audio_track
+│   ├── spatial.py             # resize, crop, rotate/flip via FFmpeg
+│   ├── interceptor.py         # Playwright HLS stream interceptor
+│   ├── notifications.py       # Desktop notification dispatcher
 │   ├── tray.py                # SystemTrayIcon(QObject)
-│   ├── settings.py
+│   ├── settings.py            # UserSettings + SettingsManager
+│   ├── version.py             # VERSION constant
 │   └── history/
-└── utils/
-    ├── ffmpeg.py
-    └── deps.py
+│       ├── manager.py         # HistoryManager (add, load, clear)
+│       └── models.py          # HistoryItem dataclass
+├── utils/
+│   ├── ffmpeg.py              # FFmpeg/FFprobe path resolution
+│   └── deps.py                # Runtime dependency checker
+└── tests/
+    ├── unit/
+    │   └── test_interceptor.py
+    └── integration/
+        ├── test_intercept_live.py
+        └── test_download_token.py
 ```
 
 ## Commands

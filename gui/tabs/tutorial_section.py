@@ -12,21 +12,37 @@ _TUTORIAL_DATA = [
         "emoji": "⬇",
         "title": "Media Download",
         "description": (
-            "Download video, audio, or playlists from YouTube, TikTok, Instagram, "
+            "Download video, audio, or selected playlist items from YouTube, TikTok, Instagram, "
             "Facebook, Twitter, LinkedIn, Spotify, and generic URLs. "
-            "Choose output format and quality before downloading."
+            "Choose output format, quality, and — for playlists — exactly which videos to grab."
         ),
         "steps": [
-            "Paste a URL into the input field at the top of the Download section.",
-            "Select your desired format (MP4, MP3, WebM, etc.) and quality from the dropdowns.",
-            "Click Download. Progress appears in the job list below.",
-            "Completed files are saved to your configured output folder.",
+            "Paste a URL into the SOURCE URL field.",
+            "Single video: optionally click Check Formats to pick a resolution. "
+            "Select Video or Audio only.",
+            "Video: under 'Audio format in video' choose Original (keep source audio), AAC, MP3, "
+            "or OPUS — the audio track is re-muxed into that codec after download. "
+            "Audio only: pick the output format (MP3, FLAC, OGG, OPUS, M4A).",
+            "YouTube playlist: a PLAYLIST card appears — click Load Playlist to fetch the full "
+            "video list (title + duration) in seconds using fast metadata-only lookup.",
+            "Check the videos you want (all are pre-checked). Use Select All / Deselect All "
+            "to adjust quickly.",
+            "Optionally click Check Formats to load resolutions from the first video — "
+            "the selected height is applied consistently to every checked item.",
+            "Click Download Selected — one queue job is created per checked video.",
+            "Each job shows its own progress bar, speed, ETA, and a cancel (✕) button. "
+            "Jobs run one at a time automatically.",
+            "Completed files are saved to the folder set in the OUTPUT FOLDER card.",
         ],
         "tips": [
             "Spotify links are matched to YouTube automatically — no API keys needed.",
-            "Instagram and TikTok now require a cookies file. Go to Settings → Cookies, install 'Get cookies.txt LOCALLY' in your browser, export from instagram.com while logged in, then select the file in settings.",
-            "The queue badge in the title bar shows active download count.",
-            "Multiple downloads can be queued — they run one at a time.",
+            "Instagram and TikTok require a cookies file. Go to Settings → Cookies, "
+            "install 'Get cookies.txt LOCALLY' in your browser, export from the site while "
+            "logged in, then select the file in settings.",
+            "Playlist quality is matched by resolution (e.g. ≤1080p), not by format ID — "
+            "so it works correctly even when individual videos have different format tables.",
+            "The queue badge in the title bar shows the active download count.",
+            "You can queue more downloads while previous ones are still running.",
         ],
     },
     {
@@ -157,6 +173,33 @@ _TUTORIAL_DATA = [
             "(_resized, _cropped, _transformed).",
             "Lock AR in Resize only constrains future manual edits — "
             "selecting a preset always overrides both fields.",
+        ],
+    },
+    {
+        "emoji": "♫",
+        "title": "Audio Mux",
+        "description": (
+            "Three audio operations on video files, all lossless on the video track. "
+            "Switch between sub-tabs at the top: Mute Video, Replace Audio, Add Audio."
+        ),
+        "steps": [
+            "MUTE VIDEO — strips the audio track completely. "
+            "Browse a video file, optionally set an output folder, click Apply. "
+            "Output is saved as <filename>_muted.<ext>.",
+            "REPLACE AUDIO — swaps the entire audio track with a different audio file. "
+            "Browse the video, then browse the new audio file (MP3, WAV, AAC, FLAC, OGG, M4A, OPUS). "
+            "Output stops at whichever stream ends first — extra audio beyond the video length is discarded. "
+            "Output is saved as <filename>_remuxed.<ext>.",
+            "ADD AUDIO — mixes an audio file on top of the video's existing audio. "
+            "Browse the video, then browse the audio file to mix in. "
+            "Use the volume slider (0–200%) to set the level of the added audio. "
+            "The video's original audio is preserved underneath. "
+            "Output is saved as <filename>_mixed.<ext>.",
+        ],
+        "tips": [
+            "The video stream is always copied without re-encoding — fast and lossless.",
+            "Replace Audio and Add Audio encode the final audio track to AAC 192 kbps.",
+            "If your added audio is longer than the video, the excess is silently discarded.",
         ],
     },
     {

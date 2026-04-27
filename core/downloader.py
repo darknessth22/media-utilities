@@ -102,6 +102,15 @@ def _fmt_speed(bps: float | None) -> str:
     return f"{bps:.0f} B/s"
 
 
+def _fmt_duration(seconds: int | float) -> str:
+    total_s = int(seconds)
+    h, rem = divmod(total_s, 3600)
+    m, s = divmod(rem, 60)
+    if h:
+        return f"{h}:{m:02d}:{s:02d}"
+    return f"{m}:{s:02d}"
+
+
 class _StatusLogger:
     """yt-dlp logger that forwards destination/merger lines to status_cb."""
     _PATTERNS = ("[download] Destination:", "[Merger]", "has already been downloaded")
@@ -768,8 +777,9 @@ def download_media(
             {"key": "FFmpegExtractAudio", "preferredcodec": audio_format, "preferredquality": "320"}
         ]
     else:
-        if playlist_mode == "full" and quality_height:
-            # Height-based selector so it applies consistently across all playlist videos
+        if quality_height and not quality:
+            # Height-based selector: works consistently across playlist videos
+            # (used for both full-playlist mode and individually-queued playlist items)
             ydl_opts["format"] = (
                 f"bestvideo[height<={quality_height}]+bestaudio/best"
                 f"/bestvideo[height<={quality_height}]+bestaudio"
@@ -899,6 +909,47 @@ def get_available_formats(url: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Preview
 # ---------------------------------------------------------------------------
+
+def fetch_playlist_entries(url: str) -> list[dict]:
+    """Fetch playlist entry titles/durations/URLs using extract_flat (fast, no format extraction).
+
+    Caps at 500 entries. Returns list of {"title", "duration", "url"} dicts.
+    """
+    opts: dict = {
+        "quiet": True,
+        "extract_flat": "in_playlist",
+        "playlist_items": "1-500",
+    }
+    try:
+        from core.settings import SettingsManager as _SM
+        _s = _SM.load()
+        if _s.cookies_file and os.path.exists(_s.cookies_file):
+            opts["cookiefile"] = _s.cookies_file
+        elif _s.cookies_browser.strip():
+            opts["cookiesfrombrowser"] = (_s.cookies_browser.strip().lower(),)
+    except Exception:
+        pass
+
+    with YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+
+    entries = info.get("entries") or []
+    result = []
+    for e in entries:
+        if not e:
+            continue
+        video_url = e.get("url") or e.get("webpage_url") or ""
+        # Flat entries for YouTube use bare video IDs as url — expand to full watch URL
+        if video_url and not video_url.startswith("http"):
+            video_url = f"https://www.youtube.com/watch?v={video_url}"
+        duration = e.get("duration")
+        result.append({
+            "title": e.get("title") or e.get("id") or "Unknown",
+            "duration": _fmt_duration(duration) if duration else "—",
+            "url": video_url,
+        })
+    return result
+
 
 def get_preview_stream_url(url: str) -> dict:
     """Extract a playable stream URL for preview (US2)."""

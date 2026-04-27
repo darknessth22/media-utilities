@@ -8,10 +8,12 @@ import uuid
 from PySide6.QtCore import Qt, Signal, QUrl, QTimer
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QProgressBar,
@@ -20,6 +22,8 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSlider,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -31,7 +35,7 @@ try:
 except ImportError:
     _MULTIMEDIA_AVAILABLE = False
 
-from core.downloader import download_media, get_available_formats, get_platform, get_preview_stream_url
+from core.downloader import download_media, fetch_playlist_entries, get_available_formats, get_platform, get_preview_stream_url
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 from gui.worker import Worker
@@ -258,24 +262,60 @@ class DownloadSection(QScrollArea):
         layout = QVBoxLayout(self._playlist_card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("PLAYLIST OPTIONS"))
+        layout.addWidget(_section_header("PLAYLIST"))
 
-        row = QHBoxLayout()
-        row.setSpacing(16)
-        self._playlist_btn_group = QButtonGroup(self)
-        self._playlist_single_radio = QRadioButton("This video only")
-        self._playlist_full_radio = QRadioButton("Full playlist")
-        self._playlist_single_radio.setChecked(True)
-        self._playlist_btn_group.addButton(self._playlist_single_radio, 0)
-        self._playlist_btn_group.addButton(self._playlist_full_radio, 1)
-        row.addWidget(self._playlist_single_radio)
-        row.addWidget(self._playlist_full_radio)
-        row.addStretch()
-        layout.addLayout(row)
+        load_row = QHBoxLayout()
+        self._load_playlist_btn = QPushButton("Load Playlist")
+        self._load_playlist_btn.setObjectName("BrowseBtn")
+        self._load_playlist_btn.setFixedWidth(120)
+        self._load_playlist_btn.clicked.connect(self._load_playlist)
+        load_row.addWidget(self._load_playlist_btn)
+        self._playlist_status_lbl = QLabel()
+        self._playlist_status_lbl.setObjectName("TextMuted")
+        self._playlist_status_lbl.setStyleSheet("font-size: 12px;")
+        load_row.addWidget(self._playlist_status_lbl)
+        load_row.addStretch()
+        layout.addLayout(load_row)
+
+        self._playlist_table = QTableWidget(0, 3)
+        self._playlist_table.setHorizontalHeaderLabels(["", "Title", "Duration"])
+        hdr = self._playlist_table.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        self._playlist_table.setColumnWidth(0, 32)
+        self._playlist_table.setColumnWidth(2, 80)
+        self._playlist_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self._playlist_table.verticalHeader().setVisible(False)
+        self._playlist_table.setMinimumHeight(180)
+        self._playlist_table.setMaximumHeight(360)
+        self._playlist_table.setVisible(False)
+        layout.addWidget(self._playlist_table)
+
+        action_row = QHBoxLayout()
+        self._select_all_btn = QPushButton("Select All")
+        self._select_all_btn.setObjectName("ChipBtn")
+        self._select_all_btn.setFixedWidth(80)
+        self._select_all_btn.setVisible(False)
+        self._select_all_btn.clicked.connect(lambda: self._set_all_playlist_checked(True))
+        action_row.addWidget(self._select_all_btn)
+        self._deselect_all_btn = QPushButton("Deselect All")
+        self._deselect_all_btn.setObjectName("ChipBtn")
+        self._deselect_all_btn.setFixedWidth(90)
+        self._deselect_all_btn.setVisible(False)
+        self._deselect_all_btn.clicked.connect(lambda: self._set_all_playlist_checked(False))
+        action_row.addWidget(self._deselect_all_btn)
+        action_row.addStretch()
+        self._download_selected_btn = QPushButton("Download Selected")
+        self._download_selected_btn.setObjectName("BrowseBtn")
+        self._download_selected_btn.setFixedWidth(150)
+        self._download_selected_btn.setVisible(False)
+        self._download_selected_btn.clicked.connect(self._download_selected_playlist_items)
+        action_row.addWidget(self._download_selected_btn)
+        layout.addLayout(action_row)
 
         hint = QLabel(
-            "Full playlist: quality is matched by resolution across all videos."
-            " Check Formats to pick resolution — formats loaded from first video."
+            "Quality matched by resolution across all selected videos — formats loaded from first video."
         )
         hint.setObjectName("TextMuted")
         hint.setWordWrap(True)
@@ -585,6 +625,7 @@ class DownloadSection(QScrollArea):
         else:
             self._platform_label.setText("")
             self._playlist_card.setVisible(False)
+        self._reset_playlist_table()
 
         if _MULTIMEDIA_AVAILABLE:
             self._player.stop()
@@ -746,6 +787,158 @@ class DownloadSection(QScrollArea):
             self._end_slider.setValue(min(e_ms, self._duration_ms))
         self._updating = False
 
+    # ── Playlist manager ───────────────────────────────────────────────────────
+
+    def _reset_playlist_table(self) -> None:
+        self._playlist_table.setRowCount(0)
+        self._playlist_table.setVisible(False)
+        self._select_all_btn.setVisible(False)
+        self._deselect_all_btn.setVisible(False)
+        self._download_selected_btn.setVisible(False)
+        self._playlist_status_lbl.setText("")
+        self._load_playlist_btn.setEnabled(True)
+        self._load_playlist_btn.setText("Load Playlist")
+
+    def _load_playlist(self) -> None:
+        url = self._url_input.text().strip()
+        if not url:
+            return
+        self._load_playlist_btn.setEnabled(False)
+        self._load_playlist_btn.setText("Loading…")
+        self._playlist_status_lbl.setText("Fetching playlist…")
+        self._playlist_table.setVisible(False)
+        self._select_all_btn.setVisible(False)
+        self._deselect_all_btn.setVisible(False)
+        self._download_selected_btn.setVisible(False)
+        _url = url
+        worker = Worker(lambda: fetch_playlist_entries(_url))
+        worker.signals.result.connect(self._on_playlist_loaded)
+        worker.signals.error.connect(self._on_playlist_error)
+        worker.start()
+        self._playlist_fetch_worker = worker
+
+    def _on_playlist_loaded(self, entries: list) -> None:
+        self._load_playlist_btn.setEnabled(True)
+        self._load_playlist_btn.setText("Reload")
+        if not entries:
+            self._playlist_status_lbl.setText("No videos found.")
+            return
+        self._playlist_table.setRowCount(0)
+        for entry in entries:
+            row = self._playlist_table.rowCount()
+            self._playlist_table.insertRow(row)
+
+            chk = QCheckBox()
+            chk.setChecked(True)
+            chk_container = QWidget()
+            chk_container.setStyleSheet("background: transparent;")
+            chk_layout = QHBoxLayout(chk_container)
+            chk_layout.addWidget(chk)
+            chk_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            chk_layout.setContentsMargins(0, 0, 0, 0)
+            self._playlist_table.setCellWidget(row, 0, chk_container)
+
+            title_item = QTableWidgetItem(entry["title"])
+            title_item.setFlags(title_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            title_item.setData(Qt.ItemDataRole.UserRole, entry["url"])
+            self._playlist_table.setItem(row, 1, title_item)
+
+            dur_item = QTableWidgetItem(entry["duration"])
+            dur_item.setFlags(dur_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            dur_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._playlist_table.setItem(row, 2, dur_item)
+
+        self._playlist_status_lbl.setText(f"{len(entries)} video(s)")
+        self._playlist_table.setVisible(True)
+        self._select_all_btn.setVisible(True)
+        self._deselect_all_btn.setVisible(True)
+        self._download_selected_btn.setVisible(True)
+
+    def _on_playlist_error(self, err_tuple: tuple) -> None:
+        self._load_playlist_btn.setEnabled(True)
+        self._load_playlist_btn.setText("Load Playlist")
+        _, msg, _ = err_tuple
+        self._playlist_status_lbl.setText(f"Error: {str(msg)[:60]}")
+
+    def _set_all_playlist_checked(self, checked: bool) -> None:
+        for row in range(self._playlist_table.rowCount()):
+            container = self._playlist_table.cellWidget(row, 0)
+            if container:
+                chk = container.findChild(QCheckBox)
+                if chk:
+                    chk.setChecked(checked)
+
+    def _download_selected_playlist_items(self) -> None:
+        is_audio = self._audio_radio.isChecked()
+        audio_fmt = getattr(self, "_selected_audio_fmt", "mp3").lower()
+        video_audio_fmt = getattr(self, "_selected_video_audio_fmt", "Original")
+        out_dir = self._out_input.text().strip() or None
+        codec = self._settings.default_codec or "original"
+        codec_map = {
+            "original": "original", "h264": "libx264",
+            "hevc": "libx265", "vp9": "libvpx-vp9",
+        }
+        video_codec = codec_map.get(codec, "original")
+
+        # Use height-based quality matching (from first-video formats) — not format_id,
+        # since format IDs differ between videos.
+        quality_height: int | None = None
+        if not is_audio:
+            idx = self._quality_combo.currentIndex()
+            if idx > 0:
+                data = self._quality_combo.itemData(idx)
+                if isinstance(data, dict):
+                    quality_height = data.get("height") or None
+
+        queued = 0
+        for row in range(self._playlist_table.rowCount()):
+            container = self._playlist_table.cellWidget(row, 0)
+            if not container:
+                continue
+            chk = container.findChild(QCheckBox)
+            if not chk or not chk.isChecked():
+                continue
+            title_item = self._playlist_table.item(row, 1)
+            if not title_item:
+                continue
+            video_url = title_item.data(Qt.ItemDataRole.UserRole)
+            title = title_item.text()
+            if not video_url:
+                continue
+
+            job_id = uuid.uuid4().hex[:8]
+            display_name = title if len(title) <= 60 else title[:57] + "…"
+            job = {
+                "job_id": job_id,
+                "url": video_url,
+                "display_name": display_name,
+                "platform": get_platform(video_url),
+                "media_type": "audio" if is_audio else "video",
+                "quality": None,
+                "quality_height": quality_height,
+                "playlist_mode": "single",
+                "audio_fmt": audio_fmt,
+                "video_audio_fmt": video_audio_fmt,
+                "start_time": None,
+                "end_time": None,
+                "out_dir": out_dir,
+                "video_codec": video_codec,
+                "status": "pending",
+            }
+            self._queue.append(job)
+            self._add_job_row(job)
+            queued += 1
+
+        if queued == 0:
+            self.status_message.emit("No items selected.", True)
+            return
+
+        self._queue_card.setVisible(True)
+        self._emit_queue_count()
+        if self._worker is None or not self._worker.isRunning():
+            self._run_next()
+        self.status_message.emit(f"Queued {queued} playlist item(s).", False)
+
     # ── "Check Formats" ───────────────────────────────────────────────────────
 
     def _check_formats(self) -> None:
@@ -809,8 +1002,6 @@ class DownloadSection(QScrollArea):
         quality: str | None = None
         quality_height: int | None = None
         playlist_mode = "single"
-        if self._is_playlist_url(url) and self._playlist_full_radio.isChecked():
-            playlist_mode = "full"
         if not is_audio:
             idx = self._quality_combo.currentIndex()
             if idx > 0:
@@ -888,7 +1079,6 @@ class DownloadSection(QScrollArea):
         self._url_input.clear()
         self._platform_label.setText("")
         self._playlist_card.setVisible(False)
-        self._playlist_single_radio.setChecked(True)
         self._quality_combo.clear()
         self._quality_combo.addItem("Best available (default)")
         self._start_input.clear()

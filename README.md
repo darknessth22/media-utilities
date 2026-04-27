@@ -80,28 +80,37 @@ The GUI provides access to all features through a user-friendly tabbed interface
 
 #### 1. Download Media Tab
 
-
-
 **Features:**
 - **URL Input**: Enter a URL from YouTube, Facebook, Instagram, TikTok, Twitter, Spotify, or other supported platforms
-- **Format Checking**: Click "Check Available Formats" to see all available quality options
-- **Quality Selection**: Choose from available video qualities in the list
+- **Interactive Playlist Manager**: For YouTube playlist URLs, load a selectable table of every video (title + duration) and download only the items you check — powered by `--flat-playlist` so the list appears in seconds
+- **Format Checking**: Click "Check Formats" to see available resolutions for the URL (fetched from the first video when a playlist is detected)
+- **Quality Selection**: Choose from available video qualities; quality is matched by resolution across all selected playlist videos
 - **Media Type**: Select between video or audio-only download
-- **Audio Format**: When downloading audio-only, choose from MP3, AAC, FLAC, WAV, OPUS, or M4A formats
-- **Time Range**: Optionally specify start and end times to download only a portion of the media
+- **Audio Format**: When downloading audio-only, choose from MP3, FLAC, OGG, OPUS, or M4A formats
+- **Audio codec in video**: Optionally re-encode the audio track to AAC, MP3, or OPUS when downloading video
+- **Time Range**: Optionally specify start and end times to download only a portion of a single video
 - **Download Location**: Choose where to save the downloaded files
-- **Progress Tracking**: Monitor download progress with the status bar
+- **Download Queue**: Multiple jobs run sequentially with per-job progress, speed, ETA, and cancel button
+- **Progress Tracking**: Live speed and ETA shown per job
 
-**How to use:**
-1. Paste a video URL in the URL field
-2. Click "Check Available Formats" to load quality options
-3. Select your preferred quality from the list
-4. Choose between video or audio download
-5. If downloading audio only, select your preferred audio format
-6. Optionally set start and end times for trimming
-7. Choose a download location or use the default
-8. Click "Download" to start the process
-9. Monitor progress in the status bar at the bottom
+**How to use — single video:**
+1. Paste a video or audio URL in the URL field
+2. Optionally click "Check Formats" to pick a specific resolution
+3. Select **Video** or **Audio only**
+4. Video: under "Audio format in video" pick **Original** (keep source audio), **AAC**, **MP3**, or **OPUS** — the audio track is re-muxed/re-encoded into that codec after download
+5. Audio only: pick the output format (MP3, FLAC, OGG, OPUS, M4A)
+6. Optionally set Start and End times for a clip
+7. Set the output folder or leave blank for the current directory
+8. Click **Download** — the job appears in the queue below
+
+**How to use — YouTube playlist:**
+1. Paste a YouTube playlist URL (one containing `list=`)
+2. A **PLAYLIST** card appears — click **Load Playlist**
+3. The table populates in seconds with every video's title and duration
+4. Check or uncheck items; use **Select All** / **Deselect All** as needed
+5. Optionally click **Check Formats** first to pick a resolution — it loads formats from the first video and applies that height to all selected videos
+6. Click **Download Selected** — one queue job is created per checked video
+7. Jobs run sequentially; each shows its own progress bar and can be cancelled independently
 
 #### 2. Convert Media Tab
 
@@ -180,7 +189,28 @@ The GUI provides access to all features through a user-friendly tabbed interface
 4. Optionally set an output folder, then click Compress
 5. Status bar shows the filename and size reduction
 
-#### 7. Merge Videos Tab
+#### 7. Audio Mux Tab
+
+Three sub-tabs for audio operations on video files. The video track is always copied without re-encoding.
+
+**Mute Video**
+1. Browse a video file
+2. Optionally set an output folder
+3. Click Apply — output saved as `<filename>_muted.<ext>`
+
+**Replace Audio**
+1. Browse the video file
+2. Browse the new audio file (MP3, WAV, AAC, FLAC, OGG, M4A, OPUS)
+3. Click Apply — the original audio track is discarded and replaced entirely
+4. Output saved as `<filename>_remuxed.<ext>` — ends at whichever stream is shorter
+
+**Add Audio (mix overlay)**
+1. Browse the video file (keeps its own audio)
+2. Browse the audio file to mix in
+3. Set the overlay volume with the slider (0–200%, default 100%)
+4. Click Apply — output saved as `<filename>_mixed.<ext>`
+
+#### 8. Merge Videos Tab
 
 **Features:**
 - Join multiple video files into one in any order
@@ -382,7 +412,7 @@ Convert between various document formats with enhanced image support:
 - ✅ **Batch Processing**: Convert multiple documents at once
 
 ### GUI Interface
-- **Modern Sidebar Navigation**: Ten sections — Download, Convert, Trim, Document Convert, GIF Creator, Compress, Merge Videos, History, Settings, How to Use
+- **Modern Sidebar Navigation**: Twelve sections — Download, Convert, Trim, Document Convert, GIF Creator, Compress, Merge Videos, Audio Mux, Transform, History, Settings, How to Use
 - **PySide6-powered**: Native Qt widgets, no Tkinter dependency
 - **Dark/Light Mode**: Automatic OS theme detection via Qt with manual toggle
 - **Real-time Progress Tracking**: Progress bar and status messages for all operations

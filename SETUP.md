@@ -167,41 +167,69 @@ To create a proper Windows installer:
 
 ```
 media-utilities/
-├── main.py                  # Entry point — run this
-├── media_util_gui.py        # Legacy entry point (delegates to main.py)
+├── main.py                    # Entry point — run this
+├── media_util_gui.py          # Legacy entry point (delegates to main.py)
 ├── requirements.txt
-├── build_executable.py      # Builds the .exe
-├── media_util_gui.spec      # PyInstaller config (PySide6)
+├── build_executable.py        # PyInstaller build script
+├── build.bat                  # Windows build shorthand
+├── media_util_gui.spec        # PyInstaller spec (PySide6)
+├── installer.iss              # Inno Setup installer script
+├── build_config.json          # Build metadata (version, paths)
+├── size-budget.json           # Installer/dist size limits
+├── icon.ico                   # App icon
+│
+├── assets/
+│   └── icons/                 # SVG + PNG sidebar and UI icons
+│
+├── bin/
+│   ├── ffmpeg.exe             # Bundled FFmpeg (Windows)
+│   ├── ffprobe.exe
+│   └── ffplay.exe
 │
 ├── gui/
-│   ├── app.py               # MainWindow — frameless sidebar UI
-│   ├── theme.py             # ThemeManager + dark/light QSS
-│   ├── worker.py            # Worker(QThread) for async operations
-│   ├── dnd_handler.py       # Drag-and-drop routing
+│   ├── app.py                 # MainWindow — frameless sidebar UI
+│   ├── theme.py               # ThemeManager + dark/light QSS
+│   ├── worker.py              # Worker(QThread) for async operations
+│   ├── dnd_handler.py         # Drag-and-drop file routing
 │   └── tabs/
-│       ├── download_section.py
-│       ├── convert_section.py
-│       ├── trim_section.py
-│       ├── document_section.py
-│       ├── gif_section.py
-│       ├── compress_section.py
-│       ├── merge_section.py
-│       ├── history_section.py
-│       ├── settings_section.py
-│       └── tutorial_section.py
+│       ├── download_section.py   # Download tab — queue, playlist manager
+│       ├── convert_section.py    # Single + batch media/image conversion
+│       ├── trim_section.py       # Time-range trimming with preview
+│       ├── document_section.py   # PDF / DOCX / XLSX / PPTX conversion
+│       ├── gif_section.py        # Video → GIF creator
+│       ├── compress_section.py   # Image + video compression
+│       ├── merge_section.py      # Multi-file video merge
+│       ├── mux_section.py        # Audio muxing (replace / mute audio track)
+│       ├── spatial_section.py    # Resize, crop, rotate, flip
+│       ├── history_section.py    # Operation history log
+│       └── tutorial_section.py   # In-app how-to guide
 │
 ├── core/
-│   ├── downloader.py        # download_media, get_available_formats
-│   ├── converter.py         # convert_images, convert_media
-│   ├── trimmer.py           # trim_media
-│   ├── document.py          # convert_document (PDF/DOCX/XLSX/PPTX)
-│   ├── tray.py              # SystemTrayIcon (QSystemTrayIcon wrapper)
-│   ├── settings.py          # UserSettings + SettingsManager
-│   └── history/             # HistoryManager + HistoryItem
+│   ├── downloader.py          # download_media, fetch_playlist_entries, get_available_formats
+│   ├── converter.py           # convert_images, convert_media
+│   ├── trimmer.py             # trim_media
+│   ├── document.py            # convert_document (PDF/DOCX/XLSX/PPTX)
+│   ├── muxer.py               # mute_video, replace_audio_track
+│   ├── spatial.py             # resize, crop, rotate/flip via FFmpeg
+│   ├── interceptor.py         # Playwright HLS stream interceptor
+│   ├── notifications.py       # Desktop notification dispatcher
+│   ├── tray.py                # SystemTrayIcon (QSystemTrayIcon wrapper)
+│   ├── settings.py            # UserSettings + SettingsManager
+│   ├── version.py             # VERSION constant
+│   └── history/
+│       ├── manager.py         # HistoryManager (add, load, clear)
+│       └── models.py          # HistoryItem dataclass
 │
-└── utils/
-    ├── ffmpeg.py            # FFmpeg/FFprobe path resolution
-    └── deps.py              # Dependency checking and auto-install
+├── utils/
+│   ├── ffmpeg.py              # FFmpeg/FFprobe path resolution
+│   └── deps.py                # Runtime dependency checker
+│
+└── tests/
+    ├── unit/
+    │   └── test_interceptor.py
+    └── integration/
+        ├── test_intercept_live.py
+        └── test_download_token.py
 ```
 
 ---
