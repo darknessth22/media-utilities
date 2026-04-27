@@ -25,6 +25,22 @@ A comprehensive toolkit for media downloading, conversion, and manipulation with
   - Trim audio and video files using timestamp ranges
   - Supports multiple time formats (HH:MM:SS, MM:SS, or seconds)
 
+- **Video Merging**
+  - Join multiple video files into one in any order
+  - Auto-detects compatible streams — uses lossless stream copy when possible
+  - Automatically re-encodes and normalizes mismatched resolutions, codecs, or frame rates
+  - Output size matches the sum of the input files
+
+- **GIF Creator**
+  - Convert any video segment into an animated GIF
+  - Control start time, duration, width, and FPS
+  - Two-pass FFmpeg palette method for accurate colours
+
+- **Media Compression**
+  - Reduce file size for images (JPG, PNG, WEBP, BMP) and videos
+  - Image: quality (1–100) and optional max dimension
+  - Video: CRF and encoding preset selection
+
 - **User Interface**
   - **NEW**: Full-featured GUI with tabbed interface
   - **NEW**: Progress bar for tracking operations
@@ -136,7 +152,49 @@ The GUI provides access to all features through a user-friendly tabbed interface
 4. Click "Trim Media" to create a trimmed version
 5. The trimmed file will be saved with "_trimmed" added to the filename
 
-#### 5. Document Convert Tab
+#### 5. GIF Creator Tab
+
+**Features:**
+- Convert any segment of a video into an animated GIF
+- Control start time, duration, output width, and FPS
+- Two-pass palette generation for high colour accuracy
+
+**How to use:**
+1. Click Browse and select a video file
+2. Set Start Time (seconds) for where the GIF begins
+3. Set Duration (seconds) for how long it plays
+4. Adjust Width (px) — height scales automatically
+5. Set FPS (10–15 is standard; 24+ for smoother motion)
+6. Click Create GIF — output saved next to the source video
+
+#### 6. Compress Media Tab
+
+**Features:**
+- Reduce file size for images and videos
+- Auto-detects media type from the selected file
+
+**How to use:**
+1. Click Browse and select an image or video file
+2. Image: set Quality (1–100) and optional Max Dimension
+3. Video: set CRF (18–51, higher = smaller file) and Preset
+4. Optionally set an output folder, then click Compress
+5. Status bar shows the filename and size reduction
+
+#### 7. Merge Videos Tab
+
+**Features:**
+- Join multiple video files into one in any order
+- Smart path: lossless stream copy when videos are compatible
+- Auto re-encode path for mismatched resolutions, codecs, or frame rates
+
+**How to use:**
+1. Click Add Files… and select two or more video files
+2. Drag rows or use ▲ / ▼ to set playback order
+3. Enter an output filename (defaults to merged.mp4)
+4. Optionally set an output folder
+5. Click Merge — output appears in the chosen folder
+
+#### 8. Document Convert Tab
 
 **Features:**
 - **Document Format Conversion**: Convert between PDF, DOCX, XLSX, and PPTX formats
@@ -156,6 +214,7 @@ The GUI provides access to all features through a user-friendly tabbed interface
 - **Progress Indicator**: Shows the progress of current operations
 - **Status Messages**: Displays success, error, and informational messages
 - **Cancel Button**: Allows stopping any operation in progress
+- **Copy Error**: Right-click the status bar to copy a long error message to the clipboard
 
 **Common Operations Across All Tabs:**
 - **File Selection**: All tabs use a consistent file browser interface
@@ -323,7 +382,7 @@ Convert between various document formats with enhanced image support:
 - ✅ **Batch Processing**: Convert multiple documents at once
 
 ### GUI Interface
-- **Modern Sidebar Navigation**: Six sections — Download, Convert, Trim, Document Convert, History, Settings
+- **Modern Sidebar Navigation**: Ten sections — Download, Convert, Trim, Document Convert, GIF Creator, Compress, Merge Videos, History, Settings, How to Use
 - **PySide6-powered**: Native Qt widgets, no Tkinter dependency
 - **Dark/Light Mode**: Automatic OS theme detection via Qt with manual toggle
 - **Real-time Progress Tracking**: Progress bar and status messages for all operations

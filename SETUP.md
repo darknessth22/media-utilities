@@ -117,7 +117,7 @@ python main.py
 
 The app will:
 1. Check/install any missing Python dependencies in the background.
-2. Open the main window with a sidebar providing 6 sections: Download, Convert, Trim, Document Convert, History, Settings.
+2. Open the main window with a sidebar providing 10 sections: Download, Convert, Trim, Document Convert, GIF Creator, Compress, Merge Videos, History, Settings, How to Use.
 
 > **Legacy entry point:** `python media_util_gui.py` also works — it still contains the original single-file version and will remain available until the next major release.
 
@@ -183,8 +183,12 @@ media-utilities/
 │       ├── convert_section.py
 │       ├── trim_section.py
 │       ├── document_section.py
+│       ├── gif_section.py
+│       ├── compress_section.py
+│       ├── merge_section.py
 │       ├── history_section.py
-│       └── settings_section.py
+│       ├── settings_section.py
+│       └── tutorial_section.py
 │
 ├── core/
 │   ├── downloader.py        # download_media, get_available_formats
