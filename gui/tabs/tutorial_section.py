@@ -125,6 +125,41 @@ _TUTORIAL_DATA = [
         ],
     },
     {
+        "emoji": "✂",
+        "title": "Transform Media",
+        "description": (
+            "Resize, crop, rotate, or flip video and image files. "
+            "All changes preview live before rendering — no guesswork needed. "
+            "Uses FFmpeg so quality loss is minimal."
+        ),
+        "steps": [
+            "Click Browse and select a video or image file. A preview frame loads automatically.",
+            "Choose the operation using the sub-tabs at the top: RESIZE, CROP, or ROTATE / FLIP.",
+            "RESIZE — pick a preset resolution (4K, 1080p, TikTok, etc.) or type a custom "
+            "Width × Height. The preview shows letterboxing in real time. "
+            "Enable Lock AR to keep the aspect ratio locked while you edit.",
+            "CROP — choose an aspect ratio preset (16:9, 9:16, 1:1…) to auto-fill dimensions, "
+            "or enter Width, Height, X offset, and Y offset manually. "
+            "The preview updates to show the exact cropped region.",
+            "ROTATE / FLIP — click any button (90° CW, 90° CCW, 180°, Flip H, Flip V) "
+            "to add it to the operation chain. Each click compounds — "
+            "clicking 90° CW twice previews 180°. The chain label below the buttons "
+            "shows every step. Click Reset to start over.",
+            "Set an output folder if needed, then click Apply to render.",
+        ],
+        "tips": [
+            "Crop coordinates are in the source video's pixel space — "
+            "e.g. X=320, Y=180, W=1280, H=720 centres a 720p crop inside a 1080p frame. "
+            "Crop values that exceed the source dimensions are clamped automatically.",
+            "Rotate/Flip chains are applied in order by FFmpeg — "
+            "the order shown in the chain label is the order of processing.",
+            "Output files are named with a suffix describing the operation "
+            "(_resized, _cropped, _transformed).",
+            "Lock AR in Resize only constrains future manual edits — "
+            "selecting a preset always overrides both fields.",
+        ],
+    },
+    {
         "emoji": "⊞",
         "title": "Merge Videos",
         "description": (
@@ -230,7 +265,7 @@ class TutorialSection(QScrollArea):
 
         body = QLabel(
             "A desktop tool for downloading, converting, trimming, compressing, "
-            "merging, and managing media files. "
+            "merging, transforming, and managing media files. "
             "Navigate with the sidebar on the left. This guide explains each section."
         )
         body.setWordWrap(True)

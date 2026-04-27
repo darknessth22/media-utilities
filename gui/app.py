@@ -46,6 +46,7 @@ from gui.tabs.document_section import DocumentSection
 from gui.tabs.gif_section import GifSection
 from gui.tabs.compress_section import CompressSection
 from gui.tabs.merge_section import MergeSection
+from gui.tabs.spatial_section import SpatialSection
 from gui.tabs.history_section import HistorySection
 from gui.tabs.tutorial_section import TutorialSection
 
@@ -103,6 +104,13 @@ _SECTIONS = [
         "icon": "merge.svg",
         "tabs": ["MERGE VIDEOS"],
         "action_label": "Merge",
+    },
+    {
+        "id": "spatial",
+        "label": "Transform Media",
+        "icon": "spatial.svg",
+        "tabs": ["RESIZE", "CROP", "ROTATE / FLIP"],
+        "action_label": "Apply",
     },
     {
         "id": "history",
@@ -258,7 +266,7 @@ class TitleBar(QWidget):
 
         menu.addSeparator()
         settings_act = menu.addAction("Settings")
-        settings_act.triggered.connect(lambda: win._navigate_to(8))
+        settings_act.triggered.connect(lambda: win._navigate_to(9))
 
         menu.addSeparator()
         from PySide6.QtWidgets import QApplication
@@ -937,7 +945,7 @@ class MainWindow(QMainWindow):
         # ── System tray (T018 / T020) ─────────────────────────────────────────
         self._tray = SystemTrayIcon(self)
         self._tray.restore_requested.connect(self._restore_from_tray)
-        self._tray.settings_requested.connect(lambda: self._navigate_to(8))
+        self._tray.settings_requested.connect(lambda: self._navigate_to(9))
         self._tray.quit_requested.connect(self._quit_from_tray)
 
         # ── Central widget ────────────────────────────────────────────────────
@@ -993,7 +1001,7 @@ class MainWindow(QMainWindow):
         self._navigate_to(0)
 
         # Always keep the tutorial nav item glowing so it's easy to find
-        self._nav_buttons[9].start_glow()
+        self._nav_buttons[10].start_glow()
 
         # Show welcome dialog on first launch
         if not self.settings.tutorial_seen:
@@ -1085,6 +1093,7 @@ class MainWindow(QMainWindow):
         self._gif_section = GifSection(self.settings)
         self._compress_section = CompressSection(self.settings)
         self._merge_section = MergeSection(self.settings)
+        self._spatial_section = SpatialSection(self.settings)
         self._history_section = HistorySection()
         self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
@@ -1098,9 +1107,10 @@ class MainWindow(QMainWindow):
             self._gif_section,              # index 4 — gif creator
             self._compress_section,         # index 5 — compress media
             self._merge_section,            # index 6 — merge videos
-            self._history_section,          # index 7 — history
-            self._settings_section_widget,  # index 8 — settings
-            self._tutorial_section,         # index 9 — how to use
+            self._spatial_section,          # index 7 — transform media
+            self._history_section,          # index 8 — history
+            self._settings_section_widget,  # index 9 — settings
+            self._tutorial_section,         # index 10 — how to use
         ]
 
         # Connect status signals from all operation sections.
@@ -1113,6 +1123,7 @@ class MainWindow(QMainWindow):
             self._gif_section,        # index 4
             self._compress_section,   # index 5
             self._merge_section,      # index 6
+            self._spatial_section,    # index 7
         )
         for section in _op_sections:
             section.status_message.connect(self._on_status_message)
@@ -1161,7 +1172,7 @@ class MainWindow(QMainWindow):
         self._current_section = index
 
         # Refresh history whenever the history section is activated
-        if index == 7:
+        if index == 8:
             self._history_section.refresh()
 
         # Update nav button active states
@@ -1169,7 +1180,7 @@ class MainWindow(QMainWindow):
             btn.set_active(i == index)
 
         # Keep tutorial icon amber regardless of active state
-        self._nav_buttons[9].start_glow()
+        self._nav_buttons[10].start_glow()
 
         # Switch content
         self._content_stack.setCurrentIndex(index)
@@ -1193,7 +1204,7 @@ class MainWindow(QMainWindow):
 
     def _show_welcome(self) -> None:
         dlg = WelcomeDialog(self)
-        dlg.go_to_tutorial.connect(lambda: self._navigate_to(9))
+        dlg.go_to_tutorial.connect(lambda: self._navigate_to(10))
         # Center over the main window
         geo = self.geometry()
         dlg.move(
