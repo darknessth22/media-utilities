@@ -129,7 +129,7 @@ _TUTORIAL_DATA = [
         "title": "Merge Videos",
         "description": (
             "Join multiple video files into one in the order you specify. "
-            "Uses FFmpeg stream copy — no re-encoding, so it's fast and lossless."
+            "Works with any combination of formats, resolutions, and frame rates."
         ),
         "steps": [
             "Click Add Files… and select two or more video files.",
@@ -138,10 +138,9 @@ _TUTORIAL_DATA = [
             "Click Merge. The combined file appears in the output folder.",
         ],
         "tips": [
-            "All input files should have the same codec, resolution, and frame rate "
-            "for a seamless result. Different formats may cause audio/video sync issues.",
-            "For files with different specs, convert them to the same format first "
-            "using the Convert Media section.",
+            "If all videos share the same codec and resolution, merging is near-instant with no quality loss.",
+            "If videos differ in resolution or codec, the app re-encodes automatically to match the first video's properties.",
+            "Output file size will be close to the sum of the input file sizes.",
         ],
     },
     {
@@ -186,6 +185,7 @@ _TUTORIAL_DATA = [
             "Download queue icon shows active downloads — click for a live list.",
             "Double-click the title bar to maximize or restore the window.",
             "Resize grip is in the bottom-right corner of the status bar.",
+            "Right-click the status bar to copy a long error message to the clipboard.",
         ],
         "tips": [],
     },

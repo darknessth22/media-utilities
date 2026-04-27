@@ -979,12 +979,15 @@ class MainWindow(QMainWindow):
         # T007: status bar with QSizeGrip for frameless resize
         status_bar = QStatusBar()
         status_bar.setObjectName("StatusBar")
+        status_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        status_bar.customContextMenuRequested.connect(self._show_status_context_menu)
         self.setStatusBar(status_bar)
         status_bar.showMessage("Ready")
         # QSizeGrip added to corner for window resizing (M-6)
         grip = QSizeGrip(self)
         status_bar.addPermanentWidget(grip)
         self._status_bar = status_bar
+        self._status_message = "Ready"
 
         # Navigate to the first section on startup
         self._navigate_to(0)
@@ -1251,11 +1254,23 @@ class MainWindow(QMainWindow):
 
     def update_status(self, message: str, is_error: bool = False) -> None:
         """Update the status bar. Pass *is_error=True* to colour it red."""
+        self._status_message = message
         self._status_bar.showMessage(message)
         if is_error:
             self._status_bar.setStyleSheet("color: #F85149;")
         else:
             self._status_bar.setStyleSheet("")
+
+    def _show_status_context_menu(self, pos) -> None:
+        msg = getattr(self, "_status_message", "")
+        if not msg or msg == "Ready":
+            return
+        from PySide6.QtWidgets import QApplication
+        menu = QMenu(self)
+        copy_act = menu.addAction("Copy message")
+        action = menu.exec(self._status_bar.mapToGlobal(pos))
+        if action is copy_act:
+            QApplication.clipboard().setText(msg)
 
     def _on_status_message(self, message: str, is_error: bool) -> None:
         """Slot connected to every section's status_message signal.

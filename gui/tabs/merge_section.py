@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 from gui.worker import Worker
-from utils.ffmpeg import ffmpeg_path
+from utils.ffmpeg import ffmpeg_path, ffprobe_path
 
 
 def _card() -> QFrame:
@@ -241,38 +241,109 @@ class MergeSection(QWidget):
         self.status_message.emit(f"Merging {len(paths)} file(s)…", False)
 
         def do_merge():
+            import json
             os.makedirs(out_dir, exist_ok=True)
             dest = os.path.join(out_dir, out_name)
             flags = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
 
-            # Write FFmpeg concat list to a temp file
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".txt", delete=False, encoding="utf-8"
-            ) as f:
-                concat_file = f.name
-                for p in paths:
-                    # Escape single quotes in file paths for the concat format
-                    safe_path = p.replace("'", "'\\''")
-                    f.write(f"file '{safe_path}'\n")
-
             try:
-                cmd = [
-                    ffmpeg_path, "-y",
-                    "-f", "concat",
-                    "-safe", "0",
-                    "-i", concat_file,
-                    "-c", "copy",
-                    dest,
-                ]
-                subprocess.run(cmd, check=True, capture_output=True, timeout=7200, **flags)
-                return {"success": True, "file_path": dest, "count": len(paths)}
+                def _probe_video(path):
+                    r = subprocess.run(
+                        [ffprobe_path, "-v", "error",
+                         "-show_entries",
+                         "stream=codec_name,width,height,r_frame_rate,codec_type"
+                         ":format=bit_rate",
+                         "-of", "json", path],
+                        capture_output=True, text=True, timeout=30, **flags,
+                    )
+                    data = json.loads(r.stdout)
+                    streams = data.get("streams", [])
+                    v = next((s for s in streams if s.get("codec_type") == "video"), {})
+                    a = next((s for s in streams if s.get("codec_type") == "audio"), {})
+                    fmt_bitrate = int(data.get("format", {}).get("bit_rate") or 0)
+                    return v, a, fmt_bitrate
+
+                infos = [_probe_video(p) for p in paths]
+                v0, _, fmt_bitrate0 = infos[0]
+                w, h = v0.get("width", 0), v0.get("height", 0)
+                fps_str = v0.get("r_frame_rate", "30/1")
+
+                # All videos compatible for stream copy?
+                def _compatible(v, a, br):
+                    return (
+                        v.get("codec_name") == v0.get("codec_name")
+                        and v.get("width") == w
+                        and v.get("height") == h
+                        and v.get("r_frame_rate") == fps_str
+                    )
+
+                can_copy = all(_compatible(v, a, br) for v, a, br in infos)
+
+                n = len(paths)
+
+                if can_copy:
+                    # Fast path: no re-encode, just remux
+                    with tempfile.NamedTemporaryFile(
+                        mode="w", suffix=".txt", delete=False, encoding="utf-8"
+                    ) as f:
+                        concat_file = f.name
+                        for p in paths:
+                            f.write(f"file '{p.replace(chr(39), chr(39)+chr(92)+chr(39)+chr(39))}'\n")
+                    try:
+                        cmd = [
+                            ffmpeg_path, "-y",
+                            "-f", "concat", "-safe", "0", "-i", concat_file,
+                            "-c", "copy", dest,
+                        ]
+                        result = subprocess.run(cmd, capture_output=True, timeout=7200, **flags)
+                        if result.returncode != 0:
+                            return {"success": False, "error": result.stderr.decode(errors="replace")}
+                        return {"success": True, "file_path": dest, "count": n}
+                    finally:
+                        try:
+                            os.unlink(concat_file)
+                        except OSError:
+                            pass
+                else:
+                    # Slow path: normalize to first video's resolution/fps then re-encode
+                    fps_parts = fps_str.split("/")
+                    fps = round(int(fps_parts[0]) / int(fps_parts[1])) if len(fps_parts) == 2 else 30
+
+                    # Target original video bitrate: format bitrate minus ~192kbps audio
+                    video_bps = max(fmt_bitrate0 - 192_000, 0) if fmt_bitrate0 else 0
+                    video_quality_args = (
+                        ["-b:v", str(video_bps)] if video_bps > 0
+                        else ["-crf", "23"]
+                    )
+
+                    inputs = []
+                    for p in paths:
+                        inputs.extend(["-i", p])
+
+                    v_filters = ";".join(
+                        f"[{i}:v]scale={w}:{h}:force_original_aspect_ratio=decrease,"
+                        f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps={fps}[v{i}]"
+                        for i in range(n)
+                    )
+                    concat_in = "".join(f"[v{i}][{i}:a]" for i in range(n))
+                    filter_str = f"{v_filters};{concat_in}concat=n={n}:v=1:a=1[outv][outa]"
+
+                    cmd = [
+                        ffmpeg_path, "-y",
+                        *inputs,
+                        "-filter_complex", filter_str,
+                        "-map", "[outv]", "-map", "[outa]",
+                        "-c:v", "libx264", *video_quality_args, "-preset", "fast",
+                        "-c:a", "aac", "-b:a", "192k",
+                        dest,
+                    ]
+                    result = subprocess.run(cmd, capture_output=True, timeout=7200, **flags)
+                    if result.returncode != 0:
+                        return {"success": False, "error": result.stderr.decode(errors="replace")}
+                    return {"success": True, "file_path": dest, "count": n}
+
             except Exception as exc:
                 return {"success": False, "error": str(exc)}
-            finally:
-                try:
-                    os.unlink(concat_file)
-                except OSError:
-                    pass
 
         self._worker = Worker(do_merge)
         self._worker.signals.result.connect(self._on_result)

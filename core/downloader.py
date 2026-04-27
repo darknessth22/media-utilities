@@ -705,12 +705,12 @@ def download_media(
 
     if playlist_mode == "full":
         output_template = (
-            os.path.join(output_dir, "%(playlist_index)s - %(title)s.%(ext)s")
-            if output_dir else "%(playlist_index)s - %(title)s.%(ext)s"
+            os.path.join(output_dir, "%(playlist_index)s - %(title).150B.%(ext)s")
+            if output_dir else "%(playlist_index)s - %(title).150B.%(ext)s"
         )
     else:
         output_template = (
-            os.path.join(output_dir, "%(title)s.%(ext)s") if output_dir else "%(title)s.%(ext)s"
+            os.path.join(output_dir, "%(title).150B.%(ext)s") if output_dir else "%(title).150B.%(ext)s"
         )
 
     final_paths: list[str] = []
@@ -736,6 +736,7 @@ def download_media(
 
     ydl_opts: dict = {
         "outtmpl": output_template,
+        "windowsfilenames": True,
         "cookiefile": _cookie_file,
         "postprocessor_args": ["-loglevel", "error"],
         "force_keyframes_at_cuts": True,
@@ -758,7 +759,7 @@ def download_media(
         ydl_opts["download_sections"] = [{"start_time": start, "end_time": end, "title": "segment"}]
         # Keep postprocessor_args as fallback for extractors that don't support sections
         ydl_opts["postprocessor_args"] = ["-ss", str(start), "-to", str(end)]
-        suffix = f"%(title)s_Trimmed_{start}s_{end}s.%(ext)s"
+        suffix = f"%(title).150B_Trimmed_{start}s_{end}s.%(ext)s"
         ydl_opts["outtmpl"] = os.path.join(output_dir, suffix) if output_dir else suffix
 
     if media_type == "audio":

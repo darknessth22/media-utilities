@@ -447,10 +447,23 @@ def detect_converter_backend() -> str:
         pass
 
     if docx2pdf_available and sys.platform == "win32":
-        # Verify Word COM automation is actually available
+        # Check Word is installed via registry (avoids launching Word as a side-effect)
         try:
-            import win32com.client
-            win32com.client.Dispatch("Word.Application")
+            import winreg
+            winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\WINWORD.EXE",
+            )
+            return "word"
+        except Exception:
+            pass
+        # Fallback: try registry under Wow6432Node (32-bit Word on 64-bit OS)
+        try:
+            import winreg
+            winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\WINWORD.EXE",
+            )
             return "word"
         except Exception:
             pass

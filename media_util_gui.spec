@@ -86,6 +86,13 @@ hiddenimports += [
     'contextlib',       # Used in document.py _temp_png context manager
     'urllib.request',   # May be needed for spotdl
     'docx2pdf',
+    'win32com',
+    'win32com.client',
+    'win32com.server',
+    'win32api',
+    'win32con',
+    'pywintypes',
+    'winreg',
 ]
 
 block_cipher = None
