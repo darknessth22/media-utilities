@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Build script for creating Windows executable and installer for Media Utility GUI
+Build script for creating Windows executable and installer for Videl.
+Includes size monitoring and pinned ffmpeg with checksum verification.
 """
 
 import os
@@ -9,6 +10,10 @@ import subprocess
 import urllib.request
 import zipfile
 import shutil
+import json
+import hashlib
+from pathlib import Path
+from datetime import datetime
 
 def print_step(step_name):
     """Print a formatted step header"""
@@ -16,142 +21,122 @@ def print_step(step_name):
     print(f"STEP: {step_name}")
     print(f"{'='*60}")
 
-def download_ffmpeg():
-    """Download FFmpeg for Windows if not present"""
-    print_step("Downloading FFmpeg")
-
-    if os.path.exists('ffmpeg.exe'):
-        print("✅ FFmpeg already exists, skipping download")
-        return True
-
-    # Check if we're in WSL2
-    is_wsl = os.path.exists('/proc/version') and 'microsoft' in open('/proc/version').read().lower()
-
-    if is_wsl:
-        print("� Detected WSL2 environment")
-        print("�📥 Downloading FFmpeg for Windows...")
-    else:
-        print("🪟 Detected Windows environment")
-        print("📥 Downloading FFmpeg for Windows...")
-
-    # FFmpeg download URL (using a reliable source)
-    ffmpeg_url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
-
+def load_build_config():
+    """Load build configuration from build_config.json"""
+    print_step("Loading Build Configuration")
     try:
-        print("Downloading FFmpeg archive...")
-        urllib.request.urlretrieve(ffmpeg_url, "ffmpeg.zip")
-
-        print("Extracting FFmpeg...")
-        with zipfile.ZipFile("ffmpeg.zip", 'r') as zip_ref:
-            zip_ref.extractall("ffmpeg_temp")
-
-        # Find the ffmpeg.exe in the extracted files
-        for root, _, files in os.walk("ffmpeg_temp"):
-            if "ffmpeg.exe" in files:
-                shutil.copy2(os.path.join(root, "ffmpeg.exe"), "ffmpeg.exe")
-                break
-
-        # Cleanup
-        os.remove("ffmpeg.zip")
-        shutil.rmtree("ffmpeg_temp")
-
-        print("✅ FFmpeg downloaded successfully!")
-        return True
-
+        with open('build_config.json') as f:
+            config = json.load(f)
+        print("✅ Build configuration loaded.")
+        return config
     except Exception as e:
-        print(f"❌ Failed to download FFmpeg: {e}")
-        print("Please download FFmpeg manually from https://ffmpeg.org/download.html")
-        return False
+        print(f"❌ Failed to load build_config.json: {e}")
+        sys.exit(1)
 
-def install_dependencies():
-    """Install required dependencies"""
-    print_step("Installing Dependencies")
-
-    try:
-        print("📦 Installing Python dependencies...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
-        print("✅ Dependencies installed successfully!")
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to install dependencies: {e}")
-        return False
-
-def setup_spotdl():
-    """Setup spotdl for Spotify support"""
-    print_step("Setting up Spotify Support (spotdl)")
-
-    try:
-        # Check if spotdl is available
-        result = subprocess.run([sys.executable, "-m", "spotdl", "--version"],
-                              capture_output=True, text=True)
-        if result.returncode == 0:
-            print("✅ spotdl is available and working!")
-            print(f"   Version: {result.stdout.strip()}")
-
-            # Check if we can find the spotdl executable for bundling
-            import spotdl
-            spotdl_path = spotdl.__file__
-            print(f"   spotdl location: {spotdl_path}")
-
-            return True
-        else:
-            print("⚠️ spotdl is installed but not working properly")
-            print("   Spotify downloads may not work in the executable")
-            return True  # Don't fail the build for this
-
-    except subprocess.CalledProcessError:
-        print("⚠️ spotdl not found or not working")
-        print("   Installing spotdl...")
-        try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "spotdl"])
-            print("✅ spotdl installed successfully!")
-            return True
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to install spotdl: {e}")
-            print("   Spotify support will not be available")
-            return True  # Don't fail the build for this
-    except Exception as e:
-        print(f"⚠️ Error checking spotdl: {e}")
-        print("   Spotify support may not work in the executable")
-        return True  # Don't fail the build for this
-
-def create_icon():
-    """Create a simple icon file if none exists"""
-    print_step("Creating Application Icon")
-    
-    if os.path.exists('icon.ico'):
-        print("✅ Icon already exists, skipping creation")
-        return True
+def get_app_version():
+    """Detect version from environment or core/version.py"""
+    version = os.environ.get('APP_VERSION')
+    if version:
+        print(f"✅ Version detected from environment: {version}")
+        return version
     
     try:
-        from PIL import Image, ImageDraw
+        # Add current dir to path to import core.version
+        sys.path.append(os.getcwd())
+        from core.version import VERSION
+        print(f"✅ Version detected from core/version.py: {VERSION}")
+        return VERSION
+    except ImportError:
+        print("⚠️ core/version.py not found, using default 1.0.0")
+        return "1.0.0"
+
+def download_ffmpeg_pinned(cfg):
+    """Download pinned FFmpeg with checksum verification"""
+    print_step("Ensuring FFmpeg (Pinned)")
+    
+    bin_dir = Path("bin")
+    bin_dir.mkdir(exist_ok=True)
+    
+    ffmpeg_exe = bin_dir / "ffmpeg.exe"
+    ffprobe_exe = bin_dir / "ffprobe.exe"
+    
+    if ffmpeg_exe.exists() and ffprobe_exe.exists():
+        print("✅ Pinned FFmpeg binaries already exist in bin/, skipping download")
+        return True
+
+    print(f"📥 Downloading FFmpeg {cfg['version']}...")
+    zip_path = Path("ffmpeg.zip")
+    sha_path = Path("ffmpeg.zip.sha256")
+    
+    try:
+        # Download ZIP
+        urllib.request.urlretrieve(cfg['url'], zip_path)
         
-        # Create a simple icon
-        size = (256, 256)
-        image = Image.new('RGBA', size, (70, 130, 180, 255))  # Steel blue background
-        draw = ImageDraw.Draw(image)
+        # Download SHA256
+        urllib.request.urlretrieve(cfg['sha256_url'], sha_path)
         
-        # Draw a simple media play symbol
-        triangle_points = [(80, 60), (80, 196), (196, 128)]
-        draw.polygon(triangle_points, fill=(255, 255, 255, 255))
+        # Verify SHA256
+        with open(sha_path, 'r') as f:
+            expected_hash = f.read().strip().split()[0].lower()
         
-        # Save as ICO
-        image.save('icon.ico', format='ICO', sizes=[(256, 256), (128, 128), (64, 64), (32, 32), (16, 16)])
-        print("✅ Icon created successfully!")
+        sha256_hash = hashlib.sha256()
+        with open(zip_path, "rb") as f:
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        actual_hash = sha256_hash.hexdigest().lower()
+        
+        if actual_hash != expected_hash:
+            print(f"❌ SHA256 verification FAILED!")
+            print(f"Expected: {expected_hash}")
+            print(f"Actual:   {actual_hash}")
+            return False
+        
+        print("✅ SHA256 verification passed.")
+        
+        # Extract binaries
+        print("Extracting binaries...")
+        prefix = cfg['strip_prefix']
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            for member in zip_ref.namelist():
+                if member.startswith(prefix) and member.endswith(('.exe')):
+                    filename = os.path.basename(member)
+                    with zip_ref.open(member) as source, open(bin_dir / filename, "wb") as target:
+                        shutil.copyfileobj(source, target)
+        
+        print(f"✅ Extracted: {ffmpeg_exe.name}, {ffprobe_exe.name}")
         return True
         
     except Exception as e:
-        print(f"⚠️ Could not create icon: {e}")
-        print("Continuing without icon...")
-        return True
+        print(f"❌ Failed to download/extract FFmpeg: {e}")
+        return False
+    finally:
+        if zip_path.exists(): zip_path.unlink()
+        if sha_path.exists(): sha_path.unlink()
+
+def generate_icon():
+    """Render assets/icons/dashboard.svg → icon.ico via PySide6 + Pillow (no native Cairo needed)."""
+    print_step("Generating icon.ico from dashboard.svg")
+
+    if Path("icon.ico").exists():
+        print("✅ icon.ico already exists — skipping generation (delete it to regenerate)")
+        return
+
+    helper = Path("_gen_icon.py")
+    if not helper.exists():
+        print(f"⚠️ {helper} not found — keeping existing icon.ico")
+        return
+
+    try:
+        subprocess.check_call([sys.executable, str(helper)])
+    except subprocess.CalledProcessError as exc:
+        print(f"⚠️ Icon generation failed (exit {exc.returncode}) — keeping existing icon.ico")
+
 
 def build_executable():
     """Build the executable using PyInstaller"""
-    print_step("Building Executable")
+    print_step("Building Executable with PyInstaller")
 
     try:
-        print("🔨 Building executable with PyInstaller...")
-
         # Clean previous builds
         if os.path.exists('dist'):
             shutil.rmtree('dist')
@@ -162,112 +147,152 @@ def build_executable():
         subprocess.check_call([sys.executable, "-m", "PyInstaller", "media_util_gui.spec", "--clean"])
 
         print("✅ Executable built successfully!")
-        print(f"📁 Executable location: {os.path.abspath('dist/MediaUtility.exe')}")
         return True
 
     except subprocess.CalledProcessError as e:
         print(f"❌ Failed to build executable: {e}")
         return False
 
-def create_installer_script():
-    """Create Inno Setup script for Windows installer"""
-    print_step("Creating Installer Script")
+def compile_installer(version):
+    """Compile Inno Setup installer"""
+    print_step("Compiling Inno Setup Installer")
     
-    installer_script = '''
-[Setup]
-AppName=Media Utility
-AppVersion=1.0
-AppPublisher=Media Utility Developer
-AppPublisherURL=https://github.com/yourusername/media-utility
-DefaultDirName={autopf}\\MediaUtility
-DefaultGroupName=Media Utility
-OutputDir=installer
-OutputBaseFilename=MediaUtility_Setup
-Compression=lzma
-SolidCompression=yes
-WizardStyle=modern
-SetupIconFile=icon.ico
-UninstallDisplayIcon={app}\\MediaUtility.exe
-
-[Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl"
-
-[Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-
-[Files]
-Source: "dist\\MediaUtility.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
-
-[Icons]
-Name: "{group}\\Media Utility"; Filename: "{app}\\MediaUtility.exe"
-Name: "{group}\\{cm:UninstallProgram,Media Utility}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\\Media Utility"; Filename: "{app}\\MediaUtility.exe"; Tasks: desktopicon
-
-[Run]
-Filename: "{app}\\MediaUtility.exe"; Description: "{cm:LaunchProgram,Media Utility}"; Flags: nowait postinstall skipifsilent
-'''
-    
+    iscc = shutil.which('iscc') or r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+    if not os.path.exists(iscc):
+        print(f"⚠️ ISCC.exe not found at {iscc}. Please install Inno Setup 6.")
+        print("Skipping installer compilation.")
+        return True # Don't fail the whole build if just installer fails due to missing tool
+        
     try:
-        with open('media_utility_installer.iss', 'w') as f:
-            f.write(installer_script.strip())
-        
-        print("✅ Installer script created: media_utility_installer.iss")
-        print("\n📋 To create the installer:")
-        print("1. Install Inno Setup from: https://jrsoftware.org/isinfo.php")
-        print("2. Open media_utility_installer.iss with Inno Setup")
-        print("3. Click 'Build' -> 'Compile' to create the installer")
-        print("4. The installer will be created in the 'installer' folder")
-        
+        subprocess.check_call([iscc, f'/DAppVersion={version}', 'installer.iss'])
+        print("✅ Installer compiled successfully!")
         return True
-        
-    except Exception as e:
-        print(f"❌ Failed to create installer script: {e}")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to compile installer: {e}")
         return False
+
+def measure_sizes(dist_dir, installer_path):
+    """Measure sizes of installed files and installer"""
+    print_step("Measuring Sizes")
+    
+    dist_path = Path(dist_dir)
+    if not dist_path.exists():
+        print(f"⚠️ {dist_dir} not found, skipping measurements.")
+        return 0, 0, []
+        
+    installed_mb = sum(f.stat().st_size for f in dist_path.rglob('*') if f.is_file()) / 1e6
+    
+    inst_path = Path(installer_path)
+    installer_mb = inst_path.stat().st_size / 1e6 if inst_path.exists() else 0
+    
+    top10 = sorted([(p, p.stat().st_size/1e6) for p in dist_path.rglob('*') if p.is_file()],
+                   key=lambda x: x[1], reverse=True)[:10]
+    
+    print(f"Installer: {installer_mb:.2f} MB")
+    print(f"Installed: {installed_mb:.2f} MB")
+    print("Top 5 contributors:")
+    for p, mb in top10[:5]:
+        print(f"  {mb:6.2f} MB  {p.relative_to(dist_path)}")
+        
+    return installer_mb, installed_mb, top10
+
+def check_budget(installer_mb, installed_mb, top10):
+    """Enforce size budget from size-budget.json"""
+    budget_file = Path('size-budget.json')
+    
+    if not budget_file.exists():
+        print_step("Seeding Size Budget")
+        budget = {
+            "installer_mb": round(installer_mb, 1),
+            "installed_mb": round(installed_mb, 1),
+            "tolerance_pct": 5,
+            "generated_at": datetime.now().isoformat()
+        }
+        with open(budget_file, 'w') as f:
+            json.dump(budget, f, indent=2)
+        print(f"✅ Seeded {budget_file} with current measurements.")
+        print("⚠️ Commit this file to enforce these limits in future builds.")
+        return True
+
+    with open(budget_file) as f:
+        budget = json.load(f)
+        
+    tol = 1 + budget.get('tolerance_pct', 5) / 100
+    failures = []
+    
+    if installer_mb > budget['installer_mb'] * tol:
+        failures.append(f"Installer {installer_mb:.1f} MB > budget {budget['installer_mb']} MB (x{tol})")
+    if installed_mb > budget['installed_mb'] * tol:
+        failures.append(f"Installed {installed_mb:.1f} MB > budget {budget['installed_mb']} MB (x{tol})")
+        
+    if failures:
+        print("\n❌ BUILD FAILED — size budget exceeded:")
+        for f in failures: print(f"  {f}")
+        print("\nTop 10 contributors:")
+        for p, mb in top10: print(f"  {mb:6.2f} MB  {p}")
+        sys.exit(1)
+    
+    print("✅ Size budget check passed.")
+    return True
+
+def write_size_report(installer_mb, installed_mb, top10):
+    """Write build artifact dist/size-report.json"""
+    report = {
+        "timestamp": datetime.now().isoformat(),
+        "installer_mb": installer_mb,
+        "installed_mb": installed_mb,
+        "top_contributors": [{"path": str(p), "mb": mb} for p, mb in top10]
+    }
+    report_path = Path('dist/size-report.json')
+    with open(report_path, 'w') as f:
+        json.dump(report, f, indent=2)
+    print(f"✅ Size report written to {report_path}")
 
 def main():
     """Main build process"""
-    print("🚀 Media Utility - Windows Executable Builder")
+    print("🚀 Videl - Windows Build Pipeline")
     print("=" * 60)
     
-    # Check if we're on Windows
     if sys.platform != "win32":
-        print("⚠️ This script is designed for Windows. Some features may not work on other platforms.")
+        print("❌ This build pipeline requires Windows.")
+        sys.exit(1)
     
-    steps = [
-        ("Download FFmpeg", download_ffmpeg),
-        ("Install Dependencies", install_dependencies),
-        ("Setup Spotify Support", setup_spotdl),
-        ("Create Icon", create_icon),
-        ("Build Executable", build_executable),
-        ("Create Installer Script", create_installer_script)
-    ]
+    config = load_build_config()
+    version = get_app_version()
     
-    failed_steps = []
-    
-    for step_name, step_func in steps:
-        if not step_func():
-            failed_steps.append(step_name)
-    
-    print_step("Build Summary")
-    
-    if not failed_steps:
-        print("🎉 All steps completed successfully!")
-        print("\n📁 Files created:")
-        print(f"   - Executable: {os.path.abspath('dist/MediaUtility.exe')}")
-        print(f"   - Installer Script: {os.path.abspath('media_utility_installer.iss')}")
+    # Step 2: Download ffmpeg
+    if not download_ffmpeg_pinned(config['ffmpeg']):
+        sys.exit(1)
+
+    # Step 3: Regenerate icon from in-app dashboard.svg
+    generate_icon()
+
+    # Step 4: PyInstaller
+    if not build_executable():
+        sys.exit(1)
         
-        print("\n🎯 Next Steps:")
-        print("1. Test the executable: dist/MediaUtility.exe")
-        print("2. Install Inno Setup to create the installer")
-        print("3. Compile media_utility_installer.iss to create the installer package")
-        
-    else:
-        print(f"⚠️ Build completed with {len(failed_steps)} failed step(s):")
-        for step in failed_steps:
-            print(f"   - {step}")
-        print("\nPlease resolve the issues and run the script again.")
+    # Step 5: Inno Setup
+    if not compile_installer(version):
+        sys.exit(1)
+
+    # Step 6: Measure
+    # Output of PyInstaller with COLLECT(name='Videl') is in dist/Videl
+    installer_path = "Output/Videl_Setup.exe" # Inno Setup default output
+    # Check if installer was actually created elsewhere (custom script might use different path)
+    if not os.path.exists(installer_path):
+        if os.path.exists("installer/Videl_Setup.exe"):
+            installer_path = "installer/Videl_Setup.exe"
+
+    installer_mb, installed_mb, top10 = measure_sizes("dist/Videl", installer_path)
+
+    # Step 7: Budget
+    check_budget(installer_mb, installed_mb, top10)
+
+    # Step 8: Report
+    write_size_report(installer_mb, installed_mb, top10)
+    
+    print("\n🎉 Build Complete!")
+    print(f"Installer: {os.path.abspath(installer_path)}")
 
 if __name__ == "__main__":
     main()
