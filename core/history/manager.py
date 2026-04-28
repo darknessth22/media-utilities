@@ -5,7 +5,6 @@ from core.history.models import HistoryItem
 from core.settings import SettingsManager
 
 class HistoryManager:
-    MAX_ITEMS = 200
     FILENAME = "history.json"
 
     def __init__(self):
@@ -45,11 +44,7 @@ class HistoryManager:
             print(f"Error saving history: {e}")
 
     def add_item(self, item: HistoryItem):
-        # Insert at the beginning
         self.items.insert(0, item)
-        # Enforce 10-item limit
-        if len(self.items) > self.MAX_ITEMS:
-            self.items = self.items[:self.MAX_ITEMS]
         self._save()
 
     def get_items(self) -> list[HistoryItem]:

@@ -2,7 +2,7 @@
 import sys
 
 _REG_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-_REG_VALUE = "MediaUtility"
+_REG_VALUE = "Videl"
 
 
 def _get_launch_command() -> str:

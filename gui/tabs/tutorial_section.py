@@ -368,7 +368,7 @@ class TutorialSection(QScrollArea):
         v.setContentsMargins(24, 20, 24, 20)
         v.setSpacing(8)
 
-        title = QLabel("Welcome to Media Utility")
+        title = QLabel("Welcome to Videl")
         title.setStyleSheet("font-size: 18px; font-weight: bold; color: #3B82F6;")
         v.addWidget(title)
 

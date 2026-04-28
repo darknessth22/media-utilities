@@ -29,26 +29,39 @@ from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 
 _COLUMNS = ["Type", "File Name", "Date / Time", "Status"]
+_PAGE_SIZE = 20
 
 
 # ── Model ─────────────────────────────────────────────────────────────────────
 
 
 class HistoryTableModel(QAbstractTableModel):
-    """QAbstractTableModel wrapping HistoryManager's item list."""
+    """QAbstractTableModel wrapping HistoryManager's item list, with lazy loading."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self._all_items: list[HistoryItem] = []
         self._items: list[HistoryItem] = []
         self.refresh()
 
     # ── Public API ────────────────────────────────────────────────────────────
 
     def refresh(self) -> None:
-        """Reload items from the persistent store."""
+        """Reload items from the persistent store (first page only)."""
         self.beginResetModel()
-        self._items = list(get_history_manager().get_items())
+        self._all_items = list(get_history_manager().get_items())
+        self._items = self._all_items[:_PAGE_SIZE]
         self.endResetModel()
+
+    def canFetchMore(self, parent: QModelIndex = QModelIndex()) -> bool:
+        return len(self._items) < len(self._all_items)
+
+    def fetchMore(self, parent: QModelIndex = QModelIndex()) -> None:
+        start = len(self._items)
+        fetch_count = min(_PAGE_SIZE, len(self._all_items) - start)
+        self.beginInsertRows(QModelIndex(), start, start + fetch_count - 1)
+        self._items.extend(self._all_items[start : start + fetch_count])
+        self.endInsertRows()
 
     def clear_all(self) -> None:
         get_history_manager().clear_all()

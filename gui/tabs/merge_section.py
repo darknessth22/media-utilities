@@ -252,7 +252,7 @@ class MergeSection(QWidget):
                         [ffprobe_path, "-v", "error",
                          "-show_entries",
                          "stream=codec_name,width,height,r_frame_rate,codec_type"
-                         ":format=bit_rate",
+                         ":format=bit_rate,duration",
                          "-of", "json", path],
                         capture_output=True, text=True, timeout=30, **flags,
                     )
@@ -260,11 +260,13 @@ class MergeSection(QWidget):
                     streams = data.get("streams", [])
                     v = next((s for s in streams if s.get("codec_type") == "video"), {})
                     a = next((s for s in streams if s.get("codec_type") == "audio"), {})
-                    fmt_bitrate = int(data.get("format", {}).get("bit_rate") or 0)
-                    return v, a, fmt_bitrate
+                    fmt = data.get("format", {})
+                    fmt_bitrate = int(fmt.get("bit_rate") or 0)
+                    duration = float(fmt.get("duration") or 0)
+                    return v, a, fmt_bitrate, duration
 
                 infos = [_probe_video(p) for p in paths]
-                v0, _, fmt_bitrate0 = infos[0]
+                v0, _, fmt_bitrate0, _ = infos[0]
                 w, h = v0.get("width", 0), v0.get("height", 0)
                 fps_str = v0.get("r_frame_rate", "30/1")
 
@@ -277,7 +279,7 @@ class MergeSection(QWidget):
                         and v.get("r_frame_rate") == fps_str
                     )
 
-                can_copy = all(_compatible(v, a, br) for v, a, br in infos)
+                can_copy = all(_compatible(v, a, br) for v, a, br, _ in infos)
 
                 n = len(paths)
 
@@ -309,24 +311,37 @@ class MergeSection(QWidget):
                     fps_parts = fps_str.split("/")
                     fps = round(int(fps_parts[0]) / int(fps_parts[1])) if len(fps_parts) == 2 else 30
 
-                    # Target original video bitrate: format bitrate minus ~192kbps audio
-                    video_bps = max(fmt_bitrate0 - 192_000, 0) if fmt_bitrate0 else 0
-                    video_quality_args = (
-                        ["-b:v", str(video_bps)] if video_bps > 0
-                        else ["-crf", "23"]
-                    )
+                    # Always CRF — source bitrate is codec-dependent (AV1 != h264 at same kbps)
+                    video_quality_args = ["-crf", "28"]
 
                     inputs = []
                     for p in paths:
                         inputs.extend(["-i", p])
+
+                    has_audio = [bool(info[1]) for info in infos]
+                    durations = [info[3] for info in infos]
 
                     v_filters = ";".join(
                         f"[{i}:v]scale={w}:{h}:force_original_aspect_ratio=decrease,"
                         f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps={fps}[v{i}]"
                         for i in range(n)
                     )
-                    concat_in = "".join(f"[v{i}][{i}:a]" for i in range(n))
-                    filter_str = f"{v_filters};{concat_in}concat=n={n}:v=1:a=1[outv][outa]"
+                    # anullsrc is infinite — must trim to video duration or concat never ends
+                    silence_filters = ";".join(
+                        f"anullsrc=channel_layout=stereo:sample_rate=44100,"
+                        f"atrim=duration={durations[i]},asetpts=PTS-STARTPTS[sil{i}]"
+                        for i in range(n) if not has_audio[i]
+                    )
+                    audio_refs = [
+                        f"[{i}:a]" if has_audio[i] else f"[sil{i}]"
+                        for i in range(n)
+                    ]
+                    concat_in = "".join(f"[v{i}]{audio_refs[i]}" for i in range(n))
+                    parts = [v_filters]
+                    if silence_filters:
+                        parts.append(silence_filters)
+                    parts.append(f"{concat_in}concat=n={n}:v=1:a=1[outv][outa]")
+                    filter_str = ";".join(parts)
 
                     cmd = [
                         ffmpeg_path, "-y",

@@ -53,6 +53,8 @@ from gui.tabs.tutorial_section import TutorialSection
 
 # ── Asset path ────────────────────────────────────────────────────────────────
 _ICONS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "icons")
+_APP_ICON = os.path.join(os.path.dirname(__file__), "..", "assets", "videl_icon.png")
+_APP_LOGO = os.path.join(os.path.dirname(__file__), "..", "assets", "videl_logo.png")
 
 # ── Section definitions ───────────────────────────────────────────────────────
 # Each entry maps a sidebar nav item to its content configuration.
@@ -190,16 +192,17 @@ class TitleBar(QWidget):
         layout.setContentsMargins(12, 0, 8, 0)
         layout.setSpacing(8)
 
-        # Logo (uses settings icon as placeholder; swap for real logo in polish phase)
         self._logo = QLabel()
-        self._logo.setFixedSize(24, 24)
+        self._logo.setFixedSize(32, 24)
         self._logo.setObjectName("TitleLogo")
-        logo_px = _load_svg_icon("dashboard.svg", 24, "#3B82F6")
+        self._logo.setStyleSheet("background: transparent;")
+        self._logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_px = QPixmap(_APP_LOGO).scaled(32, 24, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         if not logo_px.isNull():
             self._logo.setPixmap(logo_px)
         layout.addWidget(self._logo)
 
-        self._title = QLabel("Media Utility")
+        self._title = QLabel("Videl")
         self._title.setObjectName("TitleLabel")
         layout.addWidget(self._title)
         layout.addStretch()
@@ -943,12 +946,14 @@ class WelcomeDialog(QDialog):
         hdr = QHBoxLayout()
         hdr.setSpacing(12)
         logo = QLabel()
-        logo.setFixedSize(36, 36)
-        px = _load_svg_icon("dashboard.svg", 36, "#3B82F6")
+        logo.setFixedSize(52, 36)
+        logo.setStyleSheet("background: transparent;")
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        px = QPixmap(_APP_LOGO).scaled(52, 36, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         if not px.isNull():
             logo.setPixmap(px)
         hdr.addWidget(logo)
-        title = QLabel("Welcome to Media Utility")
+        title = QLabel("Welcome to Videl")
         title.setStyleSheet("font-size: 16px; font-weight: bold; color: #E6EDF3;")
         hdr.addWidget(title)
         hdr.addStretch()
@@ -1160,19 +1165,21 @@ class MainWindow(QMainWindow):
         # Header: app logo (40×40) + app name
         header = QWidget()
         header.setObjectName("SidebarHeader")
-        header.setFixedHeight(60)
+        header.setFixedHeight(52)
         h_row = QHBoxLayout(header)
-        h_row.setContentsMargins(14, 0, 14, 0)
-        h_row.setSpacing(10)
+        h_row.setContentsMargins(8, 0, 8, 0)
+        h_row.setSpacing(6)
 
         logo = QLabel()
-        logo.setFixedSize(40, 40)
-        logo_px = _load_svg_icon("dashboard.svg", 40, "#3B82F6")
+        logo.setFixedSize(32, 22)
+        logo.setStyleSheet("background: transparent;")
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_px = QPixmap(_APP_LOGO).scaled(32, 22, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         if not logo_px.isNull():
             logo.setPixmap(logo_px)
         h_row.addWidget(logo)
 
-        app_name = QLabel("Media Utility")
+        app_name = QLabel("Videl")
         app_name.setObjectName("SidebarTitle")
         h_row.addWidget(app_name)
         h_row.addStretch()
@@ -1443,7 +1450,7 @@ class MainWindow(QMainWindow):
 
         # T019: notify via tray only when the window is not visible.
         if not self.isVisible() and self._is_final_status(message, is_error):
-            title = "Media Utility — Error" if is_error else "Media Utility"
+            title = "Videl — Error" if is_error else "Videl"
             self._tray.notify(title, message, is_error)
 
     def _show_notifications(self, anchor) -> None:
@@ -1619,6 +1626,6 @@ class MainWindow(QMainWindow):
             if SystemTrayIcon.is_available():
                 self._tray.show()
                 self._tray.notify(
-                    "Media Utility",
+                    "Videl",
                     "Running in the background. Click the tray icon to restore.",
                 )

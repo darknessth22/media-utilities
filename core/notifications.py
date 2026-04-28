@@ -3,7 +3,7 @@ import threading
 from desktop_notifier import DesktopNotifier, Notification
 
 class NotificationDispatcher:
-    def __init__(self, app_name="Media Utilities"):
+    def __init__(self, app_name="Videl"):
         self._app_name = app_name
         self.notifier = None
         self.loop = asyncio.new_event_loop()

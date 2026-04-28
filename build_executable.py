@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build script for creating Windows executable and installer for Media Utility GUI.
+Build script for creating Windows executable and installer for Videl.
 Includes size monitoring and pinned ffmpeg with checksum verification.
 """
 
@@ -116,6 +116,10 @@ def download_ffmpeg_pinned(cfg):
 def generate_icon():
     """Render assets/icons/dashboard.svg → icon.ico via PySide6 + Pillow (no native Cairo needed)."""
     print_step("Generating icon.ico from dashboard.svg")
+
+    if Path("icon.ico").exists():
+        print("✅ icon.ico already exists — skipping generation (delete it to regenerate)")
+        return
 
     helper = Path("_gen_icon.py")
     if not helper.exists():
@@ -246,7 +250,7 @@ def write_size_report(installer_mb, installed_mb, top10):
 
 def main():
     """Main build process"""
-    print("🚀 Media Utility - Windows Build Pipeline")
+    print("🚀 Videl - Windows Build Pipeline")
     print("=" * 60)
     
     if sys.platform != "win32":
@@ -272,16 +276,14 @@ def main():
         sys.exit(1)
 
     # Step 6: Measure
-    # Output of PyInstaller with COLLECT(name='MediaUtility') is in dist/MediaUtility
-    installer_path = "Output/MediaUtility_Setup.exe" # Inno Setup default output
+    # Output of PyInstaller with COLLECT(name='Videl') is in dist/Videl
+    installer_path = "Output/Videl_Setup.exe" # Inno Setup default output
     # Check if installer was actually created elsewhere (custom script might use different path)
     if not os.path.exists(installer_path):
-        # installer.iss doesn't specify OutputDir, so it's Output/ by default
-        # but let's be flexible
-        if os.path.exists("installer/MediaUtility_Setup.exe"):
-            installer_path = "installer/MediaUtility_Setup.exe"
+        if os.path.exists("installer/Videl_Setup.exe"):
+            installer_path = "installer/Videl_Setup.exe"
 
-    installer_mb, installed_mb, top10 = measure_sizes("dist/MediaUtility", installer_path)
+    installer_mb, installed_mb, top10 = measure_sizes("dist/Videl", installer_path)
 
     # Step 7: Budget
     check_budget(installer_mb, installed_mb, top10)

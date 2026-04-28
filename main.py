@@ -1,4 +1,4 @@
-"""Entry point for Media Utility (PySide6).
+"""Entry point for Videl (PySide6).
 
 Run with:
     python main.py
@@ -29,6 +29,9 @@ from core.version import VERSION
 from gui.app import MainWindow
 from gui.theme import ThemeManager
 
+import os
+_APP_ICON = os.path.join(os.path.dirname(__file__), "assets", "videl_icon.png")
+
 
 class _DepsChecker(QThread):
     """Background thread that validates runtime dependencies."""
@@ -42,9 +45,11 @@ class _DepsChecker(QThread):
 
 def main() -> None:
     app = QApplication(sys.argv)
-    app.setApplicationName("Media Utility")
+    app.setApplicationName("Videl")
     app.setApplicationVersion(VERSION)
-    app.setOrganizationName("Omniclouds")
+    app.setOrganizationName("Videl")
+    from PySide6.QtGui import QIcon
+    app.setWindowIcon(QIcon(_APP_ICON))
     # Prevent the process from exiting when the last window is hidden to tray.
     app.setQuitOnLastWindowClosed(False)
 

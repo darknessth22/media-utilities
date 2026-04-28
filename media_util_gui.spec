@@ -142,7 +142,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='MediaUtility',
+    name='Videl',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -176,5 +176,5 @@ coll = COLLECT(
         'Qt6MultimediaWidgets.dll', 'Qt6Network.dll', 'Qt6Svg.dll',
         'Qt6SvgWidgets.dll', 'shiboken6.abi3.dll', 'pyside6.abi3.dll'
     ],
-    name='MediaUtility',
+    name='Videl',
 )

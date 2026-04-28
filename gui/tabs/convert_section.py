@@ -41,13 +41,38 @@ from utils.naming import apply_name_template
 
 # ── Format tables ──────────────────────────────────────────────────────────────
 
-_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".heic", ".heif"}
+_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".heic", ".heif", ".ico"}
 _AUDIO_EXTS = {".mp3", ".wav", ".aac", ".flac", ".ogg", ".m4a"}
 _VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv"}
 
-_IMAGE_FORMATS = ["JPG", "PNG", "WEBP", "BMP", "GIF", "HEIC"]
+_IMAGE_FORMATS = ["JPG", "PNG", "WEBP", "BMP", "GIF", "HEIC", "ICO"]
 _AUDIO_FORMATS = ["MP3", "WAV", "AAC", "FLAC", "OGG", "M4A"]
 _VIDEO_FORMATS = ["MP4", "MKV", "AVI", "MOV", "WEBM", "FLV", "MP3"]
+
+_ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
+
+
+def _convert_to_ico(src: str, out_dir: str | None) -> dict:
+    """Convert any image to a multi-size ICO preserving full quality."""
+    from PIL import Image
+    try:
+        out_dir = out_dir or os.path.dirname(src)
+        os.makedirs(out_dir, exist_ok=True)
+        stem = os.path.splitext(os.path.basename(src))[0]
+        dest = os.path.join(out_dir, f"{stem}.ico")
+        img = Image.open(src).convert("RGBA")
+        # Center-crop to square
+        w, h = img.size
+        side = min(w, h)
+        img = img.crop(((w - side) // 2, (h - side) // 2,
+                        (w - side) // 2 + side, (h - side) // 2 + side))
+        # Resize to largest size first; Pillow ICO plugin reads `sizes` param
+        # and downscales from the image — so give it the full-res square.
+        img = img.resize((256, 256), Image.LANCZOS)
+        img.save(dest, format="ICO", sizes=[(s, s) for s in _ICO_SIZES])
+        return {"success": True, "file_path": dest}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
 
 
 def _detect_media_type(path: str) -> str:
@@ -322,6 +347,8 @@ class _SingleConvertView(QWidget):
 
         def do_convert():
             if mt == "image":
+                if fmt.upper() == "ICO":
+                    return _convert_to_ico(src, out_dir)
                 ok = convert_images([src], fmt.lower(), out_dir)
                 if ok:
                     stem = apply_name_template(name_tmpl, src, ext=fmt.lower())
@@ -558,6 +585,13 @@ class _BatchConvertView(QWidget):
         self.status_message.emit(f"Converting {count} image(s)…", False)
 
         def do_batch():
+            if fmt.upper() == "ICO":
+                results = [_convert_to_ico(p, out_dir) for p in paths]
+                failed = [r for r in results if not r.get("success")]
+                if failed:
+                    return {"success": False, "error": failed[0].get("error")}
+                dest_dir = out_dir or os.path.dirname(paths[0])
+                return {"success": True, "count": count, "dest_dir": dest_dir}
             ok = convert_images(paths, fmt.lower(), out_dir)
             if ok:
                 dest_dir = out_dir or os.path.dirname(paths[0])

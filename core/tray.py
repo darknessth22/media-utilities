@@ -17,31 +17,18 @@ from __future__ import annotations
 import os
 
 from PySide6.QtCore import QObject, Signal
-from PySide6.QtGui import QIcon, QPainter, QPixmap
-from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
-_ICONS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "icons")
+_APP_ICON = os.path.join(os.path.dirname(__file__), "..", "assets", "videl_icon.png")
 
 
 def _make_tray_icon(size: int = 22) -> QIcon:
-    """Build a QIcon for the tray from the dashboard SVG, tinted accent-blue."""
-    pixmap = QPixmap(size, size)
-    pixmap.fill(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.GlobalColor.transparent)
-    svg_path = os.path.join(_ICONS_DIR, "dashboard.svg")
-    if os.path.exists(svg_path):
-        try:
-            with open(svg_path, "rb") as fh:
-                svg_text = fh.read().decode("utf-8", errors="replace")
-            svg_text = svg_text.replace("currentColor", "#3B82F6")
-            if "fill=" not in svg_text and "stroke=" not in svg_text:
-                svg_text = svg_text.replace("<svg", '<svg fill="#3B82F6"', 1)
-            renderer = QSvgRenderer(svg_text.encode("utf-8"))
-            painter = QPainter(pixmap)
-            renderer.render(painter)
-            painter.end()
-        except Exception:
-            pass
+    """Build a QIcon for the tray from the Videl PNG icon."""
+    from PySide6.QtCore import Qt
+    pixmap = QPixmap(_APP_ICON)
+    if not pixmap.isNull():
+        pixmap = pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
     return QIcon(pixmap)
 
 
@@ -63,7 +50,7 @@ class SystemTrayIcon(QObject):
         super().__init__(parent)
 
         self._tray = QSystemTrayIcon(_make_tray_icon(), self)
-        self._tray.setToolTip("Media Utility")
+        self._tray.setToolTip("Videl")
 
         # ── Context menu ──────────────────────────────────────────────────────
         menu = QMenu()
