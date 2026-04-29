@@ -4,6 +4,12 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 
 ---
 
+## UI
+
+![Videl GUI](<screen-hui.png>)
+
+---
+
 ## Features
 
 ### Download
