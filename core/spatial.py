@@ -5,8 +5,10 @@ import os
 import subprocess
 import sys
 import tempfile
+import uuid
 
 from utils.ffmpeg import ffmpeg_path, ffprobe_path
+from utils.process_registry import tracked_run
 
 
 def _flags() -> dict:
@@ -45,7 +47,7 @@ def resize_media(src: str, out_dir: str, width: int, height: int) -> dict:
             f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2"
         )
         cmd = [ffmpeg_path, "-y", "-i", src, "-vf", vf, "-c:a", "copy", dest]
-        subprocess.run(cmd, check=True, capture_output=True, timeout=7200, **_flags())
+        tracked_run(cmd, str(uuid.uuid4()), check=True, capture_output=True, timeout=7200, **_flags())
         return {"success": True, "file_path": dest}
     except subprocess.CalledProcessError as exc:
         return {"success": False, "error": exc.stderr.decode(errors="replace").strip()}
@@ -69,7 +71,7 @@ def crop_media(src: str, out_dir: str, width: int, height: int, x: int, y: int) 
         dest = os.path.join(out_dir, f"{base}_cropped{ext}")
         vf = f"crop={width}:{height}:{x}:{y}"
         cmd = [ffmpeg_path, "-y", "-i", src, "-vf", vf, "-c:a", "copy", dest]
-        subprocess.run(cmd, check=True, capture_output=True, timeout=7200, **_flags())
+        tracked_run(cmd, str(uuid.uuid4()), check=True, capture_output=True, timeout=7200, **_flags())
         return {"success": True, "file_path": dest}
     except subprocess.CalledProcessError as exc:
         return {"success": False, "error": exc.stderr.decode(errors="replace").strip()}
@@ -99,7 +101,7 @@ def rotate_flip_chain(src: str, out_dir: str, ops: list[str]) -> dict:
         os.makedirs(out_dir, exist_ok=True)
         dest = os.path.join(out_dir, f"{base}_transformed{ext}")
         cmd = [ffmpeg_path, "-y", "-i", src, "-vf", ",".join(vf_parts), "-c:a", "copy", dest]
-        subprocess.run(cmd, check=True, capture_output=True, timeout=7200, **_flags())
+        tracked_run(cmd, str(uuid.uuid4()), check=True, capture_output=True, timeout=7200, **_flags())
         return {"success": True, "file_path": dest}
     except subprocess.CalledProcessError as exc:
         return {"success": False, "error": exc.stderr.decode(errors="replace").strip()}
@@ -128,7 +130,7 @@ def rotate_flip_media(src: str, out_dir: str, operation: str) -> dict:
         os.makedirs(out_dir, exist_ok=True)
         dest = os.path.join(out_dir, f"{base}_{operation}{ext}")
         cmd = [ffmpeg_path, "-y", "-i", src, "-vf", vf, "-c:a", "copy", dest]
-        subprocess.run(cmd, check=True, capture_output=True, timeout=7200, **_flags())
+        tracked_run(cmd, str(uuid.uuid4()), check=True, capture_output=True, timeout=7200, **_flags())
         return {"success": True, "file_path": dest}
     except subprocess.CalledProcessError as exc:
         return {"success": False, "error": exc.stderr.decode(errors="replace").strip()}

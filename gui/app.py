@@ -476,6 +476,7 @@ class SettingsSection(QScrollArea):
         spotify_card = self._build_spotify_card()
         spotify_card.setVisible(False)
         layout.addWidget(spotify_card)
+        layout.addWidget(self._build_tools_card())
 
         self.setWidget(content)
 
@@ -789,6 +790,67 @@ class SettingsSection(QScrollArea):
         layout.addWidget(self._spotify_secret_input)
 
         return card
+
+    def _build_tools_card(self) -> QFrame:
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(14)
+
+        layout.addWidget(self._section_header("TOOLS"))
+
+        row = QHBoxLayout()
+        lbl = QLabel("yt-dlp")
+        lbl.setObjectName("TextSecondary")
+        row.addWidget(lbl)
+        hint = QLabel("Update the download engine to the latest version.")
+        hint.setObjectName("TextMuted")
+        hint.setStyleSheet("font-size: 12px;")
+        row.addWidget(hint, 1)
+        self._ytdlp_btn = QPushButton("Update yt-dlp")
+        self._ytdlp_btn.setFixedWidth(140)
+        self._ytdlp_btn.clicked.connect(self._on_update_ytdlp)
+        row.addWidget(self._ytdlp_btn)
+        layout.addLayout(row)
+
+        self._ytdlp_status = QLabel("")
+        self._ytdlp_status.setObjectName("TextMuted")
+        self._ytdlp_status.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._ytdlp_status)
+
+        return card
+
+    def _on_update_ytdlp(self) -> None:
+        from gui.worker import Worker
+        import sys
+
+        self._ytdlp_btn.setEnabled(False)
+        self._ytdlp_status.setText("Updating…")
+
+        def _run_update():
+            import subprocess
+            result = subprocess.run(
+                [sys.executable, "-m", "yt_dlp", "-U"],
+                capture_output=True, text=True, timeout=120,
+            )
+            return result.stdout + result.stderr
+
+        def _on_done(output: str) -> None:
+            self._ytdlp_btn.setEnabled(True)
+            if "up-to-date" in output.lower() or "updated" in output.lower() or output.strip():
+                last_line = [l for l in output.strip().splitlines() if l.strip()]
+                self._ytdlp_status.setText((last_line[-1] if last_line else "Done.").strip())
+            else:
+                self._ytdlp_status.setText("Update complete.")
+
+        def _on_error(exc_tuple) -> None:
+            self._ytdlp_btn.setEnabled(True)
+            self._ytdlp_status.setText(f"Error: {exc_tuple[1]}")
+
+        self._ytdlp_worker = Worker(_run_update)
+        self._ytdlp_worker.signals.result.connect(_on_done)
+        self._ytdlp_worker.signals.error.connect(_on_error)
+        self._ytdlp_worker.start()
 
     # ── Control handlers (all auto-save) ──────────────────────────────────────
 

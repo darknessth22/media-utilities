@@ -4,12 +4,17 @@ import os
 import re
 import subprocess
 import sys
+import uuid
 from urllib.request import Request, urlopen
 
 from core.version import VERSION
 from yt_dlp import YoutubeDL
 
 from utils.ffmpeg import ffmpeg_path, ffprobe_path
+from utils.process_registry import tracked_run
+from utils.app_logger import get_logger
+
+_log = get_logger()
 
 _WIN_FLAGS = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
 
@@ -128,10 +133,11 @@ def _finalize_downloaded_file(
             "-of", "json", downloaded_file,
         ]
         try:
-            codec_info = json.loads(subprocess.check_output(info_cmd, text=True, timeout=60, **_WIN_FLAGS))
+            _job = str(uuid.uuid4())
+            _r = tracked_run(info_cmd, _job, capture_output=True, text=True, timeout=60, **_WIN_FLAGS)
+            codec_info = json.loads(_r.stdout)
             stream_info = codec_info.get("streams", [{}])[0]
             current_codec = stream_info.get("codec_name", "").lower()
-            print(f"Video codec: {current_codec}")
 
             if video_codec == "original":
                 is_target = True
@@ -165,7 +171,7 @@ def _finalize_downloaded_file(
                 if video_codec == "libx264":
                     cmd[-2:-2] = ["-profile:v", "main", "-level", "4.0", "-pix_fmt", "yuv420p"]
 
-                subprocess.run(cmd, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
+                tracked_run(cmd, _job, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
                 if os.path.exists(temp_file):
                     os.remove(downloaded_file)
                     os.rename(temp_file, downloaded_file)
@@ -173,7 +179,7 @@ def _finalize_downloaded_file(
             else:
                 print(f"Video is already {current_codec} (match) — no conversion needed")
         except Exception as e:
-            print(f"Codec check/conversion failed: {e}")
+            _log.error("Codec check/conversion failed: %s", e)
 
     if os.path.exists(downloaded_file):
         return os.path.getsize(downloaded_file)
@@ -210,7 +216,7 @@ def _scrape_spotify_track(url: str) -> tuple[str, str] | None:
                 artist = parts[1]
         return track_title, artist
     except Exception as e:
-        print(f"Spotify scrape error: {e}")
+        _log.warning("Spotify scrape error: %s", e)
         return None
 
 
@@ -284,11 +290,11 @@ def _reencode_video_audio(filepath: str, audio_codec: str) -> str:
     tmp = f"{base}_audiofmt{ext}"
     cmd = [ffmpeg_path, "-y", "-i", filepath, "-c:v", "copy", "-c:a", audio_codec, tmp]
     try:
-        subprocess.run(cmd, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
+        tracked_run(cmd, str(uuid.uuid4()), check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
         os.remove(filepath)
         os.rename(tmp, filepath)
     except Exception as e:
-        print(f"Audio re-encode failed: {e}")
+        _log.error("Audio re-encode failed: %s", e)
         try:
             os.remove(tmp)
         except OSError:
@@ -463,7 +469,7 @@ def download_media(
 
         return {"success": True, "file_path": downloaded_file, "file_size": final_size, "error_code": None, "warning": None}
     except Exception as e:
-        print(f"Error downloading: {e}")
+        _log.error("Download error: %s", e)
         return {"success": False, "file_path": None, "file_size": None, "error_code": None, "warning": None}
 
 
