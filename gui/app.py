@@ -23,10 +23,10 @@ from typing import Optional
 
 import math
 
-from PySide6.QtCore import Qt, QPoint, QTimer, Signal
-from PySide6.QtGui import QColor, QPixmap, QPainter
+from PySide6.QtCore import Qt, QPoint, QTimer, Signal, QPropertyAnimation, QEasingCurve, Property
+from PySide6.QtGui import QColor, QPixmap, QPainter, QPen
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtWidgets import QGraphicsDropShadowEffect
+from PySide6.QtWidgets import QGraphicsDropShadowEffect, QAbstractButton
 from PySide6.QtWidgets import (
     QMainWindow, QDialog, QWidget, QFrame,
     QHBoxLayout, QVBoxLayout,
@@ -53,7 +53,83 @@ from gui.tabs.tutorial_section import TutorialSection
 from gui.tabs.scrub_section import ScrubSection
 from gui.tabs.chunk_section import ChunkSection
 from gui.tabs.watermark_section import WatermarkSection
+from gui.tabs.frame_grabber_section import FrameGrabberSection
+from gui.tabs.palette_section import PaletteSection
+from gui.tabs.bg_eraser_section import BgEraserSection
 from gui.pages.home_page import HomePage, ToolsPage
+
+# ── Animated toggle switch ───────────────────────────────────────────────────
+
+class ToggleSwitchButton(QAbstractButton):
+    """Pill-shaped toggle with a sliding knob, animated via QPropertyAnimation."""
+
+    _DARK_ON   = QColor("#3B82F6")
+    _DARK_OFF  = QColor("#1B2F4C")
+    _LIGHT_ON  = QColor("#2563EB")
+    _LIGHT_OFF = QColor("#D0D7DE")
+    _KNOB_LEFT  = 3.0
+    _KNOB_RIGHT = 23.0  # 44 - 18 - 3
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setCheckable(True)
+        self.setFixedSize(44, 24)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._knob_x: float = self._KNOB_LEFT
+        self._is_dark = True
+
+        self._anim = QPropertyAnimation(self, b"knob_x", self)
+        self._anim.setDuration(180)
+        self._anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+
+        self.toggled.connect(self._on_toggled)
+
+    def _get_knob_x(self) -> float:
+        return self._knob_x
+
+    def _set_knob_x(self, val: float) -> None:
+        self._knob_x = val
+        self.update()
+
+    knob_x = Property(float, _get_knob_x, _set_knob_x)
+
+    def set_dark_mode(self, dark: bool) -> None:
+        self._is_dark = dark
+        self.update()
+
+    def _on_toggled(self, checked: bool) -> None:
+        self._anim.stop()
+        self._anim.setStartValue(self._knob_x)
+        self._anim.setEndValue(self._KNOB_RIGHT if checked else self._KNOB_LEFT)
+        self._anim.start()
+
+    def setChecked(self, checked: bool) -> None:
+        super().setChecked(checked)
+        self._knob_x = self._KNOB_RIGHT if checked else self._KNOB_LEFT
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+
+        track_on  = self._DARK_ON  if self._is_dark else self._LIGHT_ON
+        track_off = self._DARK_OFF if self._is_dark else self._LIGHT_OFF
+
+        # Interpolate track color based on knob position
+        t = (self._knob_x - self._KNOB_LEFT) / (self._KNOB_RIGHT - self._KNOB_LEFT)
+        t = max(0.0, min(1.0, t))
+        r = int(track_off.red()   + t * (track_on.red()   - track_off.red()))
+        g = int(track_off.green() + t * (track_on.green() - track_off.green()))
+        b = int(track_off.blue()  + t * (track_on.blue()  - track_off.blue()))
+        p.setBrush(QColor(r, g, b))
+        p.drawRoundedRect(0, 0, 44, 24, 12, 12)
+
+        # Knob
+        p.setBrush(QColor("#FFFFFF"))
+        p.drawEllipse(int(self._knob_x), 3, 18, 18)
+        p.end()
+
 
 # ── Asset path ────────────────────────────────────────────────────────────────
 _ICONS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "icons")
@@ -146,6 +222,27 @@ _SECTIONS = [
         "icon": "watermark.svg",
         "tabs": ["BATCH WATERMARK"],
         "action_label": "Watermark",
+    },
+    {
+        "id": "frame_grabber",
+        "label": "Frame Grabber",
+        "icon": "frame.svg",
+        "tabs": ["GRAB FRAME"],
+        "action_label": "Grab Frame",
+    },
+    {
+        "id": "palette",
+        "label": "Hex Palette",
+        "icon": "palette.svg",
+        "tabs": ["EXTRACT PALETTE", "COLOR WHEEL"],
+        "action_label": "Extract",
+    },
+    {
+        "id": "bg_eraser",
+        "label": "BG Eraser",
+        "icon": "bg_eraser.svg",
+        "tabs": ["REMOVE BACKGROUND"],
+        "action_label": "Remove Background",
     },
     {
         "id": "history",
@@ -307,7 +404,7 @@ class TitleBar(QWidget):
 
         menu.addSeparator()
         settings_act = menu.addAction("Settings")
-        settings_act.triggered.connect(lambda: win._navigate_to(13))
+        settings_act.triggered.connect(lambda: win._navigate_to(16))
 
         menu.addSeparator()
         from PySide6.QtWidgets import QApplication
@@ -339,7 +436,7 @@ class TitleBar(QWidget):
             act.setEnabled(False)
         menu.addSeparator()
         see_act = menu.addAction("See full guide →  How to Use")
-        see_act.triggered.connect(lambda: self.window()._navigate_to(14))
+        see_act.triggered.connect(lambda: self.window()._navigate_to(17))
 
         pos = self._btn_shortcuts.mapToGlobal(self._btn_shortcuts.rect().bottomLeft())
         menu.exec(pos)
@@ -995,6 +1092,12 @@ class SettingsSection(QScrollArea):
 
         self._update_template_preview(settings.output_name_template)
 
+    def sync_theme(self, mode: str) -> None:
+        """Update theme combo without triggering _on_theme_changed."""
+        self._theme_combo.blockSignals(True)
+        self._theme_combo.setCurrentIndex({"auto": 0, "light": 1, "dark": 2}.get(mode, 0))
+        self._theme_combo.blockSignals(False)
+
 
 # ── Welcome dialog (first launch) ────────────────────────────────────────────
 
@@ -1159,7 +1262,7 @@ class MainWindow(QMainWindow):
         # ── System tray (T018 / T020) ─────────────────────────────────────────
         self._tray = SystemTrayIcon(self)
         self._tray.restore_requested.connect(self._restore_from_tray)
-        self._tray.settings_requested.connect(lambda: self._navigate_to(13))
+        self._tray.settings_requested.connect(lambda: self._navigate_to(16))
         self._tray.quit_requested.connect(self._quit_from_tray)
 
         # ── Central widget ────────────────────────────────────────────────────
@@ -1290,8 +1393,8 @@ class MainWindow(QMainWindow):
 
         self._home_nav_btn.clicked.connect(self._go_home)
         self._tools_nav_btn.clicked.connect(self._go_tools)
-        self._settings_nav_btn.clicked.connect(lambda: self._navigate_to(13))
-        self._help_nav_btn.clicked.connect(lambda: self._navigate_to(14))
+        self._settings_nav_btn.clicked.connect(lambda: self._navigate_to(16))
+        self._help_nav_btn.clicked.connect(lambda: self._navigate_to(17))
 
         for btn in (self._home_nav_btn, self._tools_nav_btn,
                     self._settings_nav_btn, self._help_nav_btn):
@@ -1333,11 +1436,7 @@ class MainWindow(QMainWindow):
         dm_layout.addWidget(dm_label)
         dm_layout.addStretch()
 
-        self._dm_toggle = QPushButton()
-        self._dm_toggle.setObjectName("DarkModeToggle")
-        self._dm_toggle.setCheckable(True)
-        self._dm_toggle.setFixedSize(44, 24)
-        self._dm_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._dm_toggle = ToggleSwitchButton()
         self._dm_toggle.setChecked(self.theme_manager.is_dark_mode())
         self._dm_toggle.toggled.connect(self._on_dm_toggle)
         dm_layout.addWidget(self._dm_toggle)
@@ -1346,7 +1445,20 @@ class MainWindow(QMainWindow):
         return sidebar
 
     def _on_dm_toggle(self, checked: bool) -> None:
-        self.theme_manager.set_mode("dark" if checked else "light")
+        mode = "dark" if checked else "light"
+        self.settings.theme_mode = mode
+        self.theme_manager.set_mode(mode)
+        SettingsManager.save(self.settings)
+
+    def _on_theme_mode_changed(self, mode: str) -> None:
+        """Sync sidebar toggle and settings combo when theme changes from any source."""
+        want_dark = mode == "dark"
+        self._dm_toggle.set_dark_mode(want_dark)
+        if self._dm_toggle.isChecked() != want_dark:
+            self._dm_toggle.blockSignals(True)
+            self._dm_toggle.setChecked(want_dark)
+            self._dm_toggle.blockSignals(False)
+        self._settings_section_widget.sync_theme(mode)
 
     # ── T010: Right panel ─────────────────────────────────────────────────────
 
@@ -1390,6 +1502,9 @@ class MainWindow(QMainWindow):
         self._scrub_section = ScrubSection(self.settings)
         self._chunk_section = ChunkSection(self.settings)
         self._watermark_section = WatermarkSection(self.settings)
+        self._frame_grabber_section = FrameGrabberSection(self.settings)
+        self._palette_section = PaletteSection(self.settings)
+        self._bg_eraser_section = BgEraserSection(self.settings)
         self._history_section = HistorySection()
         self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
@@ -1408,9 +1523,12 @@ class MainWindow(QMainWindow):
             self._scrub_section,            # index 9 — metadata scrubber
             self._chunk_section,            # index 10 — auto-chunker
             self._watermark_section,        # index 11 — batch watermark
-            self._history_section,          # index 12 — history
-            self._settings_section_widget,  # index 13 — settings
-            self._tutorial_section,         # index 14 — how to use
+            self._frame_grabber_section,    # index 12 — frame grabber
+            self._palette_section,          # index 13 — hex palette
+            self._bg_eraser_section,        # index 14 — bg eraser
+            self._history_section,          # index 15 — history
+            self._settings_section_widget,  # index 16 — settings
+            self._tutorial_section,         # index 17 — how to use
         ]
 
         # Connect status signals from all operation sections.
@@ -1426,8 +1544,11 @@ class MainWindow(QMainWindow):
             self._spatial_section,    # index 7
             self._mux_section,        # index 8
             self._scrub_section,      # index 9
-            self._chunk_section,      # index 10
-            self._watermark_section,  # index 11
+            self._chunk_section,          # index 10
+            self._watermark_section,      # index 11
+            self._frame_grabber_section,  # index 12
+            self._palette_section,        # index 13
+            self._bg_eraser_section,      # index 14
         )
         for section in _op_sections:
             section.status_message.connect(self._on_status_message)
@@ -1441,17 +1562,20 @@ class MainWindow(QMainWindow):
         # queue_changed → update queue badge in title bar
         self._download_section.queue_changed.connect(self._on_queue_changed)
 
+        # theme_changed → keep sidebar toggle and settings combo in sync
+        self.theme_manager.theme_changed.connect(self._on_theme_mode_changed)
+
         for widget in self._section_widgets:
             self._content_stack.addWidget(widget)
 
-        # Home and Tools pages (indices 12 and 13 in the stack)
+        # Home and Tools pages (indices 17 and 18 in the stack)
         self._home_page = HomePage(
             navigate_cb=self._navigate_from_card,
             show_tools_cb=self._go_tools,
         )
         self._tools_page = ToolsPage(navigate_cb=self._navigate_from_card)
-        self._content_stack.addWidget(self._home_page)   # index 15
-        self._content_stack.addWidget(self._tools_page)  # index 16
+        self._content_stack.addWidget(self._home_page)   # index 18
+        self._content_stack.addWidget(self._tools_page)  # index 19
 
         # Separator above primary action button
         sep2 = QFrame()
@@ -1485,14 +1609,14 @@ class MainWindow(QMainWindow):
         self._current_section = index
 
         # Refresh history whenever the history section is activated
-        if index == 12:
+        if index == 15:
             self._history_section.refresh()
 
-        # Update sidebar: settings (13) and help (14) highlight their buttons;
+        # Update sidebar: settings (16) and help (17) highlight their buttons;
         # all other tool sections show no sidebar button active.
-        if index == 13:
+        if index == 16:
             self._set_sidebar_active(self._settings_nav_btn)
-        elif index == 14:
+        elif index == 17:
             self._set_sidebar_active(self._help_nav_btn)
         else:
             self._set_sidebar_active(None)
@@ -1523,14 +1647,14 @@ class MainWindow(QMainWindow):
     def _go_home(self) -> None:
         """Switch to the Home Dashboard page."""
         self._set_sidebar_active(self._home_nav_btn)
-        self._content_stack.setCurrentIndex(15)
+        self._content_stack.setCurrentIndex(18)
         self._section_tab_bar.setVisible(False)
         self._action_btn_container.setVisible(False)
 
     def _go_tools(self) -> None:
         """Switch to the Tools Grid page."""
         self._set_sidebar_active(self._tools_nav_btn)
-        self._content_stack.setCurrentIndex(16)
+        self._content_stack.setCurrentIndex(19)
         self._section_tab_bar.setVisible(False)
         self._action_btn_container.setVisible(False)
 
@@ -1549,7 +1673,7 @@ class MainWindow(QMainWindow):
 
     def _show_welcome(self) -> None:
         dlg = WelcomeDialog(self)
-        dlg.go_to_tutorial.connect(lambda: self._navigate_to(14))
+        dlg.go_to_tutorial.connect(lambda: self._navigate_to(17))
         # Center over the main window
         geo = self.geometry()
         dlg.move(
@@ -1812,6 +1936,7 @@ class MainWindow(QMainWindow):
         quit_on_close=False → hide the window and show the system tray icon so
                               the app continues running in the background.
         """
+        SettingsManager.save(self.settings)
         if self.settings.quit_on_close:
             self._tray.hide()
             event.accept()

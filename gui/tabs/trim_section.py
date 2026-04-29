@@ -860,6 +860,18 @@ class TrimSection(QScrollArea):
         dlg.exec()
         self._player.setPosition(dlg.get_position())
 
+    # ── Visibility ─────────────────────────────────────────────────────────────
+
+    def showEvent(self, event) -> None:
+        if _MULTIMEDIA_AVAILABLE and hasattr(self, "_pos_timer") and self._duration_ms:
+            self._pos_timer.start()
+        super().showEvent(event)
+
+    def hideEvent(self, event) -> None:
+        if _MULTIMEDIA_AVAILABLE and hasattr(self, "_pos_timer"):
+            self._pos_timer.stop()
+        super().hideEvent(event)
+
     # ── Primary action ─────────────────────────────────────────────────────────
 
     def trigger_primary_action(self) -> None:

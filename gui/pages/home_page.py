@@ -31,8 +31,11 @@ _TOOL_COLOR: dict[str, str] = {
     "document":  "#38BDF8",  # sky-400 — light cyan-blue
     "scrub":     "#7C3AED",  # violet-600 — deep purple, distinct from merge
     "chunk":     "#06B6D4",  # cyan-500 — pure cyan
-    "watermark": "#0E7490",  # cyan-700 — deep teal
-    "history":   "#6B7280",  # gray
+    "watermark":     "#0E7490",  # cyan-700 — deep teal
+    "frame_grabber": "#8B5CF6",  # violet-500
+    "palette":       "#F43F5E",  # rose-500
+    "bg_eraser":     "#10B981",  # emerald-500
+    "history":       "#6B7280",  # gray
 }
 
 # All tools (for ToolsPage)
@@ -48,8 +51,11 @@ _ALL_TOOLS: list[tuple[str, str, str, str, int]] = [
     ("document",  "document.svg", "Document Convert",  "Convert documents between\nformats.",                    3),
     ("scrub",     "scrub.svg",     "Metadata Scrubber", "Strip GPS, timestamps and\nEXIF data from media.",  9),
     ("chunk",     "chunk.svg",     "Auto-Chunker",      "Split files by duration\nor size (stream copy).", 10),
-    ("watermark", "watermark.svg", "Batch Watermark",   "Stamp logos or text across\nan entire directory.", 11),
-    ("history",   "history.svg", "History",           "View past operations\nand results.",                    12),
+    ("watermark",     "watermark.svg", "Batch Watermark",   "Stamp logos or text across\nan entire directory.", 11),
+    ("frame_grabber", "frame.svg",    "Frame Grabber",     "Extract lossless frames as\nPNG or 16-bit TIFF.",    12),
+    ("palette",       "palette.svg",    "Hex Palette",        "Analyze dominant colors and\nexport hex swatches.",   13),
+    ("bg_eraser",     "bg_eraser.svg",  "BG Eraser",          "Remove backgrounds from\nphotos offline with AI.",  14),
+    ("history",       "history.svg",    "History",            "View past operations\nand results.",                 15),
 ]
 
 # 7 tools shown on Home, then "+ More Tools" card

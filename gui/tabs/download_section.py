@@ -1032,6 +1032,19 @@ class DownloadSection(QScrollArea):
         _, msg, _ = err_tuple
         self.status_message.emit(f"Format check failed: {msg}", True)
 
+    # ── Visibility ─────────────────────────────────────────────────────────────
+
+    def showEvent(self, event) -> None:
+        if _MULTIMEDIA_AVAILABLE and hasattr(self, "_pos_timer") and hasattr(self, "_player"):
+            if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+                self._pos_timer.start()
+        super().showEvent(event)
+
+    def hideEvent(self, event) -> None:
+        if _MULTIMEDIA_AVAILABLE and hasattr(self, "_pos_timer"):
+            self._pos_timer.stop()
+        super().hideEvent(event)
+
     # ── Queue management ───────────────────────────────────────────────────────
 
     def trigger_primary_action(self) -> None:
