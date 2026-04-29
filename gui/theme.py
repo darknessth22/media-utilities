@@ -2,10 +2,10 @@ from PySide6.QtCore import Qt, QObject, Signal
 
 # ── Design tokens (Slate-Blue palette, per spec Visual Design System) ─────────
 # Dark mode tokens
-# --bg-base:           #0D1117   window background, title bar
-# --bg-sidebar:        #161B22   sidebar background
-# --bg-surface:        #1C2333   card / panel background
-# --bg-surface-raised: #21262D   elevated card, input background
+# --bg-base:           #0A1020   window background, title bar
+# --bg-sidebar:        #0D1830   sidebar background
+# --bg-surface:        #111C38   card / panel background
+# --bg-surface-raised: #162040   elevated card, input background
 # --accent-primary:    #3B82F6   active nav, primary button, selected chips
 # --accent-hover:      #2563EB   hover state
 # --accent-subtle:     rgba(59,130,246,0.12)  →  rgba(59,130,246,31) in QSS
@@ -13,7 +13,7 @@ from PySide6.QtCore import Qt, QObject, Signal
 # --text-primary:      #E6EDF3
 # --text-secondary:    #8B949E
 # --text-muted:        #484F58
-# --border:            #30363D
+# --border:            #1B2F4C
 # --status-success:    #3FB950
 # --status-error:      #F85149
 # --status-warning:    #D29922
@@ -21,12 +21,12 @@ from PySide6.QtCore import Qt, QObject, Signal
 DARK_THEME_QSS = """
 /* ── Base ─────────────────────────────────────────────────────────────── */
 QWidget {
-    background-color: #0D1117;
+    background-color: #0A1020;
     color: #E6EDF3;
     font-size: 13px;
 }
 QMainWindow, QDialog {
-    background-color: #0D1117;
+    background-color: #0A1020;
 }
 
 /* Labels must be transparent so they don't paint over their parent card. */
@@ -41,7 +41,7 @@ QRadioButton {
 
 /* ── Title bar ────────────────────────────────────────────────────────── */
 #TitleBar {
-    background-color: #0D1117;
+    background-color: #0A1020;
 }
 #TitleLabel {
     color: #E6EDF3;
@@ -57,7 +57,7 @@ QPushButton#TitleBarBtn {
     font-size: 14px;
 }
 QPushButton#TitleBarBtn:hover {
-    background-color: #21262D;
+    background-color: #162040;
     color: #E6EDF3;
 }
 QPushButton#CloseBtn:hover {
@@ -74,11 +74,11 @@ QLabel#BellBadge {
 
 /* ── Sidebar ──────────────────────────────────────────────────────────── */
 #Sidebar {
-    background-color: #161B22;
-    border-right: 1px solid #30363D;
+    background-color: #0D1830;
+    border-right: 1px solid #1B2F4C;
 }
 #SidebarHeader {
-    background-color: #161B22;
+    background-color: #0D1830;
 }
 #SidebarTitle {
     color: #E6EDF3;
@@ -120,14 +120,14 @@ QPushButton#NavButton[active="true"] #NavButtonLabel {
 
 /* ── Separator ────────────────────────────────────────────────────────── */
 #Separator {
-    background-color: #30363D;
+    background-color: #1B2F4C;
     max-height: 1px;
     border: none;
 }
 
 /* ── Section tab bar ──────────────────────────────────────────────────── */
 QTabBar#SectionTabBar {
-    background-color: #0D1117;
+    background-color: #0A1020;
 }
 QTabBar#SectionTabBar::tab {
     background-color: transparent;
@@ -150,19 +150,19 @@ QTabBar#SectionTabBar::tab:hover:!selected {
 
 /* ── Content / right panel ────────────────────────────────────────────── */
 #RightPanel {
-    background-color: #0D1117;
+    background-color: #0A1020;
 }
 #ContentStack {
-    background-color: #0D1117;
+    background-color: #0A1020;
 }
 #ActionBtnContainer {
-    background-color: #0D1117;
+    background-color: #0A1020;
 }
 
 /* ── Card ─────────────────────────────────────────────────────────────── */
 #Card {
-    background-color: #1C2333;
-    border: 1px solid #30363D;
+    background-color: #111C38;
+    border: 1px solid #1B2F4C;
     border-radius: 10px;
 }
 #CardTitle {
@@ -188,7 +188,7 @@ QPushButton#PrimaryActionBtn:pressed {
     background-color: #1D4ED8;
 }
 QPushButton#PrimaryActionBtn:disabled {
-    background-color: #30363D;
+    background-color: #1B2F4C;
     color: #484F58;
 }
 
@@ -196,7 +196,7 @@ QPushButton#PrimaryActionBtn:disabled {
 QPushButton#BrowseBtn {
     background-color: transparent;
     color: #8B949E;
-    border: 1px solid #30363D;
+    border: 1px solid #1B2F4C;
     border-radius: 6px;
     padding: 6px 12px;
     font-size: 13px;
@@ -208,8 +208,8 @@ QPushButton#BrowseBtn:hover {
 
 /* ── Inputs ───────────────────────────────────────────────────────────── */
 QLineEdit {
-    background-color: #21262D;
-    border: 1px solid #30363D;
+    background-color: #162040;
+    border: 1px solid #1B2F4C;
     border-radius: 20px;
     padding: 6px 14px;
     color: #E6EDF3;
@@ -224,8 +224,8 @@ QLineEdit::placeholder {
 
 /* ── ComboBox ─────────────────────────────────────────────────────────── */
 QComboBox {
-    background-color: #21262D;
-    border: 1px solid #30363D;
+    background-color: #162040;
+    border: 1px solid #1B2F4C;
     border-radius: 6px;
     padding: 6px 12px;
     color: #E6EDF3;
@@ -242,8 +242,8 @@ QComboBox::down-arrow {
     height: 12px;
 }
 QComboBox QAbstractItemView {
-    background-color: #161B22;
-    border: 1px solid #30363D;
+    background-color: #0D1830;
+    border: 1px solid #1B2F4C;
     selection-background-color: rgba(59, 130, 246, 31);
     color: #E6EDF3;
     outline: none;
@@ -258,9 +258,9 @@ QCheckBox {
 QCheckBox::indicator {
     width: 18px;
     height: 18px;
-    border: 1px solid #30363D;
+    border: 1px solid #1B2F4C;
     border-radius: 4px;
-    background-color: #21262D;
+    background-color: #162040;
 }
 QCheckBox::indicator:checked {
     background-color: #3B82F6;
@@ -272,7 +272,7 @@ QCheckBox::indicator:hover {
 
 /* ── Progress bar ─────────────────────────────────────────────────────── */
 QProgressBar {
-    background-color: #21262D;
+    background-color: #162040;
     border: none;
     border-radius: 4px;
     max-height: 6px;
@@ -285,9 +285,9 @@ QProgressBar::chunk {
 
 /* ── Status bar ───────────────────────────────────────────────────────── */
 QStatusBar {
-    background-color: #0D1117;
+    background-color: #0A1020;
     color: #8B949E;
-    border-top: 1px solid #30363D;
+    border-top: 1px solid #1B2F4C;
     font-size: 12px;
 }
 QStatusBar::item {
@@ -296,13 +296,13 @@ QStatusBar::item {
 
 /* ── Scroll bars ──────────────────────────────────────────────────────── */
 QScrollBar:vertical {
-    background-color: #0D1117;
+    background-color: #0A1020;
     width: 8px;
     border-radius: 4px;
     margin: 0;
 }
 QScrollBar::handle:vertical {
-    background-color: #30363D;
+    background-color: #1B2F4C;
     border-radius: 4px;
     min-height: 24px;
 }
@@ -315,13 +315,13 @@ QScrollBar::sub-line:vertical {
     background: none;
 }
 QScrollBar:horizontal {
-    background-color: #0D1117;
+    background-color: #0A1020;
     height: 8px;
     border-radius: 4px;
     margin: 0;
 }
 QScrollBar::handle:horizontal {
-    background-color: #30363D;
+    background-color: #1B2F4C;
     border-radius: 4px;
     min-width: 24px;
 }
@@ -336,7 +336,7 @@ QScrollBar::sub-line:horizontal {
 
 /* ── Sliders (scrubber + volume) ──────────────────────────────────────── */
 QSlider::groove:horizontal {
-    background-color: #21262D;
+    background-color: #162040;
     border: none;
     height: 4px;
     border-radius: 2px;
@@ -357,10 +357,10 @@ QSlider::handle:horizontal:hover {
     background-color: #2563EB;
 }
 QSlider::handle:horizontal:disabled {
-    background-color: #30363D;
+    background-color: #1B2F4C;
 }
 QSlider::sub-page:horizontal:disabled {
-    background-color: #30363D;
+    background-color: #1B2F4C;
 }
 
 /* ── Scroll area ──────────────────────────────────────────────────────── */
@@ -421,7 +421,7 @@ QPushButton#ChipBtn:checked:focus {
 QPushButton#SecondaryBtn {
     background-color: transparent;
     color: #8B949E;
-    border: 1px solid #30363D;
+    border: 1px solid #1B2F4C;
     border-radius: 6px;
     padding: 6px 14px;
     font-size: 13px;
@@ -449,13 +449,13 @@ QPushButton#DangerBtn:pressed {
 }
 QPushButton#DangerBtn:disabled {
     color: #484F58;
-    border-color: #30363D;
+    border-color: #1B2F4C;
 }
 
 /* ── Menu ─────────────────────────────────────────────────────────────── */
 QMenu {
-    background-color: #161B22;
-    border: 1px solid #30363D;
+    background-color: #0D1830;
+    border: 1px solid #1B2F4C;
     border-radius: 6px;
     padding: 4px;
 }
@@ -469,9 +469,123 @@ QMenu::item:selected {
     color: #3B82F6;
 }
 QMenu::separator {
-    background-color: #30363D;
+    background-color: #1B2F4C;
     height: 1px;
     margin: 4px 8px;
+}
+
+/* ── Home / Tools pages ───────────────────────────────────────────────── */
+/* HeroBanner is fully custom-painted — QSS intentionally transparent */
+#HeroBanner {
+    background: transparent;
+    border: none;
+}
+#HeroSubtitle {
+    color: #8B949E;
+    font-size: 13px;
+}
+#SectionLabel {
+    color: #484F58;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+#PageHeader {
+    color: #E6EDF3;
+    font-size: 22px;
+    font-weight: bold;
+}
+
+/* ── More Tools card ──────────────────────────────────────────────────── */
+#MoreToolsCard {
+    background-color: #0F1B35;
+    border: 1px dashed #1B2F4C;
+    border-radius: 16px;
+    min-height: 140px;
+}
+#MoreToolsCard:hover {
+    background-color: #111C38;
+    border-color: rgba(59, 130, 246, 102);
+    border-style: solid;
+}
+
+/* ── Quick Access cards ───────────────────────────────────────────────── */
+#QuickCard {
+    background-color: #0F1B35;
+    border: 1px solid #1B2F4C;
+    border-radius: 12px;
+}
+#QuickCard:hover {
+    background-color: #111C38;
+    border-color: rgba(59, 130, 246, 102);
+}
+#QuickCardTitle {
+    color: #E6EDF3;
+    font-size: 13px;
+    font-weight: bold;
+}
+#QuickCardSub {
+    color: #8B949E;
+    font-size: 11px;
+}
+#ViewAllCard {
+    background-color: #0F1B35;
+    border: 1px solid #1B2F4C;
+    border-radius: 12px;
+}
+#ViewAllCard:hover {
+    background-color: #111C38;
+    border-color: rgba(59, 130, 246, 102);
+}
+#ViewAllLabel {
+    color: #8B949E;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+/* ── Tool cards ───────────────────────────────────────────────────────── */
+#ToolCard {
+    background-color: #0F1B35;
+    border: 1px solid #1B2F4C;
+    border-radius: 16px;
+    min-height: 140px;
+}
+#ToolCard:hover {
+    background-color: #111C38;
+    border-color: rgba(59, 130, 246, 102);
+}
+#ToolCardTitle {
+    color: #E6EDF3;
+    font-size: 14px;
+    font-weight: bold;
+}
+#ToolCardDesc {
+    color: #8B949E;
+    font-size: 12px;
+}
+
+/* ── Dark mode toggle (sidebar) ───────────────────────────────────────── */
+#DarkModeRow {
+    background-color: #0D1830;
+}
+#DarkModeLabel {
+    color: #8B949E;
+    font-size: 13px;
+}
+QPushButton#DarkModeToggle {
+    background-color: #3B82F6;
+    border: none;
+    border-radius: 12px;
+    padding: 0px;
+}
+QPushButton#DarkModeToggle:!checked {
+    background-color: #1B2F4C;
+}
+QPushButton#DarkModeToggle:hover {
+    background-color: #2563EB;
+}
+QPushButton#DarkModeToggle:!checked:hover {
+    background-color: #484F58;
 }
 """
 
@@ -484,7 +598,7 @@ QMenu::separator {
 # --accent-hover:      #1D4ED8
 # --accent-subtle:     rgba(37,99,235,0.08)  →  rgba(37,99,235,20) in QSS
 # --accent-border:     rgba(37,99,235,0.35)  →  rgba(37,99,235,89) in QSS
-# --text-primary:      #0D1117
+# --text-primary:      #0A1020
 # --text-secondary:    #57606A
 # --text-muted:        #8C959F
 # --border:            #D0D7DE
@@ -496,7 +610,7 @@ LIGHT_THEME_QSS = """
 /* ── Base ─────────────────────────────────────────────────────────────── */
 QWidget {
     background-color: #F6F8FA;
-    color: #0D1117;
+    color: #0A1020;
     font-size: 13px;
 }
 QMainWindow, QDialog {
@@ -518,7 +632,7 @@ QRadioButton {
     background-color: #F6F8FA;
 }
 #TitleLabel {
-    color: #0D1117;
+    color: #0A1020;
     font-size: 14px;
     font-weight: bold;
 }
@@ -532,7 +646,7 @@ QPushButton#TitleBarBtn {
 }
 QPushButton#TitleBarBtn:hover {
     background-color: #EFF6FF;
-    color: #0D1117;
+    color: #0A1020;
 }
 QPushButton#CloseBtn:hover {
     background-color: #CF222E;
@@ -555,7 +669,7 @@ QLabel#BellBadge {
     background-color: #FFFFFF;
 }
 #SidebarTitle {
-    color: #0D1117;
+    color: #0A1020;
     font-weight: bold;
     font-size: 14px;
 }
@@ -574,7 +688,7 @@ QPushButton#NavButton {
 }
 QPushButton#NavButton:hover {
     background-color: rgba(37, 99, 235, 20);
-    color: #0D1117;
+    color: #0A1020;
 }
 QPushButton#NavButton[active="true"] {
     background-color: rgba(37, 99, 235, 20);
@@ -586,7 +700,7 @@ QPushButton#NavButton #NavButtonLabel {
     background: transparent;
 }
 QPushButton#NavButton:hover #NavButtonLabel {
-    color: #0D1117;
+    color: #0A1020;
 }
 QPushButton#NavButton[active="true"] #NavButtonLabel {
     color: #2563EB;
@@ -619,7 +733,7 @@ QTabBar#SectionTabBar::tab:selected {
     border-bottom: 2px solid #2563EB;
 }
 QTabBar#SectionTabBar::tab:hover:!selected {
-    color: #0D1117;
+    color: #0A1020;
 }
 
 /* ── Content / right panel ────────────────────────────────────────────── */
@@ -640,7 +754,7 @@ QTabBar#SectionTabBar::tab:hover:!selected {
     border-radius: 10px;
 }
 #CardTitle {
-    color: #0D1117;
+    color: #0A1020;
     font-size: 15px;
     font-weight: bold;
 }
@@ -677,7 +791,7 @@ QPushButton#BrowseBtn {
 }
 QPushButton#BrowseBtn:hover {
     border-color: rgba(37, 99, 235, 89);
-    color: #0D1117;
+    color: #0A1020;
 }
 
 /* ── Inputs ───────────────────────────────────────────────────────────── */
@@ -686,7 +800,7 @@ QLineEdit {
     border: 1px solid #D0D7DE;
     border-radius: 20px;
     padding: 6px 14px;
-    color: #0D1117;
+    color: #0A1020;
     selection-background-color: rgba(37, 99, 235, 89);
 }
 QLineEdit:focus {
@@ -702,7 +816,7 @@ QComboBox {
     border: 1px solid #D0D7DE;
     border-radius: 6px;
     padding: 6px 12px;
-    color: #0D1117;
+    color: #0A1020;
 }
 QComboBox:focus {
     border-color: rgba(37, 99, 235, 89);
@@ -719,13 +833,13 @@ QComboBox QAbstractItemView {
     background-color: #FFFFFF;
     border: 1px solid #D0D7DE;
     selection-background-color: rgba(37, 99, 235, 20);
-    color: #0D1117;
+    color: #0A1020;
     outline: none;
 }
 
 /* ── CheckBox ─────────────────────────────────────────────────────────── */
 QCheckBox {
-    color: #0D1117;
+    color: #0A1020;
     spacing: 8px;
     background: transparent;
 }
@@ -880,7 +994,7 @@ QPushButton#ChipBtn:focus {
 }
 QPushButton#ChipBtn:hover {
     border: 1px solid rgba(37, 99, 235, 89);
-    color: #0D1117;
+    color: #0A1020;
 }
 QPushButton#ChipBtn:checked {
     background-color: #2563EB;
@@ -902,7 +1016,7 @@ QPushButton#SecondaryBtn {
 }
 QPushButton#SecondaryBtn:hover {
     border-color: rgba(37, 99, 235, 89);
-    color: #0D1117;
+    color: #0A1020;
 }
 QPushButton#SecondaryBtn:pressed {
     background-color: rgba(37, 99, 235, 20);
@@ -936,7 +1050,7 @@ QMenu {
 QMenu::item {
     padding: 6px 20px;
     border-radius: 4px;
-    color: #0D1117;
+    color: #0A1020;
 }
 QMenu::item:selected {
     background-color: rgba(37, 99, 235, 20);
@@ -946,6 +1060,120 @@ QMenu::separator {
     background-color: #D0D7DE;
     height: 1px;
     margin: 4px 8px;
+}
+
+/* ── Home / Tools pages ───────────────────────────────────────────────── */
+/* HeroBanner is custom-painted — always shows the dark navy design */
+#HeroBanner {
+    background: transparent;
+    border: none;
+}
+#HeroSubtitle {
+    color: #57606A;
+    font-size: 13px;
+}
+#SectionLabel {
+    color: #8C959F;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+#PageHeader {
+    color: #0A1020;
+    font-size: 22px;
+    font-weight: bold;
+}
+
+/* ── More Tools card (light) ──────────────────────────────────────────── */
+#MoreToolsCard {
+    background-color: #F6F8FA;
+    border: 1px dashed #D0D7DE;
+    border-radius: 16px;
+    min-height: 140px;
+}
+#MoreToolsCard:hover {
+    background-color: #EFF6FF;
+    border-color: rgba(37, 99, 235, 89);
+    border-style: solid;
+}
+
+/* ── Quick Access cards ───────────────────────────────────────────────── */
+#QuickCard {
+    background-color: #FFFFFF;
+    border: 1px solid #D0D7DE;
+    border-radius: 12px;
+}
+#QuickCard:hover {
+    background-color: #EFF6FF;
+    border-color: rgba(37, 99, 235, 89);
+}
+#QuickCardTitle {
+    color: #0A1020;
+    font-size: 13px;
+    font-weight: bold;
+}
+#QuickCardSub {
+    color: #57606A;
+    font-size: 11px;
+}
+#ViewAllCard {
+    background-color: #FFFFFF;
+    border: 1px solid #D0D7DE;
+    border-radius: 12px;
+}
+#ViewAllCard:hover {
+    background-color: #EFF6FF;
+    border-color: rgba(37, 99, 235, 89);
+}
+#ViewAllLabel {
+    color: #57606A;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+/* ── Tool cards ───────────────────────────────────────────────────────── */
+#ToolCard {
+    background-color: #FFFFFF;
+    border: 1px solid #D0D7DE;
+    border-radius: 16px;
+    min-height: 140px;
+}
+#ToolCard:hover {
+    background-color: #EFF6FF;
+    border-color: rgba(37, 99, 235, 89);
+}
+#ToolCardTitle {
+    color: #0A1020;
+    font-size: 14px;
+    font-weight: bold;
+}
+#ToolCardDesc {
+    color: #57606A;
+    font-size: 12px;
+}
+
+/* ── Dark mode toggle (sidebar) ───────────────────────────────────────── */
+#DarkModeRow {
+    background-color: #FFFFFF;
+}
+#DarkModeLabel {
+    color: #57606A;
+    font-size: 13px;
+}
+QPushButton#DarkModeToggle {
+    background-color: #2563EB;
+    border: none;
+    border-radius: 12px;
+    padding: 0px;
+}
+QPushButton#DarkModeToggle:!checked {
+    background-color: #D0D7DE;
+}
+QPushButton#DarkModeToggle:hover {
+    background-color: #1D4ED8;
+}
+QPushButton#DarkModeToggle:!checked:hover {
+    background-color: #8C959F;
 }
 """
 

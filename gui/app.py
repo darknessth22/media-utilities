@@ -50,6 +50,7 @@ from gui.tabs.spatial_section import SpatialSection
 from gui.tabs.history_section import HistorySection
 from gui.tabs.mux_section import MuxSection
 from gui.tabs.tutorial_section import TutorialSection
+from gui.pages.home_page import HomePage, ToolsPage
 
 # ── Asset path ────────────────────────────────────────────────────────────────
 _ICONS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "icons")
@@ -1125,8 +1126,8 @@ class MainWindow(QMainWindow):
         # ── Window flags (frameless) ──────────────────────────────────────────
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setMinimumSize(960, 680)
-        self.resize(1120, 740)
+        self.setMinimumSize(1200, 820)
+        self.resize(1360, 900)
 
         # ── Drag-and-drop (T017) ──────────────────────────────────────────────
         self.setAcceptDrops(True)
@@ -1186,9 +1187,6 @@ class MainWindow(QMainWindow):
         self._status_bar = status_bar
         self._status_message = "Ready"
 
-        # Navigate to the first section on startup
-        self._navigate_to(0)
-
         # ── Keyboard shortcuts ────────────────────────────────────────────────
         from PySide6.QtGui import QShortcut, QKeySequence
         # Ctrl+Enter — trigger the primary action for the current section
@@ -1206,37 +1204,44 @@ class MainWindow(QMainWindow):
             self._paste_url_from_clipboard
         )
 
-        # Always keep the tutorial nav item glowing so it's easy to find
-        self._nav_buttons[11].start_glow()
+        # Always keep the How to Use icon glowing so it's easy to find
+        self._help_nav_btn.start_glow()
+
+        # Start on Home page
+        self._go_home()
 
         # Show welcome dialog on first launch
         if not self.settings.tutorial_seen:
             QTimer.singleShot(400, self._show_welcome)
 
-    # ── T009: Sidebar ─────────────────────────────────────────────────────────
+    # ── Sidebar ───────────────────────────────────────────────────────────────
 
     def _build_sidebar(self) -> QWidget:
         sidebar = QWidget()
         sidebar.setObjectName("Sidebar")
-        sidebar.setFixedWidth(180)
+        sidebar.setFixedWidth(200)
 
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Header: app logo (40×40) + app name
+        # Header: logo + app name
         header = QWidget()
         header.setObjectName("SidebarHeader")
-        header.setFixedHeight(52)
+        header.setFixedHeight(64)
         h_row = QHBoxLayout(header)
-        h_row.setContentsMargins(8, 0, 8, 0)
-        h_row.setSpacing(6)
+        h_row.setContentsMargins(16, 0, 16, 0)
+        h_row.setSpacing(8)
 
         logo = QLabel()
-        logo.setFixedSize(32, 22)
+        logo.setFixedSize(32, 24)
         logo.setStyleSheet("background: transparent;")
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        logo_px = QPixmap(_APP_LOGO).scaled(32, 22, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        logo_px = QPixmap(_APP_LOGO).scaled(
+            32, 24,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
         if not logo_px.isNull():
             logo.setPixmap(logo_px)
         h_row.addWidget(logo)
@@ -1253,16 +1258,71 @@ class MainWindow(QMainWindow):
         sep.setFixedHeight(1)
         layout.addWidget(sep)
 
-        # Nav items — one per section
-        self._nav_buttons: list[NavButton] = []
-        for i, section in enumerate(_SECTIONS):
-            btn = NavButton(section["label"], section["icon"])
-            btn.clicked.connect(lambda _checked, idx=i: self._navigate_to(idx))
+        # ── Four primary nav buttons ──────────────────────────────────────────
+        self._home_nav_btn    = NavButton("Home",       "dashboard.svg")
+        self._tools_nav_btn   = NavButton("Tools",      "convert.svg")
+        self._settings_nav_btn = NavButton("Settings",  "settings.svg")
+        self._help_nav_btn    = NavButton("How to Use", "help.svg")
+
+        self._home_nav_btn.clicked.connect(self._go_home)
+        self._tools_nav_btn.clicked.connect(self._go_tools)
+        self._settings_nav_btn.clicked.connect(lambda: self._navigate_to(10))
+        self._help_nav_btn.clicked.connect(lambda: self._navigate_to(11))
+
+        for btn in (self._home_nav_btn, self._tools_nav_btn,
+                    self._settings_nav_btn, self._help_nav_btn):
             layout.addWidget(btn)
-            self._nav_buttons.append(btn)
+
+        # Keep a list for active-state management
+        self._nav_buttons: list[NavButton] = [
+            self._home_nav_btn,
+            self._tools_nav_btn,
+            self._settings_nav_btn,
+            self._help_nav_btn,
+        ]
 
         layout.addStretch()
+
+        # ── Dark mode toggle at bottom ────────────────────────────────────────
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.Shape.HLine)
+        sep2.setObjectName("Separator")
+        sep2.setFixedHeight(1)
+        layout.addWidget(sep2)
+
+        dm_row = QWidget()
+        dm_row.setObjectName("DarkModeRow")
+        dm_row.setFixedHeight(52)
+        dm_layout = QHBoxLayout(dm_row)
+        dm_layout.setContentsMargins(16, 0, 16, 0)
+        dm_layout.setSpacing(10)
+
+        moon_lbl = QLabel()
+        moon_lbl.setFixedSize(18, 18)
+        moon_px = _load_svg_icon("theme_dark.svg", 18, "#8B949E")
+        if not moon_px.isNull():
+            moon_lbl.setPixmap(moon_px)
+        dm_layout.addWidget(moon_lbl)
+
+        dm_label = QLabel("Dark Mode")
+        dm_label.setObjectName("DarkModeLabel")
+        dm_layout.addWidget(dm_label)
+        dm_layout.addStretch()
+
+        self._dm_toggle = QPushButton()
+        self._dm_toggle.setObjectName("DarkModeToggle")
+        self._dm_toggle.setCheckable(True)
+        self._dm_toggle.setFixedSize(44, 24)
+        self._dm_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._dm_toggle.setChecked(self.theme_manager.is_dark_mode())
+        self._dm_toggle.toggled.connect(self._on_dm_toggle)
+        dm_layout.addWidget(self._dm_toggle)
+        layout.addWidget(dm_row)
+
         return sidebar
+
+    def _on_dm_toggle(self, checked: bool) -> None:
+        self.theme_manager.set_mode("dark" if checked else "light")
 
     # ── T010: Right panel ─────────────────────────────────────────────────────
 
@@ -1351,6 +1411,15 @@ class MainWindow(QMainWindow):
         for widget in self._section_widgets:
             self._content_stack.addWidget(widget)
 
+        # Home and Tools pages (indices 12 and 13 in the stack)
+        self._home_page = HomePage(
+            navigate_cb=self._navigate_from_card,
+            show_tools_cb=self._go_tools,
+        )
+        self._tools_page = ToolsPage(navigate_cb=self._navigate_from_card)
+        self._content_stack.addWidget(self._home_page)   # index 12
+        self._content_stack.addWidget(self._tools_page)  # index 13
+
         # Separator above primary action button
         sep2 = QFrame()
         sep2.setFrameShape(QFrame.Shape.HLine)
@@ -1379,22 +1448,27 @@ class MainWindow(QMainWindow):
     # ── Navigation ────────────────────────────────────────────────────────────
 
     def _navigate_to(self, index: int) -> None:
-        """Switch to section *index*, updating sidebar, tab bar, and action button."""
+        """Switch to tool section *index* (0–11), updating tab bar and action button."""
         self._current_section = index
 
         # Refresh history whenever the history section is activated
         if index == 9:
             self._history_section.refresh()
 
-        # Update nav button active states
-        for i, btn in enumerate(self._nav_buttons):
-            btn.set_active(i == index)
-
-        # Keep tutorial icon amber regardless of active state
-        self._nav_buttons[11].start_glow()
+        # Update sidebar: settings (10) and help (11) highlight their buttons;
+        # all other tool sections show no sidebar button active.
+        if index == 10:
+            self._set_sidebar_active(self._settings_nav_btn)
+        elif index == 11:
+            self._set_sidebar_active(self._help_nav_btn)
+        else:
+            self._set_sidebar_active(None)
 
         # Switch content
         self._content_stack.setCurrentIndex(index)
+
+        # Show tab bar for tool sections
+        self._section_tab_bar.setVisible(True)
 
         # Rebuild the section tab bar for this section
         self._section_tab_bar.blockSignals(True)
@@ -1412,6 +1486,33 @@ class MainWindow(QMainWindow):
             self._action_btn_container.setVisible(True)
         else:
             self._action_btn_container.setVisible(False)
+
+    def _go_home(self) -> None:
+        """Switch to the Home Dashboard page."""
+        self._set_sidebar_active(self._home_nav_btn)
+        self._content_stack.setCurrentIndex(12)
+        self._section_tab_bar.setVisible(False)
+        self._action_btn_container.setVisible(False)
+
+    def _go_tools(self) -> None:
+        """Switch to the Tools Grid page."""
+        self._set_sidebar_active(self._tools_nav_btn)
+        self._content_stack.setCurrentIndex(13)
+        self._section_tab_bar.setVisible(False)
+        self._action_btn_container.setVisible(False)
+
+    def _navigate_from_card(self, section_index: int) -> None:
+        """Navigate to a tool section when a card is clicked from Home/Tools page."""
+        self._set_sidebar_active(None)
+        self._navigate_to(section_index)
+
+    def _set_sidebar_active(self, active_btn) -> None:
+        """Mark one sidebar button active, clear the rest."""
+        for btn in (self._home_nav_btn, self._tools_nav_btn,
+                    self._settings_nav_btn, self._help_nav_btn):
+            btn.set_active(btn is active_btn)
+        # Keep tutorial glow regardless of active state
+        self._help_nav_btn.start_glow()
 
     def _show_welcome(self) -> None:
         dlg = WelcomeDialog(self)
