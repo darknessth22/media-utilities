@@ -67,6 +67,30 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 - Join multiple video files in any order
 - Lossless stream copy when compatible; auto re-encode when codecs/resolutions differ
 
+### Watermark
+- Stamp a **logo image** (PNG with transparency recommended) or **text** onto any video or image file
+- Batch mode — queue multiple files, all processed in one run
+- **Logo options**: position (top-left / top-right / bottom-left / bottom-right / center), scale (% of frame width), opacity
+- **Text options**: custom text, position, font size, font color, opacity, semi-transparent background box
+- **Video encode settings**: CRF/QP quality, encoding preset, hardware acceleration (NVIDIA NVENC / AMD AMF / Intel QuickSync / CPU) — same GPU support as Compress
+- Images processed instantly (no re-encode); videos re-encoded at CRF 18 by default (near-lossless)
+- Output saved as `<name>_watermarked.<ext>` alongside originals or in a chosen folder
+
+### Metadata Scrubber
+- Strip **all metadata** from video and audio files — GPS, timestamps, EXIF tags, chapter markers
+- Stream copy (no re-encode) — instantaneous regardless of file size
+- Batch mode with progress tracking
+- Supported: MP4, MKV, AVI, MOV, WEBM, FLV, M4V, WMV, MP3, WAV, AAC, FLAC, OGG, M4A
+- Output saved as `<name>_clean.<ext>`
+
+### Auto-Chunker
+- Split a video or audio file into equal parts by **duration** or **target size (MB)**
+- Stream copy — no re-encode, no quality loss, near-instant splitting
+- **By duration**: set segment length in minutes/seconds (e.g. 10 min per part)
+- **By size**: set max MB per chunk — duration auto-calculated from bitrate
+- Output parts named `<name>_part000.<ext>`, `<name>_part001.<ext>`, …
+- Useful for upload size limits (Discord, WhatsApp, email)
+
 ### History
 - Log of all operations with status, filename, timestamp
 - Persists across restarts
@@ -219,6 +243,52 @@ Required for Instagram, TikTok, and other authenticated platforms.
 4. In Settings → Cookies, select the exported `.txt` file
 
 Alternatively, select a browser directly (less reliable — may fail if the browser is open or uses OS-level cookie encryption).
+
+---
+
+## How to Use: Watermark
+
+1. Open the **Watermark** tab
+2. Click **Add Files…** or **Add Folder…** — accepts video and image files
+3. Choose watermark type:
+   - **Logo / image overlay** — browse to a PNG (transparency supported), set position, scale, and opacity
+   - **Text watermark** — type your text, pick position, font size, color, and opacity
+4. Under **Video Encode Settings**, choose quality (CRF lower = better), preset, and hardware accelerator if available
+5. Optionally set an **Output Folder** — leave blank to save next to each source file
+6. Click **Apply Watermark** (or `Ctrl+Enter`)
+7. Output files appear as `<original_name>_watermarked.<ext>`
+
+**Tips**
+- PNG logos with transparent backgrounds look cleanest
+- GPU preset (NVIDIA/AMD/Intel) encodes 5–10× faster than CPU at equivalent quality
+- Images (JPG, PNG, etc.) are processed without re-encoding the video stream — instant
+
+---
+
+## How to Use: Metadata Scrubber
+
+1. Open the **Scrubber** tab
+2. Drag and drop files onto the list, or click **Add Files…** / **Add Folder…**
+3. Optionally set an output folder (default: same directory as source)
+4. Click **Scrub Metadata** (or `Ctrl+Enter`)
+5. Output files appear as `<original_name>_clean.<ext>`
+
+No quality loss — files are remuxed via stream copy. GPS coordinates, camera model, recording timestamps, and all other metadata tags are removed.
+
+---
+
+## How to Use: Auto-Chunker
+
+1. Open the **Chunker** tab
+2. Browse to a source video or audio file
+3. Choose split mode:
+   - **By Duration** — enter segment length (e.g. `10` minutes). Every chunk will be exactly that long except the last
+   - **By Size** — enter max MB per chunk (e.g. `25` for WhatsApp). Duration per chunk is calculated automatically from the file's bitrate
+4. Optionally set an output folder
+5. Click **Split** (or `Ctrl+Enter`)
+6. Output parts appear as `<name>_part000.<ext>`, `<name>_part001.<ext>`, …
+
+Stream copy — no re-encode, no quality loss. Large files split in seconds.
 
 ---
 

@@ -257,6 +257,79 @@ _TUTORIAL_DATA = [
         ],
     },
     {
+        "emoji": "🔏",
+        "title": "Watermark",
+        "description": (
+            "Stamp a logo image or text onto any video or image file. "
+            "Batch mode lets you process an entire folder at once. "
+            "Videos are re-encoded at near-lossless quality; images are processed instantly."
+        ),
+        "steps": [
+            "Click Add Files… or Add Folder… to queue videos and/or images.",
+            "Choose watermark type: Logo / image overlay or Text watermark.",
+            "Logo mode — browse to a PNG (transparency recommended), then set Position, "
+            "Scale (% of frame width), and Opacity.",
+            "Text mode — type your watermark text, then set Position, Font Size, "
+            "Font Color, and Opacity.",
+            "Under VIDEO ENCODE SETTINGS set Quality (CRF — lower = better), "
+            "Preset speed, and Hardware Acceleration. "
+            "GPU options (NVIDIA / AMD / Intel) encode 5–10× faster than CPU.",
+            "Optionally set an Output Folder — leave blank to save next to each source file.",
+            "Click Apply Watermark (or Ctrl+Enter).",
+            "Output files are saved as <original_name>_watermarked.<ext>.",
+        ],
+        "tips": [
+            "PNG logos with transparent backgrounds give the cleanest result.",
+            "Encode settings only apply to videos — images are processed without re-encoding.",
+            "Lower CRF (e.g. 18) = near-lossless quality. Higher CRF (e.g. 28) = smaller file.",
+        ],
+    },
+    {
+        "emoji": "🧹",
+        "title": "Metadata Scrubber",
+        "description": (
+            "Strip all metadata from video and audio files — GPS coordinates, camera model, "
+            "recording timestamps, EXIF tags, and chapter markers. "
+            "Uses stream copy (no re-encode) so it finishes in seconds."
+        ),
+        "steps": [
+            "Click Add Files… or Add Folder…, or drag and drop files onto the list.",
+            "Optionally set an Output Folder — defaults to each file's original directory.",
+            "Click Scrub Metadata (or Ctrl+Enter).",
+            "Output files are saved as <original_name>_clean.<ext>.",
+        ],
+        "tips": [
+            "No quality loss — files are remuxed without re-encoding.",
+            "Supported formats: MP4, MKV, AVI, MOV, WEBM, FLV, MP3, WAV, AAC, FLAC, OGG, M4A.",
+            "Useful before sharing files publicly to remove location and device metadata.",
+        ],
+    },
+    {
+        "emoji": "✂",
+        "title": "Auto-Chunker",
+        "description": (
+            "Split a video or audio file into equal parts by duration or target file size. "
+            "Stream copy — no re-encode, no quality loss, near-instant splitting."
+        ),
+        "steps": [
+            "Click Browse and select a video or audio file.",
+            "Choose split mode:",
+            "By Duration — enter the segment length (minutes). "
+            "Every chunk will be exactly that long except the final segment.",
+            "By Size — enter the max MB per chunk (e.g. 25 for WhatsApp). "
+            "Duration per chunk is calculated automatically from the file's bitrate.",
+            "Optionally set an Output Folder.",
+            "Click Split (or Ctrl+Enter).",
+            "Output parts are named <name>_part000.<ext>, <name>_part001.<ext>, …",
+        ],
+        "tips": [
+            "Stream copy means large files split in seconds with no quality loss.",
+            "Size-based splitting is an estimate — actual chunk sizes may vary slightly "
+            "because cuts snap to the nearest keyframe.",
+            "Handy for upload limits: Discord (25 MB), WhatsApp (16 MB free / 2 GB Business), email.",
+        ],
+    },
+    {
         "emoji": "🕒",
         "title": "History",
         "description": (
@@ -373,8 +446,8 @@ class TutorialSection(QScrollArea):
         v.addWidget(title)
 
         body = QLabel(
-            "A desktop tool for downloading, converting, trimming, compressing, "
-            "merging, transforming, and managing media files. "
+            "A desktop tool for downloading, converting, trimming, compressing, merging, "
+            "transforming, watermarking, scrubbing metadata, chunking, and managing media files. "
             "Navigate with the sidebar on the left. This guide explains each section."
         )
         body.setWordWrap(True)

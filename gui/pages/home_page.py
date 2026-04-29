@@ -20,16 +20,19 @@ _ICONS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "icon
 _APP_LOGO  = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "videl_logo.png")
 
 _TOOL_COLOR: dict[str, str] = {
-    "download": "#3B82F6",
-    "convert":  "#22D3EE",
-    "compress": "#22C55E",
-    "merge":    "#A855F7",
-    "trim":     "#F97316",
-    "mux":      "#EC4899",
-    "gif":      "#FACC15",
-    "spatial":  "#6B7280",
-    "document": "#6B7280",
-    "history":  "#6B7280",
+    "download":  "#3B82F6",  # blue
+    "convert":   "#22D3EE",  # cyan
+    "compress":  "#22C55E",  # green
+    "merge":     "#A855F7",  # purple
+    "trim":      "#F97316",  # orange
+    "mux":       "#EC4899",  # pink
+    "gif":       "#FACC15",  # yellow
+    "spatial":   "#FB923C",  # orange-400 — warm, distinct from trim
+    "document":  "#38BDF8",  # sky-400 — light cyan-blue
+    "scrub":     "#7C3AED",  # violet-600 — deep purple, distinct from merge
+    "chunk":     "#06B6D4",  # cyan-500 — pure cyan
+    "watermark": "#0E7490",  # cyan-700 — deep teal
+    "history":   "#6B7280",  # gray
 }
 
 # All tools (for ToolsPage)
@@ -42,8 +45,11 @@ _ALL_TOOLS: list[tuple[str, str, str, str, int]] = [
     ("mux",      "mux.svg",      "Audio Mixing",     "Mix multiple audio tracks\nlike a pro.",                 8),
     ("gif",      "gif.svg",      "GIF Creator",      "Create high-quality GIFs\nfrom videos.",                 4),
     ("spatial",  "spatial.svg",  "Transform Media",  "Resize, crop, and rotate\nvideo files.",                 7),
-    ("document", "document.svg", "Document Convert", "Convert documents between\nformats.",                    3),
-    ("history",  "history.svg",  "History",          "View past operations\nand results.",                     9),
+    ("document",  "document.svg", "Document Convert",  "Convert documents between\nformats.",                    3),
+    ("scrub",     "scrub.svg",     "Metadata Scrubber", "Strip GPS, timestamps and\nEXIF data from media.",  9),
+    ("chunk",     "chunk.svg",     "Auto-Chunker",      "Split files by duration\nor size (stream copy).", 10),
+    ("watermark", "watermark.svg", "Batch Watermark",   "Stamp logos or text across\nan entire directory.", 11),
+    ("history",   "history.svg", "History",           "View past operations\nand results.",                    12),
 ]
 
 # 7 tools shown on Home, then "+ More Tools" card

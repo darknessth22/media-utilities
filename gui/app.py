@@ -50,6 +50,9 @@ from gui.tabs.spatial_section import SpatialSection
 from gui.tabs.history_section import HistorySection
 from gui.tabs.mux_section import MuxSection
 from gui.tabs.tutorial_section import TutorialSection
+from gui.tabs.scrub_section import ScrubSection
+from gui.tabs.chunk_section import ChunkSection
+from gui.tabs.watermark_section import WatermarkSection
 from gui.pages.home_page import HomePage, ToolsPage
 
 # ── Asset path ────────────────────────────────────────────────────────────────
@@ -122,6 +125,27 @@ _SECTIONS = [
         "icon": "mux.svg",
         "tabs": ["MUTE VIDEO", "REPLACE AUDIO", "ADD AUDIO"],
         "action_label": "Apply",
+    },
+    {
+        "id": "scrub",
+        "label": "Metadata Scrubber",
+        "icon": "scrub.svg",
+        "tabs": ["METADATA SCRUBBER"],
+        "action_label": "Scrub",
+    },
+    {
+        "id": "chunk",
+        "label": "Auto-Chunker",
+        "icon": "chunk.svg",
+        "tabs": ["SMART SPLIT"],
+        "action_label": "Split",
+    },
+    {
+        "id": "watermark",
+        "label": "Batch Watermark",
+        "icon": "watermark.svg",
+        "tabs": ["BATCH WATERMARK"],
+        "action_label": "Watermark",
     },
     {
         "id": "history",
@@ -283,7 +307,7 @@ class TitleBar(QWidget):
 
         menu.addSeparator()
         settings_act = menu.addAction("Settings")
-        settings_act.triggered.connect(lambda: win._navigate_to(10))
+        settings_act.triggered.connect(lambda: win._navigate_to(13))
 
         menu.addSeparator()
         from PySide6.QtWidgets import QApplication
@@ -315,7 +339,7 @@ class TitleBar(QWidget):
             act.setEnabled(False)
         menu.addSeparator()
         see_act = menu.addAction("See full guide →  How to Use")
-        see_act.triggered.connect(lambda: self.window()._navigate_to(11))
+        see_act.triggered.connect(lambda: self.window()._navigate_to(14))
 
         pos = self._btn_shortcuts.mapToGlobal(self._btn_shortcuts.rect().bottomLeft())
         menu.exec(pos)
@@ -1135,7 +1159,7 @@ class MainWindow(QMainWindow):
         # ── System tray (T018 / T020) ─────────────────────────────────────────
         self._tray = SystemTrayIcon(self)
         self._tray.restore_requested.connect(self._restore_from_tray)
-        self._tray.settings_requested.connect(lambda: self._navigate_to(10))
+        self._tray.settings_requested.connect(lambda: self._navigate_to(13))
         self._tray.quit_requested.connect(self._quit_from_tray)
 
         # ── Central widget ────────────────────────────────────────────────────
@@ -1266,8 +1290,8 @@ class MainWindow(QMainWindow):
 
         self._home_nav_btn.clicked.connect(self._go_home)
         self._tools_nav_btn.clicked.connect(self._go_tools)
-        self._settings_nav_btn.clicked.connect(lambda: self._navigate_to(10))
-        self._help_nav_btn.clicked.connect(lambda: self._navigate_to(11))
+        self._settings_nav_btn.clicked.connect(lambda: self._navigate_to(13))
+        self._help_nav_btn.clicked.connect(lambda: self._navigate_to(14))
 
         for btn in (self._home_nav_btn, self._tools_nav_btn,
                     self._settings_nav_btn, self._help_nav_btn):
@@ -1363,6 +1387,9 @@ class MainWindow(QMainWindow):
         self._merge_section = MergeSection(self.settings)
         self._spatial_section = SpatialSection(self.settings)
         self._mux_section = MuxSection(self.settings)
+        self._scrub_section = ScrubSection(self.settings)
+        self._chunk_section = ChunkSection(self.settings)
+        self._watermark_section = WatermarkSection(self.settings)
         self._history_section = HistorySection()
         self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
@@ -1378,9 +1405,12 @@ class MainWindow(QMainWindow):
             self._merge_section,            # index 6 — merge videos
             self._spatial_section,          # index 7 — transform media
             self._mux_section,              # index 8 — audio muxing
-            self._history_section,          # index 9 — history
-            self._settings_section_widget,  # index 10 — settings
-            self._tutorial_section,         # index 11 — how to use
+            self._scrub_section,            # index 9 — metadata scrubber
+            self._chunk_section,            # index 10 — auto-chunker
+            self._watermark_section,        # index 11 — batch watermark
+            self._history_section,          # index 12 — history
+            self._settings_section_widget,  # index 13 — settings
+            self._tutorial_section,         # index 14 — how to use
         ]
 
         # Connect status signals from all operation sections.
@@ -1395,6 +1425,9 @@ class MainWindow(QMainWindow):
             self._merge_section,      # index 6
             self._spatial_section,    # index 7
             self._mux_section,        # index 8
+            self._scrub_section,      # index 9
+            self._chunk_section,      # index 10
+            self._watermark_section,  # index 11
         )
         for section in _op_sections:
             section.status_message.connect(self._on_status_message)
@@ -1417,8 +1450,8 @@ class MainWindow(QMainWindow):
             show_tools_cb=self._go_tools,
         )
         self._tools_page = ToolsPage(navigate_cb=self._navigate_from_card)
-        self._content_stack.addWidget(self._home_page)   # index 12
-        self._content_stack.addWidget(self._tools_page)  # index 13
+        self._content_stack.addWidget(self._home_page)   # index 15
+        self._content_stack.addWidget(self._tools_page)  # index 16
 
         # Separator above primary action button
         sep2 = QFrame()
@@ -1452,14 +1485,14 @@ class MainWindow(QMainWindow):
         self._current_section = index
 
         # Refresh history whenever the history section is activated
-        if index == 9:
+        if index == 12:
             self._history_section.refresh()
 
-        # Update sidebar: settings (10) and help (11) highlight their buttons;
+        # Update sidebar: settings (13) and help (14) highlight their buttons;
         # all other tool sections show no sidebar button active.
-        if index == 10:
+        if index == 13:
             self._set_sidebar_active(self._settings_nav_btn)
-        elif index == 11:
+        elif index == 14:
             self._set_sidebar_active(self._help_nav_btn)
         else:
             self._set_sidebar_active(None)
@@ -1490,14 +1523,14 @@ class MainWindow(QMainWindow):
     def _go_home(self) -> None:
         """Switch to the Home Dashboard page."""
         self._set_sidebar_active(self._home_nav_btn)
-        self._content_stack.setCurrentIndex(12)
+        self._content_stack.setCurrentIndex(15)
         self._section_tab_bar.setVisible(False)
         self._action_btn_container.setVisible(False)
 
     def _go_tools(self) -> None:
         """Switch to the Tools Grid page."""
         self._set_sidebar_active(self._tools_nav_btn)
-        self._content_stack.setCurrentIndex(13)
+        self._content_stack.setCurrentIndex(16)
         self._section_tab_bar.setVisible(False)
         self._action_btn_container.setVisible(False)
 
@@ -1516,7 +1549,7 @@ class MainWindow(QMainWindow):
 
     def _show_welcome(self) -> None:
         dlg = WelcomeDialog(self)
-        dlg.go_to_tutorial.connect(lambda: self._navigate_to(11))
+        dlg.go_to_tutorial.connect(lambda: self._navigate_to(14))
         # Center over the main window
         geo = self.geometry()
         dlg.move(
@@ -1735,10 +1768,11 @@ class MainWindow(QMainWindow):
         # Map the DnD target_tab to the section index
         target_tab = dropped_files[0].target_tab
         section_index = {
-            "convert": 1,
-            "batch":   1,
-            "trim":    2,
+            "convert":  1,
+            "batch":    1,
+            "trim":     2,
             "document": 3,
+            "scrub":    9,
         }.get(target_tab or "", -1)
 
         if section_index == -1:
@@ -1759,6 +1793,8 @@ class MainWindow(QMainWindow):
             self._section_tab_bar.blockSignals(False)
             if hasattr(widget, "on_sub_tab_changed"):
                 widget.on_sub_tab_changed(1)
+        elif target_tab in ("scrub", "watermark") and hasattr(widget, "populate_files"):
+            widget.populate_files(paths)
         elif hasattr(widget, "populate_file") and paths:
             widget.populate_file(paths[0])
 

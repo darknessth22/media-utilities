@@ -10,7 +10,7 @@ class UserSettings:
     """Represents all user-configurable preferences."""
     output_folder: str | None = None
     default_codec: str = "original"
-    theme_mode: str = "auto"
+    theme_mode: str = "dark"
     quit_on_close: bool = True
     intercept_timeout: int = 30
     spotify_client_id: str = ""
