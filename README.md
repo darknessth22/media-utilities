@@ -8,6 +8,10 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 
 ![Videl GUI](<new screen gui.png>)
 
+## Overview
+
+![App Overview](<app overview.gif>)
+
 ---
 
 ## Features
