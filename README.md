@@ -10,7 +10,7 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 
 ## Overview
 
-![App Overview](<app overview.gif>)
+![App Overview](<app-gui.gif>)
 
 ---
 
