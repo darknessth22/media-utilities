@@ -18,6 +18,7 @@ Thumbs.db
 # IDE files
 .idea/
 .vscode/
+.cursor/
 *.sublime-*
 
 # Media files (to avoid large files in repo)
@@ -73,6 +74,12 @@ ffplay.exe
 .claude/
 .gemini/
 .specify/
+
+# Graphify output (generated knowledge graph, local tooling only)
+graphify-out/
+
+# Size budget (maintainer-only, not part of source)
+size-budget.json
 
 # Legacy files
 gui.html
