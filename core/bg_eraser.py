@@ -30,12 +30,11 @@ def remove_background(input_path: str, output_path: str | None = None) -> dict:
     try:
         from rembg import remove as rembg_remove
         from PIL import Image
-    except ImportError as exc:
-        missing = "rembg" if "rembg" in str(exc) else "Pillow"
+    except (ImportError, SystemExit) as exc:
         return {
             "success": False,
             "file_path": "",
-            "error": f"{missing} not installed. Run: pip install rembg Pillow",
+            "error": f"Background removal unavailable: {exc}",
         }
 
     try:

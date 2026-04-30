@@ -22,6 +22,7 @@ _SENDGRID_URL = "https://api.sendgrid.com/v3/mail/send"
 _SENDER_EMAIL = "videl.support@gmail.com"
 _SENDER_NAME = "Videl Bug Reporter"
 _RECIPIENT_EMAIL = "videl.support@gmail.com"
+_SENDGRID_API_KEY_BUILTIN = "@@SENDGRID_API_KEY@@"  # replaced at build time
 
 _BUG_TYPES_EN = ["UI Problem", "Feature Problem", "Crash / Error", "Performance", "Other"]
 _BUG_TYPES_AR = ["مشكلة واجهة", "مشكلة ميزة", "تعطل / خطأ", "أداء", "أخرى"]
@@ -34,6 +35,8 @@ def _send_email(subject: str, body: str, screenshot_path: str, reporter_email: s
         return None
 
     api_key = (os.environ.get("SENDGRID_API_KEY") or "").strip()
+    if not api_key and not _SENDGRID_API_KEY_BUILTIN.startswith("@@"):
+        api_key = _SENDGRID_API_KEY_BUILTIN
     if not api_key:
         raise RuntimeError("SENDGRID_API_KEY is not set (check .env or system environment).")
 

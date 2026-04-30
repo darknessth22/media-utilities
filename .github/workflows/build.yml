@@ -29,6 +29,17 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
+      - name: Embed SendGrid API key
+        shell: pwsh
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        run: |
+          if ($env:SENDGRID_API_KEY) {
+            (Get-Content gui\tabs\bug_reporter.py -Raw) -replace '@@SENDGRID_API_KEY@@', $env:SENDGRID_API_KEY | Set-Content gui\tabs\bug_reporter.py -Encoding utf8
+          } else {
+            Write-Host "Warning: SENDGRID_API_KEY secret not set — bug reporter will show key-missing error at runtime"
+          }
+
       - name: Install Inno Setup 6
         run: choco install innosetup --no-progress -y
 
