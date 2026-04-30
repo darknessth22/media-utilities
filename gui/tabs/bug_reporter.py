@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
 from core.i18n import tr
 from gui.worker import Worker
 
-_SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")
 _SENDGRID_URL = "https://api.sendgrid.com/v3/mail/send"
 _SENDER_EMAIL = "videl.support@gmail.com"
 _SENDER_NAME = "Videl Bug Reporter"
@@ -30,6 +29,10 @@ _BUG_TYPES_AR = ["مشكلة واجهة", "مشكلة ميزة", "تعطل / خ�
 
 def _send_email(subject: str, body: str, screenshot_path: str, reporter_email: str = "") -> None:
     """Send bug report via SendGrid API. Runs in a Worker thread."""
+    api_key = (os.environ.get("SENDGRID_API_KEY") or "").strip()
+    if not api_key:
+        raise RuntimeError("SENDGRID_API_KEY is not set (check .env or system environment).")
+
     to_list = [{"email": _RECIPIENT_EMAIL}]
     if reporter_email:
         to_list.append({"email": reporter_email})
@@ -63,7 +66,7 @@ def _send_email(subject: str, body: str, screenshot_path: str, reporter_email: s
         _SENDGRID_URL,
         data=data,
         headers={
-            "Authorization": f"Bearer {_SENDGRID_API_KEY}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         },
         method="POST",

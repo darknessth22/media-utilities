@@ -3,8 +3,19 @@
 Run with:
     python main.py
 """
+import os
 import signal
 import sys
+
+# Load .env before any package imports that read secrets at import time (e.g. bug reporter).
+_env_path = os.path.join(os.path.dirname(__file__), ".env")
+if os.path.isfile(_env_path):
+    with open(_env_path, encoding="utf-8") as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip())
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtCore import QThread, QTimer, Signal, qInstallMessageHandler, QtMsgType
@@ -29,18 +40,6 @@ from core.version import VERSION
 from core.i18n import I18n
 from gui.app import MainWindow
 from gui.theme import ThemeManager
-
-import os
-
-# Load .env for local secrets (not committed to git)
-_env_path = os.path.join(os.path.dirname(__file__), ".env")
-if os.path.isfile(_env_path):
-    with open(_env_path) as _f:
-        for _line in _f:
-            _line = _line.strip()
-            if _line and not _line.startswith("#") and "=" in _line:
-                _k, _v = _line.split("=", 1)
-                os.environ.setdefault(_k.strip(), _v.strip())
 
 _APP_ICON = os.path.join(os.path.dirname(__file__), "assets", "videl_icon.png")
 
