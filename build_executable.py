@@ -15,6 +15,21 @@ import hashlib
 from pathlib import Path
 from datetime import datetime
 
+
+def _ensure_stdio_utf8() -> None:
+    """Avoid UnicodeEncodeError when printing emoji/symbols on Windows cp1252 (e.g. GitHub Actions)."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            enc = (getattr(stream, "encoding", None) or "").lower()
+            if enc not in ("utf-8", "utf8"):
+                reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError, ValueError):
+            pass
+
+
 def print_step(step_name):
     """Print a formatted step header"""
     print(f"\n{'='*60}")
@@ -295,4 +310,5 @@ def main():
     print(f"Installer: {os.path.abspath(installer_path)}")
 
 if __name__ == "__main__":
+    _ensure_stdio_utf8()
     main()
