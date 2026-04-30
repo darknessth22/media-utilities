@@ -55,6 +55,7 @@ setup.py
 dist/
 build/
 *.spec
+!media_util_gui.spec
 
 # Test and Lint caches
 .pytest_cache/
