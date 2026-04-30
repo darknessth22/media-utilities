@@ -34,7 +34,7 @@ jobs:
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: |
-          python - <<'EOF'
+          $script = @'
           import os, pathlib
           key = os.environ.get("SENDGRID_API_KEY", "")
           f = pathlib.Path("gui/tabs/bug_reporter.py")
@@ -44,7 +44,8 @@ jobs:
           else:
               print("Warning: SENDGRID_API_KEY secret not set")
           f.write_text(text, encoding="utf-8")
-          EOF
+          '@
+          $script | python
 
       - name: Install Inno Setup 6
         run: choco install innosetup --no-progress -y
