@@ -16,20 +16,6 @@ from pathlib import Path
 from datetime import datetime
 
 
-def _ensure_stdio_utf8() -> None:
-    """Avoid UnicodeEncodeError when printing emoji/symbols on Windows cp1252 (e.g. GitHub Actions)."""
-    for stream in (sys.stdout, sys.stderr):
-        reconfigure = getattr(stream, "reconfigure", None)
-        if reconfigure is None:
-            continue
-        try:
-            enc = (getattr(stream, "encoding", None) or "").lower()
-            if enc not in ("utf-8", "utf8"):
-                reconfigure(encoding="utf-8", errors="replace")
-        except (AttributeError, OSError, ValueError):
-            pass
-
-
 def print_step(step_name):
     """Print a formatted step header"""
     print(f"\n{'='*60}")
@@ -42,27 +28,27 @@ def load_build_config():
     try:
         with open('build_config.json') as f:
             config = json.load(f)
-        print("✅ Build configuration loaded.")
+        print("[OK] Build configuration loaded.")
         return config
     except Exception as e:
-        print(f"❌ Failed to load build_config.json: {e}")
+        print(f"[FAIL] Failed to load build_config.json: {e}")
         sys.exit(1)
 
 def get_app_version():
     """Detect version from environment or core/version.py"""
     version = os.environ.get('APP_VERSION')
     if version:
-        print(f"✅ Version detected from environment: {version}")
+        print(f"[OK] Version detected from environment: {version}")
         return version
     
     try:
         # Add current dir to path to import core.version
         sys.path.append(os.getcwd())
         from core.version import VERSION
-        print(f"✅ Version detected from core/version.py: {VERSION}")
+        print(f"[OK] Version detected from core/version.py: {VERSION}")
         return VERSION
     except ImportError:
-        print("⚠️ core/version.py not found, using default 1.0.0")
+        print("[WARN] core/version.py not found, using default 1.0.0")
         return "1.0.0"
 
 def download_ffmpeg_pinned(cfg):
@@ -76,10 +62,10 @@ def download_ffmpeg_pinned(cfg):
     ffprobe_exe = bin_dir / "ffprobe.exe"
     
     if ffmpeg_exe.exists() and ffprobe_exe.exists():
-        print("✅ Pinned FFmpeg binaries already exist in bin/, skipping download")
+        print("[OK] Pinned FFmpeg binaries already exist in bin/, skipping download")
         return True
 
-    print(f"📥 Downloading FFmpeg {cfg['version']}...")
+    print(f"Downloading FFmpeg {cfg['version']}...")
     zip_path = Path("ffmpeg.zip")
     sha_path = Path("ffmpeg.zip.sha256")
     
@@ -101,12 +87,12 @@ def download_ffmpeg_pinned(cfg):
         actual_hash = sha256_hash.hexdigest().lower()
         
         if actual_hash != expected_hash:
-            print(f"❌ SHA256 verification FAILED!")
+            print("[FAIL] SHA256 verification FAILED!")
             print(f"Expected: {expected_hash}")
             print(f"Actual:   {actual_hash}")
             return False
         
-        print("✅ SHA256 verification passed.")
+        print("[OK] SHA256 verification passed.")
         
         # Extract binaries
         print("Extracting binaries...")
@@ -118,33 +104,33 @@ def download_ffmpeg_pinned(cfg):
                     with zip_ref.open(member) as source, open(bin_dir / filename, "wb") as target:
                         shutil.copyfileobj(source, target)
         
-        print(f"✅ Extracted: {ffmpeg_exe.name}, {ffprobe_exe.name}")
+        print(f"[OK] Extracted: {ffmpeg_exe.name}, {ffprobe_exe.name}")
         return True
         
     except Exception as e:
-        print(f"❌ Failed to download/extract FFmpeg: {e}")
+        print(f"[FAIL] Failed to download/extract FFmpeg: {e}")
         return False
     finally:
         if zip_path.exists(): zip_path.unlink()
         if sha_path.exists(): sha_path.unlink()
 
 def generate_icon():
-    """Render assets/icons/dashboard.svg → icon.ico via PySide6 + Pillow (no native Cairo needed)."""
+    """Render assets/icons/dashboard.svg -> icon.ico via PySide6 + Pillow (no native Cairo needed)."""
     print_step("Generating icon.ico from dashboard.svg")
 
     if Path("icon.ico").exists():
-        print("✅ icon.ico already exists — skipping generation (delete it to regenerate)")
+        print("[OK] icon.ico already exists - skipping generation (delete it to regenerate)")
         return
 
     helper = Path("_gen_icon.py")
     if not helper.exists():
-        print(f"⚠️ {helper} not found — keeping existing icon.ico")
+        print(f"[WARN] {helper} not found - keeping existing icon.ico")
         return
 
     try:
         subprocess.check_call([sys.executable, str(helper)])
     except subprocess.CalledProcessError as exc:
-        print(f"⚠️ Icon generation failed (exit {exc.returncode}) — keeping existing icon.ico")
+        print(f"[WARN] Icon generation failed (exit {exc.returncode}) - keeping existing icon.ico")
 
 
 def build_executable():
@@ -161,11 +147,11 @@ def build_executable():
         # Build using spec file
         subprocess.check_call([sys.executable, "-m", "PyInstaller", "media_util_gui.spec", "--clean"])
 
-        print("✅ Executable built successfully!")
+        print("[OK] Executable built successfully!")
         return True
 
     except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to build executable: {e}")
+        print(f"[FAIL] Failed to build executable: {e}")
         return False
 
 def compile_installer(version):
@@ -174,16 +160,16 @@ def compile_installer(version):
     
     iscc = shutil.which('iscc') or r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
     if not os.path.exists(iscc):
-        print(f"⚠️ ISCC.exe not found at {iscc}. Please install Inno Setup 6.")
+        print(f"[WARN] ISCC.exe not found at {iscc}. Please install Inno Setup 6.")
         print("Skipping installer compilation.")
         return True # Don't fail the whole build if just installer fails due to missing tool
         
     try:
         subprocess.check_call([iscc, f'/DAppVersion={version}', 'installer.iss'])
-        print("✅ Installer compiled successfully!")
+        print("[OK] Installer compiled successfully!")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to compile installer: {e}")
+        print(f"[FAIL] Failed to compile installer: {e}")
         return False
 
 def measure_sizes(dist_dir, installer_path):
@@ -192,7 +178,7 @@ def measure_sizes(dist_dir, installer_path):
     
     dist_path = Path(dist_dir)
     if not dist_path.exists():
-        print(f"⚠️ {dist_dir} not found, skipping measurements.")
+        print(f"[WARN] {dist_dir} not found, skipping measurements.")
         return 0, 0, []
         
     installed_mb = sum(f.stat().st_size for f in dist_path.rglob('*') if f.is_file()) / 1e6
@@ -225,8 +211,8 @@ def check_budget(installer_mb, installed_mb, top10):
         }
         with open(budget_file, 'w') as f:
             json.dump(budget, f, indent=2)
-        print(f"✅ Seeded {budget_file} with current measurements.")
-        print("⚠️ Commit this file to enforce these limits in future builds.")
+        print(f"[OK] Seeded {budget_file} with current measurements.")
+        print("[WARN] Commit this file to enforce these limits in future builds.")
         return True
 
     with open(budget_file) as f:
@@ -241,13 +227,13 @@ def check_budget(installer_mb, installed_mb, top10):
         failures.append(f"Installed {installed_mb:.1f} MB > budget {budget['installed_mb']} MB (x{tol})")
         
     if failures:
-        print("\n❌ BUILD FAILED — size budget exceeded:")
+        print("\n[FAIL] BUILD FAILED - size budget exceeded:")
         for f in failures: print(f"  {f}")
         print("\nTop 10 contributors:")
         for p, mb in top10: print(f"  {mb:6.2f} MB  {p}")
         sys.exit(1)
     
-    print("✅ Size budget check passed.")
+    print("[OK] Size budget check passed.")
     return True
 
 def write_size_report(installer_mb, installed_mb, top10):
@@ -261,15 +247,15 @@ def write_size_report(installer_mb, installed_mb, top10):
     report_path = Path('dist/size-report.json')
     with open(report_path, 'w') as f:
         json.dump(report, f, indent=2)
-    print(f"✅ Size report written to {report_path}")
+    print(f"[OK] Size report written to {report_path}")
 
 def main():
     """Main build process"""
-    print("🚀 Videl - Windows Build Pipeline")
+    print("Videl - Windows Build Pipeline")
     print("=" * 60)
     
     if sys.platform != "win32":
-        print("❌ This build pipeline requires Windows.")
+        print("[FAIL] This build pipeline requires Windows.")
         sys.exit(1)
     
     config = load_build_config()
@@ -306,9 +292,8 @@ def main():
     # Step 8: Report
     write_size_report(installer_mb, installed_mb, top10)
     
-    print("\n🎉 Build Complete!")
+    print("\nBuild complete.")
     print(f"Installer: {os.path.abspath(installer_path)}")
 
 if __name__ == "__main__":
-    _ensure_stdio_utf8()
     main()
