@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QStackedWidget, QSlider, QVBoxLayout, QWidget,
 )
 
+from core.i18n import tr
 from core.palette_extractor import extract_palette, ALL_EXTS, IMAGE_EXTS, VIDEO_EXTS
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
@@ -270,6 +271,7 @@ class PaletteSection(QScrollArea):
         self._duration_ms: int = 0
         self._scrubbing: bool = False
         self._frame_timestamp: str | None = None   # set by "Use this frame"; None = full video
+        self._preview_placeholder_key: str | None = None
 
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -332,12 +334,13 @@ class PaletteSection(QScrollArea):
         outer = QVBoxLayout(card)
         outer.setContentsMargins(20, 16, 20, 16)
         outer.setSpacing(10)
-        outer.addWidget(_section_header("SOURCE FILE"))
+        self._hdr_src = _section_header(tr("hdr_source_file"))
+        outer.addWidget(self._hdr_src)
 
-        hint = QLabel("Accepts images (JPG, PNG, WEBP…) and video files.")
-        hint.setObjectName("TextMuted")
-        hint.setStyleSheet("font-size: 12px;")
-        outer.addWidget(hint)
+        self._hint_accepts = QLabel(tr("hint_accepts_img_vid"))
+        self._hint_accepts.setObjectName("TextMuted")
+        self._hint_accepts.setStyleSheet("font-size: 12px;")
+        outer.addWidget(self._hint_accepts)
 
         body = QHBoxLayout()
         body.setSpacing(16)
@@ -349,15 +352,15 @@ class PaletteSection(QScrollArea):
         file_row = QHBoxLayout()
         self._file_input = QLineEdit()
         self._file_input.setObjectName("PillInput")
-        self._file_input.setPlaceholderText("Path to image or video…")
+        self._file_input.setPlaceholderText(tr("ph_img_or_vid"))
         self._file_input.textChanged.connect(self._on_source_changed)
         file_row.addWidget(self._file_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_source)
-        file_row.addWidget(browse_btn)
+        self._browse_src_btn = QPushButton(tr("btn_browse"))
+        self._browse_src_btn.setObjectName("BrowseBtn")
+        self._browse_src_btn.setFixedWidth(90)
+        self._browse_src_btn.clicked.connect(self._browse_source)
+        file_row.addWidget(self._browse_src_btn)
         left.addLayout(file_row)
         left.addStretch()
         body.addLayout(left, stretch=1)
@@ -371,7 +374,7 @@ class PaletteSection(QScrollArea):
             "QLabel#Card { border-radius: 6px; background: #1C2128; color: #8B949E;"
             " font-size: 12px; }"
         )
-        self._preview_label.setText("No preview")
+        self._set_preview_placeholder("hint_palette_no_preview")
         body.addWidget(self._preview_label)
 
         outer.addLayout(body)
@@ -384,9 +387,8 @@ class PaletteSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header(
-            "PREVIEW  —  scrub to the frame whose colors you want"
-        ))
+        self._hdr_player = _section_header(tr("hdr_palette_preview"))
+        layout.addWidget(self._hdr_player)
 
         self._pal_video = QVideoWidget()
         self._pal_video.setObjectName("VideoWidget")
@@ -430,25 +432,25 @@ class PaletteSection(QScrollArea):
 
         ctrl.addStretch()
 
-        self._pal_use_btn = QPushButton("⬇  Use this frame")
+        self._pal_use_btn = QPushButton(tr("btn_use_this_frame"))
         self._pal_use_btn.setObjectName("BrowseBtn")
         self._pal_use_btn.setFixedHeight(42)
-        self._pal_use_btn.setToolTip("Extract palette from this exact frame only")
+        self._pal_use_btn.setToolTip(tr("hint_palette_use_frame_tooltip"))
         self._pal_use_btn.clicked.connect(self._pal_stamp_frame)
         self._pal_use_btn.setEnabled(False)
         ctrl.addWidget(self._pal_use_btn)
 
-        self._pal_reset_btn = QPushButton("Whole video")
+        self._pal_reset_btn = QPushButton(tr("btn_whole_video"))
         self._pal_reset_btn.setObjectName("BrowseBtn")
         self._pal_reset_btn.setFixedHeight(42)
-        self._pal_reset_btn.setToolTip("Revert to analyzing the full video (slower)")
+        self._pal_reset_btn.setToolTip(tr("hint_palette_reset_tooltip"))
         self._pal_reset_btn.clicked.connect(self._pal_reset_frame)
         self._pal_reset_btn.setEnabled(False)
         ctrl.addWidget(self._pal_reset_btn)
 
         layout.addLayout(ctrl)
 
-        self._pal_mode_lbl = QLabel("Mode: whole video")
+        self._pal_mode_lbl = QLabel(tr("hint_palette_mode_whole"))
         self._pal_mode_lbl.setObjectName("TextMuted")
         self._pal_mode_lbl.setStyleSheet("font-size: 12px;")
         layout.addWidget(self._pal_mode_lbl)
@@ -505,12 +507,14 @@ class PaletteSection(QScrollArea):
         pos = self._pal_player.position()
         self._frame_timestamp = _ms_to_ts(pos)
         self._pal_reset_btn.setEnabled(True)
-        self._pal_mode_lbl.setText(f"Mode: single frame at {self._frame_timestamp}")
+        self._pal_mode_lbl.setText(
+            tr("hint_palette_mode_single").format(time=self._frame_timestamp)
+        )
 
     def _pal_reset_frame(self) -> None:
         self._frame_timestamp = None
         self._pal_reset_btn.setEnabled(False)
-        self._pal_mode_lbl.setText("Mode: whole video")
+        self._pal_mode_lbl.setText(tr("hint_palette_mode_whole"))
 
     # ── Options card ──────────────────────────────────────────────────────────
 
@@ -519,11 +523,13 @@ class PaletteSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(12)
-        layout.addWidget(_section_header("PALETTE OPTIONS"))
+        self._hdr_opts = _section_header(tr("hdr_palette_opts"))
+        layout.addWidget(self._hdr_opts)
 
         row = QHBoxLayout()
         col = QVBoxLayout()
-        col.addWidget(QLabel("Number of colors"))
+        self._lbl_n_colors = QLabel(tr("lbl_n_colors"))
+        col.addWidget(self._lbl_n_colors)
         self._num_colors = QSpinBox()
         self._num_colors.setRange(2, 128)
         self._num_colors.setValue(16)
@@ -533,14 +539,11 @@ class PaletteSection(QScrollArea):
         row.addStretch()
         layout.addLayout(row)
 
-        note = QLabel(
-            "FFmpeg palettegen selects dominant colors via median-cut quantization. "
-            "Click any swatch to copy its hex code."
-        )
-        note.setObjectName("TextMuted")
-        note.setWordWrap(True)
-        note.setStyleSheet("font-size: 12px;")
-        layout.addWidget(note)
+        self._palette_note = QLabel(tr("hint_palette_quantization"))
+        self._palette_note.setObjectName("TextMuted")
+        self._palette_note.setWordWrap(True)
+        self._palette_note.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._palette_note)
         return card
 
     # ── Output card ───────────────────────────────────────────────────────────
@@ -568,9 +571,10 @@ class PaletteSection(QScrollArea):
         layout.setSpacing(12)
 
         header_row = QHBoxLayout()
-        header_row.addWidget(_section_header("EXTRACTED PALETTE"))
+        self._hdr_palette = _section_header(tr("hdr_extracted_palette"))
+        header_row.addWidget(self._hdr_palette)
         header_row.addStretch()
-        self._copy_all_btn = QPushButton("Copy All")
+        self._copy_all_btn = QPushButton(tr("btn_copy_all"))
         self._copy_all_btn.setObjectName("BrowseBtn")
         self._copy_all_btn.setFixedWidth(80)
         self._copy_all_btn.clicked.connect(self._copy_all_hex)
@@ -612,7 +616,8 @@ class PaletteSection(QScrollArea):
         info.setSpacing(12)
         info.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        info.addWidget(_section_header("SELECTED COLOR"))
+        self._hdr_sel = _section_header(tr("hdr_selected_color"))
+        info.addWidget(self._hdr_sel)
 
         # Preview swatch
         self._wheel_preview = QFrame()
@@ -623,23 +628,23 @@ class PaletteSection(QScrollArea):
         info.addWidget(self._wheel_preview)
 
         # Hex input
-        hex_lbl = QLabel("Hex code")
-        hex_lbl.setObjectName("TextMuted")
-        hex_lbl.setStyleSheet("font-size: 11px;")
-        info.addWidget(hex_lbl)
+        self._wheel_hex_lbl = QLabel(tr("lbl_hex_code"))
+        self._wheel_hex_lbl.setObjectName("TextMuted")
+        self._wheel_hex_lbl.setStyleSheet("font-size: 11px;")
+        info.addWidget(self._wheel_hex_lbl)
 
         self._wheel_hex = QLineEdit("#FF0000")
         self._wheel_hex.setObjectName("PillInput")
         self._wheel_hex.setMaximumWidth(150)
-        self._wheel_hex.setPlaceholderText("#RRGGBB")
+        self._wheel_hex.setPlaceholderText(tr("ph_wheel_hex"))
         self._wheel_hex.textChanged.connect(self._on_hex_typed)
         info.addWidget(self._wheel_hex)
 
-        copy_btn = QPushButton("Copy Hex")
-        copy_btn.setObjectName("BrowseBtn")
-        copy_btn.setFixedWidth(100)
-        copy_btn.clicked.connect(self._copy_wheel_hex)
-        info.addWidget(copy_btn)
+        self._wheel_copy_btn = QPushButton(tr("btn_copy_hex"))
+        self._wheel_copy_btn.setObjectName("BrowseBtn")
+        self._wheel_copy_btn.setFixedWidth(100)
+        self._wheel_copy_btn.clicked.connect(self._copy_wheel_hex)
+        info.addWidget(self._wheel_copy_btn)
 
         # HSV readout
         self._wheel_hsv_lbl = QLabel("H: 0°   S: 100%   V: 100%")
@@ -661,6 +666,40 @@ class PaletteSection(QScrollArea):
 
     # ── Preview loading ───────────────────────────────────────────────────────
 
+    def _set_preview_placeholder(self, key: str) -> None:
+        self._preview_placeholder_key = key
+        self._preview_label.setPixmap(QPixmap())
+        self._preview_label.setText(tr(key))
+
+    def retranslate_ui(self) -> None:
+        self._hdr_src.setText(tr("hdr_source_file"))
+        self._hint_accepts.setText(tr("hint_accepts_img_vid"))
+        self._file_input.setPlaceholderText(tr("ph_img_or_vid"))
+        self._browse_src_btn.setText(tr("btn_browse"))
+        if self._preview_placeholder_key:
+            self._preview_label.setText(tr(self._preview_placeholder_key))
+        self._hdr_opts.setText(tr("hdr_palette_opts"))
+        self._lbl_n_colors.setText(tr("lbl_n_colors"))
+        self._palette_note.setText(tr("hint_palette_quantization"))
+        self._hdr_palette.setText(tr("hdr_extracted_palette"))
+        self._hdr_sel.setText(tr("hdr_selected_color"))
+        self._copy_all_btn.setText(tr("btn_copy_all"))
+        self._wheel_hex_lbl.setText(tr("lbl_hex_code"))
+        self._wheel_hex.setPlaceholderText(tr("ph_wheel_hex"))
+        self._wheel_copy_btn.setText(tr("btn_copy_hex"))
+        if _MM and hasattr(self, "_hdr_player"):
+            self._hdr_player.setText(tr("hdr_palette_preview"))
+            self._pal_use_btn.setText(tr("btn_use_this_frame"))
+            self._pal_use_btn.setToolTip(tr("hint_palette_use_frame_tooltip"))
+            self._pal_reset_btn.setText(tr("btn_whole_video"))
+            self._pal_reset_btn.setToolTip(tr("hint_palette_reset_tooltip"))
+            if self._frame_timestamp:
+                self._pal_mode_lbl.setText(
+                    tr("hint_palette_mode_single").format(time=self._frame_timestamp)
+                )
+            else:
+                self._pal_mode_lbl.setText(tr("hint_palette_mode_whole"))
+
     def _on_source_changed(self, path: str) -> None:
         path = path.strip()
         ext = os.path.splitext(path)[1].lower()
@@ -674,7 +713,7 @@ class PaletteSection(QScrollArea):
                 # Reset frame selection when a new file is loaded
                 self._frame_timestamp = None
                 self._pal_reset_btn.setEnabled(False)
-                self._pal_mode_lbl.setText("Mode: whole video")
+                self._pal_mode_lbl.setText(tr("hint_palette_mode_whole"))
             else:
                 self._pal_player.stop()
                 self._pos_timer.stop()
@@ -686,23 +725,23 @@ class PaletteSection(QScrollArea):
     def _load_preview(self) -> None:
         path = self._file_input.text().strip()
         if not path or not os.path.isfile(path):
-            self._preview_label.setPixmap(QPixmap())
-            self._preview_label.setText("No preview")
+            self._set_preview_placeholder("hint_palette_no_preview")
             return
 
         ext = os.path.splitext(path)[1].lower()
         if ext in IMAGE_EXTS:
             px = QPixmap(path)
             if not px.isNull():
+                self._preview_placeholder_key = None
                 self._preview_label.setPixmap(
                     px.scaled(200, 130, Qt.AspectRatioMode.KeepAspectRatio,
                               Qt.TransformationMode.SmoothTransformation)
                 )
                 self._preview_label.setText("")
             else:
-                self._preview_label.setText("Cannot load image")
+                self._set_preview_placeholder("err_palette_bad_image")
         elif ext in VIDEO_EXTS:
-            self._preview_label.setText("Loading…")
+            self._set_preview_placeholder("dyn_loading")
             self._start_thumb_grab(path)
 
     def _start_thumb_grab(self, video_path: str) -> None:
@@ -715,20 +754,23 @@ class PaletteSection(QScrollArea):
         from core.frame_grabber import grab_frame
         self._thumb_worker = Worker(grab_frame, video_path, "00:00:01", "png", tmp_dir)
         self._thumb_worker.signals.result.connect(self._on_thumb_done)
-        self._thumb_worker.signals.error.connect(lambda _: self._preview_label.setText("No preview"))
+        self._thumb_worker.signals.error.connect(
+            lambda _: self._set_preview_placeholder("hint_palette_no_preview")
+        )
         self._thumb_worker.start()
 
     def _on_thumb_done(self, result: dict) -> None:
         if result.get("success") and os.path.isfile(result["file_path"]):
             px = QPixmap(result["file_path"])
             if not px.isNull():
+                self._preview_placeholder_key = None
                 self._preview_label.setPixmap(
                     px.scaled(200, 130, Qt.AspectRatioMode.KeepAspectRatio,
                               Qt.TransformationMode.SmoothTransformation)
                 )
                 self._preview_label.setText("")
                 return
-        self._preview_label.setText("No preview")
+        self._set_preview_placeholder("hint_palette_no_preview")
 
     # ── Browse helpers ────────────────────────────────────────────────────────
 

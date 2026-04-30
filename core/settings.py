@@ -22,7 +22,8 @@ class UserSettings:
     output_name_template: str = "{name}_converted"
     presets: dict = field(default_factory=dict)
     start_with_windows: bool = False
-    version: int = 9
+    language: str = "en"
+    version: int = 10
 
 
 class SettingsManager:
@@ -108,6 +109,9 @@ class SettingsManager:
             if merged_data.get("version", 1) < 9:
                 merged_data.setdefault("start_with_windows", False)
                 merged_data["version"] = 9
+            if merged_data.get("version", 1) < 10:
+                merged_data.setdefault("language", "en")
+                merged_data["version"] = 10
 
             return UserSettings(**merged_data)
         except (json.JSONDecodeError, OSError, TypeError):

@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.i18n import tr
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 from gui.worker import Worker
@@ -81,19 +82,20 @@ class GifSection(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("SOURCE VIDEO"))
+        self._hdr_src = _section_header(tr("hdr_source_video"))
+        layout.addWidget(self._hdr_src)
 
         row = QHBoxLayout()
         self._file_input = QLineEdit()
         self._file_input.setObjectName("PillInput")
-        self._file_input.setPlaceholderText("Video file…")
+        self._file_input.setPlaceholderText(tr("ph_vid"))
         row.addWidget(self._file_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_file)
-        row.addWidget(browse_btn)
+        self._browse_src_btn = QPushButton(tr("btn_browse"))
+        self._browse_src_btn.setObjectName("BrowseBtn")
+        self._browse_src_btn.setFixedWidth(90)
+        self._browse_src_btn.clicked.connect(self._browse_file)
+        row.addWidget(self._browse_src_btn)
         layout.addLayout(row)
         return card
 
@@ -102,21 +104,24 @@ class GifSection(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("GIF OPTIONS"))
+        self._hdr_opts = _section_header(tr("hdr_gif_opts"))
+        layout.addWidget(self._hdr_opts)
 
         row1 = QHBoxLayout()
-        row1.addWidget(QLabel("Start time (s)"))
+        self._gif_lbl_start = QLabel(tr("lbl_start_time_s"))
+        row1.addWidget(self._gif_lbl_start)
         row1.addStretch()
         self._start_spin = QSpinBox()
         self._start_spin.setRange(0, 86400)
         self._start_spin.setValue(0)
         self._start_spin.setFixedWidth(80)
-        self._start_spin.setToolTip("Start offset in seconds from the beginning of the video")
+        self._start_spin.setToolTip(tr("tooltip_gif_start_s"))
         row1.addWidget(self._start_spin)
         layout.addLayout(row1)
 
         row2 = QHBoxLayout()
-        row2.addWidget(QLabel("Duration (s)"))
+        self._gif_lbl_dur = QLabel(tr("lbl_duration_s"))
+        row2.addWidget(self._gif_lbl_dur)
         row2.addStretch()
         self._dur_spin = QSpinBox()
         self._dur_spin.setRange(1, 300)
@@ -126,7 +131,8 @@ class GifSection(QWidget):
         layout.addLayout(row2)
 
         row3 = QHBoxLayout()
-        row3.addWidget(QLabel("Width (px)  — height auto"))
+        self._gif_lbl_width = QLabel(tr("lbl_width_px"))
+        row3.addWidget(self._gif_lbl_width)
         row3.addStretch()
         self._width_spin = QSpinBox()
         self._width_spin.setRange(64, 1920)
@@ -137,7 +143,8 @@ class GifSection(QWidget):
         layout.addLayout(row3)
 
         row4 = QHBoxLayout()
-        row4.addWidget(QLabel("FPS"))
+        self._gif_lbl_fps = QLabel(tr("lbl_fps"))
+        row4.addWidget(self._gif_lbl_fps)
         row4.addStretch()
         self._fps_spin = QSpinBox()
         self._fps_spin.setRange(1, 30)
@@ -153,21 +160,22 @@ class GifSection(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("OUTPUT FOLDER"))
+        self._hdr_out = _section_header(tr("hdr_output_folder"))
+        layout.addWidget(self._hdr_out)
 
         row = QHBoxLayout()
         self._out_input = QLineEdit()
         self._out_input.setObjectName("PillInput")
-        self._out_input.setPlaceholderText("Same directory as source file")
+        self._out_input.setPlaceholderText(tr("ph_same_dir"))
         if self._settings.output_folder:
             self._out_input.setText(self._settings.output_folder)
         row.addWidget(self._out_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_output)
-        row.addWidget(browse_btn)
+        self._browse_out_btn = QPushButton(tr("btn_browse"))
+        self._browse_out_btn.setObjectName("BrowseBtn")
+        self._browse_out_btn.setFixedWidth(90)
+        self._browse_out_btn.clicked.connect(self._browse_output)
+        row.addWidget(self._browse_out_btn)
         layout.addLayout(row)
         return card
 
@@ -190,6 +198,21 @@ class GifSection(QWidget):
         return card
 
     # ── Browse handlers ────────────────────────────────────────────────────────
+
+
+    def retranslate_ui(self) -> None:
+        self._hdr_src.setText(tr("hdr_source_video"))
+        self._file_input.setPlaceholderText(tr("ph_vid"))
+        self._browse_src_btn.setText(tr("btn_browse"))
+        self._hdr_opts.setText(tr("hdr_gif_opts"))
+        self._gif_lbl_start.setText(tr("lbl_start_time_s"))
+        self._gif_lbl_dur.setText(tr("lbl_duration_s"))
+        self._gif_lbl_width.setText(tr("lbl_width_px"))
+        self._gif_lbl_fps.setText(tr("lbl_fps"))
+        self._start_spin.setToolTip(tr("tooltip_gif_start_s"))
+        self._hdr_out.setText(tr("hdr_output_folder"))
+        self._out_input.setPlaceholderText(tr("ph_same_dir"))
+        self._browse_out_btn.setText(tr("btn_browse"))
 
     def _browse_file(self) -> None:
         start = os.path.dirname(self._file_input.text()) or os.path.expanduser("~")
@@ -232,7 +255,7 @@ class GifSection(QWidget):
         out_dir = self._out_input.text().strip() or os.path.dirname(src)
 
         self._set_busy(True)
-        self.status_message.emit("Creating GIF…", False)
+        self.status_message.emit(tr("dyn_creating_gif"), False)
 
         def do_gif():
             base = os.path.splitext(os.path.basename(src))[0]
@@ -267,7 +290,7 @@ class GifSection(QWidget):
         self._progress_bar.setVisible(busy)
         self._progress_label.setVisible(busy)
         if busy:
-            self._progress_label.setText("Creating GIF…")
+            self._progress_label.setText(tr("dyn_creating_gif"))
         self.busy_changed.emit(busy)
 
     def _on_result(self, result: dict) -> None:

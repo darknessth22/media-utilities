@@ -26,10 +26,22 @@ qInstallMessageHandler(_qt_message_handler)
 
 from core.settings import SettingsManager
 from core.version import VERSION
+from core.i18n import I18n
 from gui.app import MainWindow
 from gui.theme import ThemeManager
 
 import os
+
+# Load .env for local secrets (not committed to git)
+_env_path = os.path.join(os.path.dirname(__file__), ".env")
+if os.path.isfile(_env_path):
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip())
+
 _APP_ICON = os.path.join(os.path.dirname(__file__), "assets", "videl_icon.png")
 
 
@@ -56,8 +68,13 @@ def main() -> None:
     # Load user settings
     settings = SettingsManager.load()
 
-    # Initialise and apply theme
+    # Initialise i18n and layout direction before the window is created
+    i18n = I18n.instance()
+    i18n.set_language(getattr(settings, "language", "en"))
+
+    # Initialise and apply theme (RTL must be set before first paint)
     theme_manager = ThemeManager(app)
+    theme_manager.set_rtl(i18n.is_rtl)
     theme_manager.set_mode(settings.theme_mode)
 
     # Create and show the main window immediately so the user sees the UI.
@@ -82,16 +99,13 @@ def main() -> None:
 
 def _on_deps_checked(error: str, window: MainWindow) -> None:
     if error == "ffmpeg_missing":
+        from core.i18n import tr
         QMessageBox.critical(
             window,
-            "Missing Dependency",
-            "FFmpeg was not found on this system.\n\n"
-            "Media conversion, trimming, and download features will not work.\n\n"
-            "Install FFmpeg and add it to your system PATH, or place ffmpeg.exe "
-            "in the same directory as this application.\n\n"
-            "Download from: https://ffmpeg.org/download.html",
+            tr("dep_error_title"),
+            tr("dep_error_ffmpeg"),
         )
-        window.update_status("FFmpeg not found — some features unavailable.", is_error=True)
+        window.update_status(tr("dep_error_status"), is_error=True)
 
 
 if __name__ == "__main__":

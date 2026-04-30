@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.i18n import tr
 from core.converter import convert_images
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
@@ -160,20 +161,21 @@ class _SingleConvertView(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("SOURCE FILE"))
+        self._hdr_src = _section_header(tr("hdr_source_file"))
+        layout.addWidget(self._hdr_src)
 
         row = QHBoxLayout()
         self._file_input = QLineEdit()
         self._file_input.setObjectName("PillInput")
-        self._file_input.setPlaceholderText("Image, video, or audio file…")
+        self._file_input.setPlaceholderText(tr("ph_img_vid_aud"))
         self._file_input.textChanged.connect(self._on_source_changed)
         row.addWidget(self._file_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_file)
-        row.addWidget(browse_btn)
+        self._browse_src_btn = QPushButton(tr("btn_browse"))
+        self._browse_src_btn.setObjectName("BrowseBtn")
+        self._browse_src_btn.setFixedWidth(90)
+        self._browse_src_btn.clicked.connect(self._browse_file)
+        row.addWidget(self._browse_src_btn)
         layout.addLayout(row)
 
         self._type_label = QLabel()
@@ -187,7 +189,8 @@ class _SingleConvertView(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("TARGET FORMAT"))
+        self._hdr_fmt = _section_header(tr("hdr_target_format"))
+        layout.addWidget(self._hdr_fmt)
 
         self._format_container = QWidget()
         self._format_container.setStyleSheet("background: transparent;")
@@ -197,7 +200,7 @@ class _SingleConvertView(QWidget):
         self._format_btns: dict[str, QPushButton] = {}
         layout.addWidget(self._format_container)
 
-        self._format_hint = QLabel("Browse a file to see available formats.")
+        self._format_hint = QLabel(tr("hint_browse_formats"))
         self._format_hint.setObjectName("TextMuted")
         self._format_hint.setStyleSheet("font-size: 12px;")
         layout.addWidget(self._format_hint)
@@ -208,21 +211,22 @@ class _SingleConvertView(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("OUTPUT FOLDER"))
+        self._hdr_out = _section_header(tr("hdr_output_folder"))
+        layout.addWidget(self._hdr_out)
 
         row = QHBoxLayout()
         self._out_input = QLineEdit()
         self._out_input.setObjectName("PillInput")
-        self._out_input.setPlaceholderText("Same directory as source file")
+        self._out_input.setPlaceholderText(tr("ph_same_dir"))
         if self._settings.output_folder:
             self._out_input.setText(self._settings.output_folder)
         row.addWidget(self._out_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_output)
-        row.addWidget(browse_btn)
+        self._browse_out_btn = QPushButton(tr("btn_browse"))
+        self._browse_out_btn.setObjectName("BrowseBtn")
+        self._browse_out_btn.setFixedWidth(90)
+        self._browse_out_btn.clicked.connect(self._browse_output)
+        row.addWidget(self._browse_out_btn)
         layout.addLayout(row)
         return card
 
@@ -243,6 +247,13 @@ class _SingleConvertView(QWidget):
         self._progress_label.setVisible(False)
         layout.addWidget(self._progress_label)
         return card
+
+    def _media_type_label(self, mt: str) -> str:
+        return {
+            "image": tr("type_label_image"),
+            "audio": tr("type_label_audio"),
+            "video": tr("type_label_video"),
+        }.get(mt, "")
 
     # ── Dynamic format chips ───────────────────────────────────────────────────
 
@@ -295,8 +306,18 @@ class _SingleConvertView(QWidget):
         if mt != self._media_type:
             self._media_type = mt
             self._populate_format_chips(mt)
-        label_map = {"image": "Image file", "audio": "Audio file", "video": "Video file"}
-        self._type_label.setText(label_map.get(mt, ""))
+        self._type_label.setText(self._media_type_label(mt))
+
+    def retranslate_ui(self) -> None:
+        self._hdr_src.setText(tr("hdr_source_file"))
+        self._browse_src_btn.setText(tr("btn_browse"))
+        self._file_input.setPlaceholderText(tr("ph_img_vid_aud"))
+        self._hdr_fmt.setText(tr("hdr_target_format"))
+        self._format_hint.setText(tr("hint_browse_formats"))
+        self._hdr_out.setText(tr("hdr_output_folder"))
+        self._out_input.setPlaceholderText(tr("ph_same_dir"))
+        self._browse_out_btn.setText(tr("btn_browse"))
+        self._type_label.setText(self._media_type_label(self._media_type))
 
     def _browse_file(self) -> None:
         start = os.path.dirname(self._file_input.text()) or os.path.expanduser("~")
@@ -368,7 +389,7 @@ class _SingleConvertView(QWidget):
         self._progress_bar.setVisible(busy)
         self._progress_label.setVisible(busy)
         if busy:
-            self._progress_label.setText("Converting…")
+            self._progress_label.setText(tr("dyn_converting"))
         self.busy_changed.emit(busy)
 
     def _on_result(self, result: dict) -> None:
@@ -435,7 +456,8 @@ class _BatchConvertView(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("IMAGE FILES  (drag here or click Add)"))
+        self._hdr_imgs = _section_header(tr("hdr_image_files"))
+        layout.addWidget(self._hdr_imgs)
 
         self._file_list = QListWidget()
         self._file_list.setObjectName("FileList")
@@ -446,15 +468,15 @@ class _BatchConvertView(QWidget):
         row = QHBoxLayout()
         row.addStretch()
 
-        add_btn = QPushButton("Add Files…")
-        add_btn.setObjectName("BrowseBtn")
-        add_btn.clicked.connect(self._add_files)
-        row.addWidget(add_btn)
+        self._batch_add_btn = QPushButton(tr("btn_add_files"))
+        self._batch_add_btn.setObjectName("BrowseBtn")
+        self._batch_add_btn.clicked.connect(self._add_files)
+        row.addWidget(self._batch_add_btn)
 
-        clear_btn = QPushButton("Clear")
-        clear_btn.setObjectName("BrowseBtn")
-        clear_btn.clicked.connect(self._file_list.clear)
-        row.addWidget(clear_btn)
+        self._batch_clear_btn = QPushButton(tr("btn_clear"))
+        self._batch_clear_btn.setObjectName("BrowseBtn")
+        self._batch_clear_btn.clicked.connect(self._file_list.clear)
+        row.addWidget(self._batch_clear_btn)
         layout.addLayout(row)
         return card
 
@@ -463,11 +485,12 @@ class _BatchConvertView(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("TARGET FORMAT  (images only)"))
+        self._hdr_fmt2 = _section_header(tr("hdr_target_format"))
+        layout.addWidget(self._hdr_fmt2)
 
         row = QHBoxLayout()
         row.setSpacing(8)
-        self._format_btns: dict[str, QPushButton] = {}
+        self._batch_format_btns: dict[str, QPushButton] = {}
         for fmt in _IMAGE_FORMATS:
             btn = QPushButton(fmt)
             btn.setObjectName("ChipBtn")
@@ -475,7 +498,7 @@ class _BatchConvertView(QWidget):
             btn.setFlat(True)
             btn.setFixedWidth(64)
             btn.clicked.connect(lambda _c, f=fmt: self._select_format(f))
-            self._format_btns[fmt] = btn
+            self._batch_format_btns[fmt] = btn
             row.addWidget(btn)
         row.addStretch()
         layout.addLayout(row)
@@ -487,21 +510,22 @@ class _BatchConvertView(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("OUTPUT FOLDER"))
+        self._hdr_batch_out = _section_header(tr("hdr_output_folder"))
+        layout.addWidget(self._hdr_batch_out)
 
         row = QHBoxLayout()
         self._out_input = QLineEdit()
         self._out_input.setObjectName("PillInput")
-        self._out_input.setPlaceholderText("Same directory as source files")
+        self._out_input.setPlaceholderText(tr("ph_same_dirs"))
         if self._settings.output_folder:
             self._out_input.setText(self._settings.output_folder)
         row.addWidget(self._out_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_output)
-        row.addWidget(browse_btn)
+        self._browse_batch_btn = QPushButton(tr("btn_browse"))
+        self._browse_batch_btn.setObjectName("BrowseBtn")
+        self._browse_batch_btn.setFixedWidth(90)
+        self._browse_batch_btn.clicked.connect(self._browse_output)
+        row.addWidget(self._browse_batch_btn)
         layout.addLayout(row)
         return card
 
@@ -527,12 +551,21 @@ class _BatchConvertView(QWidget):
 
     def _select_format(self, fmt: str) -> None:
         self._selected_format = fmt
-        for name, btn in self._format_btns.items():
+        for name, btn in self._batch_format_btns.items():
             active = name == fmt
             btn.setChecked(active)
             btn.setProperty("selected", "true" if active else "false")
             btn.style().unpolish(btn)
             btn.style().polish(btn)
+
+    def retranslate_ui(self) -> None:
+        self._hdr_imgs.setText(tr("hdr_image_files"))
+        self._batch_add_btn.setText(tr("btn_add_files"))
+        self._batch_clear_btn.setText(tr("btn_clear"))
+        self._hdr_fmt2.setText(tr("hdr_target_format"))
+        self._hdr_batch_out.setText(tr("hdr_output_folder"))
+        self._out_input.setPlaceholderText(tr("ph_same_dirs"))
+        self._browse_batch_btn.setText(tr("btn_browse"))
 
     def _add_files(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
@@ -607,7 +640,7 @@ class _BatchConvertView(QWidget):
         self._progress_bar.setVisible(busy)
         self._progress_label.setVisible(busy)
         if busy:
-            self._progress_label.setText("Converting images…")
+            self._progress_label.setText(tr("dyn_converting_imgs"))
         self.busy_changed.emit(busy)
 
     def _on_result(self, result: dict) -> None:
@@ -712,3 +745,8 @@ class ConvertSection(QWidget):
         self._batch_view.add_files_from_paths(paths)
         self._stack.setCurrentIndex(1)
         self._current_sub_tab = 1
+
+    def retranslate_ui(self) -> None:
+        """Refresh strings for both convert sub-views (MainWindow calls this on language change)."""
+        self._single_view.retranslate_ui()
+        self._batch_view.retranslate_ui()

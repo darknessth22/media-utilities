@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.i18n import tr
 from core.chunker import split_by_duration, split_by_size
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
@@ -75,19 +76,20 @@ class ChunkSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("SOURCE FILE"))
+        self._hdr_src = _section_header(tr("hdr_source_file"))
+        layout.addWidget(self._hdr_src)
 
         row = QHBoxLayout()
         self._file_input = QLineEdit()
         self._file_input.setObjectName("PillInput")
-        self._file_input.setPlaceholderText("Video or audio file to split…")
+        self._file_input.setPlaceholderText(tr("ph_vid_to_split"))
         row.addWidget(self._file_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_file)
-        row.addWidget(browse_btn)
+        self._browse_src_btn = QPushButton(tr("btn_browse"))
+        self._browse_src_btn.setObjectName("BrowseBtn")
+        self._browse_src_btn.setFixedWidth(90)
+        self._browse_src_btn.clicked.connect(self._browse_file)
+        row.addWidget(self._browse_src_btn)
         layout.addLayout(row)
         return card
 
@@ -98,20 +100,18 @@ class ChunkSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(14)
-        layout.addWidget(_section_header("SPLIT MODE"))
+        self._hdr_split = _section_header(tr("hdr_split_mode"))
+        layout.addWidget(self._hdr_split)
 
-        hint = QLabel(
-            "Both modes use stream copy — no re-encoding. "
-            "Cuts are keyframe-accurate, so actual segment boundaries may vary slightly."
-        )
-        hint.setObjectName("TextMuted")
-        hint.setWordWrap(True)
-        hint.setStyleSheet("font-size: 12px;")
-        layout.addWidget(hint)
+        self._hint_mode = QLabel(tr("hint_chunk_stream_copy"))
+        self._hint_mode.setObjectName("TextMuted")
+        self._hint_mode.setWordWrap(True)
+        self._hint_mode.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._hint_mode)
 
         self._mode_group = QButtonGroup(self)
-        self._radio_duration = QRadioButton("By duration (seconds)")
-        self._radio_size = QRadioButton("By target size (MB)")
+        self._radio_duration = QRadioButton(tr("lbl_by_duration"))
+        self._radio_size = QRadioButton(tr("lbl_by_size"))
         self._radio_duration.setChecked(True)
         self._mode_group.addButton(self._radio_duration, 0)
         self._mode_group.addButton(self._radio_size, 1)
@@ -129,7 +129,8 @@ class ChunkSection(QScrollArea):
         dur_layout = QHBoxLayout(self._dur_row)
         dur_layout.setContentsMargins(0, 0, 0, 0)
         dur_layout.setSpacing(10)
-        dur_layout.addWidget(QLabel("Segment length (s):"))
+        self._lbl_segment_len = QLabel(tr("lbl_segment_len"))
+        dur_layout.addWidget(self._lbl_segment_len)
         self._dur_spin = QDoubleSpinBox()
         self._dur_spin.setRange(1, 86400)
         self._dur_spin.setValue(60)
@@ -145,7 +146,8 @@ class ChunkSection(QScrollArea):
         size_layout = QHBoxLayout(self._size_row)
         size_layout.setContentsMargins(0, 0, 0, 0)
         size_layout.setSpacing(10)
-        size_layout.addWidget(QLabel("Max chunk size (MB):"))
+        self._lbl_max_chunk_mb = QLabel(tr("lbl_max_chunk_mb"))
+        size_layout.addWidget(self._lbl_max_chunk_mb)
         self._size_spin = QDoubleSpinBox()
         self._size_spin.setRange(0.1, 100000)
         self._size_spin.setValue(50)
@@ -170,26 +172,27 @@ class ChunkSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("OUTPUT FOLDER"))
+        self._hdr_out = _section_header(tr("hdr_output_folder"))
+        layout.addWidget(self._hdr_out)
 
-        hint = QLabel("Parts are named <source>_part000.<ext>, _part001, …")
-        hint.setObjectName("TextMuted")
-        hint.setStyleSheet("font-size: 12px;")
-        layout.addWidget(hint)
+        self._hint_parts = QLabel(tr("hint_parts_named"))
+        self._hint_parts.setObjectName("TextMuted")
+        self._hint_parts.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._hint_parts)
 
         row = QHBoxLayout()
         self._out_input = QLineEdit()
         self._out_input.setObjectName("PillInput")
-        self._out_input.setPlaceholderText("Same directory as source file")
+        self._out_input.setPlaceholderText(tr("ph_same_dir"))
         if self._settings.output_folder:
             self._out_input.setText(self._settings.output_folder)
         row.addWidget(self._out_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_output)
-        row.addWidget(browse_btn)
+        self._browse_out_btn = QPushButton(tr("btn_browse"))
+        self._browse_out_btn.setObjectName("BrowseBtn")
+        self._browse_out_btn.setFixedWidth(90)
+        self._browse_out_btn.clicked.connect(self._browse_output)
+        row.addWidget(self._browse_out_btn)
         layout.addLayout(row)
         return card
 
@@ -214,6 +217,22 @@ class ChunkSection(QScrollArea):
         return card
 
     # ── Browsing ──────────────────────────────────────────────────────────────
+
+
+    def retranslate_ui(self) -> None:
+        self._hdr_src.setText(tr("hdr_source_file"))
+        self._file_input.setPlaceholderText(tr("ph_vid_to_split"))
+        self._browse_src_btn.setText(tr("btn_browse"))
+        self._hdr_split.setText(tr("hdr_split_mode"))
+        self._hint_mode.setText(tr("hint_chunk_stream_copy"))
+        self._radio_duration.setText(tr("lbl_by_duration"))
+        self._radio_size.setText(tr("lbl_by_size"))
+        self._lbl_segment_len.setText(tr("lbl_segment_len"))
+        self._lbl_max_chunk_mb.setText(tr("lbl_max_chunk_mb"))
+        self._hdr_out.setText(tr("hdr_output_folder"))
+        self._out_input.setPlaceholderText(tr("ph_same_dir"))
+        self._browse_out_btn.setText(tr("btn_browse"))
+        self._hint_parts.setText(tr("hint_parts_named"))
 
     def _browse_file(self) -> None:
         start = os.path.dirname(self._file_input.text()) or os.path.expanduser("~")

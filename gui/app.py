@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.settings import SettingsManager, UserSettings
+from core.i18n import I18n, tr
 from core.tray import SystemTrayIcon
 from gui.dnd_handler import DndHandler
 from gui.tabs.download_section import DownloadSection
@@ -56,6 +57,7 @@ from gui.tabs.watermark_section import WatermarkSection
 from gui.tabs.frame_grabber_section import FrameGrabberSection
 from gui.tabs.palette_section import PaletteSection
 from gui.tabs.bg_eraser_section import BgEraserSection
+from gui.tabs.bug_reporter import BugReporterSection
 from gui.pages.home_page import HomePage, ToolsPage
 
 # ── Animated toggle switch ───────────────────────────────────────────────────
@@ -137,135 +139,154 @@ _APP_ICON = os.path.join(os.path.dirname(__file__), "..", "assets", "videl_icon.
 _APP_LOGO = os.path.join(os.path.dirname(__file__), "..", "assets", "videl_logo.png")
 
 # ── Section definitions ───────────────────────────────────────────────────────
-# Each entry maps a sidebar nav item to its content configuration.
-_SECTIONS = [
+# Static skeleton — translation keys only. Labels/tabs resolved at runtime via tr().
+_SECTIONS_META = [
     {
         "id": "download",
-        "label": "Media Download",
+        "label_key": "section_download",
         "icon": "download.svg",
-        "tabs": ["MEDIA DOWNLOAD"],
-        "action_label": "Download",
+        "tab_keys": ["tab_media_download"],
+        "action_key": "action_download",
     },
     {
         "id": "convert",
-        "label": "Convert Media",
+        "label_key": "section_convert",
         "icon": "convert.svg",
-        "tabs": ["CONVERT", "BATCH CONVERT"],
-        "action_label": "Convert",
+        "tab_keys": ["tab_convert", "tab_batch_convert"],
+        "action_key": "action_convert",
     },
     {
         "id": "trim",
-        "label": "Trim Media",
+        "label_key": "section_trim",
         "icon": "trim.svg",
-        "tabs": ["TRIM MEDIA"],
-        "action_label": "Trim",
+        "tab_keys": ["tab_trim_media"],
+        "action_key": "action_trim",
     },
     {
         "id": "document",
-        "label": "Document Convert",
+        "label_key": "section_document",
         "icon": "document.svg",
-        "tabs": ["DOCUMENT CONVERT"],
-        "action_label": "Convert",
+        "tab_keys": ["tab_document_convert"],
+        "action_key": "action_convert",
     },
     {
         "id": "gif",
-        "label": "GIF Creator",
+        "label_key": "section_gif",
         "icon": "gif.svg",
-        "tabs": ["GIF FROM VIDEO"],
-        "action_label": "Create GIF",
+        "tab_keys": ["tab_gif_from_video"],
+        "action_key": "action_create_gif",
     },
     {
         "id": "compress",
-        "label": "Compress Media",
+        "label_key": "section_compress",
         "icon": "compress.svg",
-        "tabs": ["COMPRESS MEDIA"],
-        "action_label": "Compress",
+        "tab_keys": ["tab_compress_media"],
+        "action_key": "action_compress",
     },
     {
         "id": "merge",
-        "label": "Merge Videos",
+        "label_key": "section_merge",
         "icon": "merge.svg",
-        "tabs": ["MERGE VIDEOS"],
-        "action_label": "Merge",
+        "tab_keys": ["tab_merge_videos"],
+        "action_key": "action_merge",
     },
     {
         "id": "spatial",
-        "label": "Transform Media",
+        "label_key": "section_spatial",
         "icon": "spatial.svg",
-        "tabs": ["RESIZE", "CROP", "ROTATE / FLIP"],
-        "action_label": "Apply",
+        "tab_keys": ["tab_resize", "tab_crop", "tab_rotate_flip"],
+        "action_key": "action_apply",
     },
     {
         "id": "mux",
-        "label": "Audio Muxing",
+        "label_key": "section_mux",
         "icon": "mux.svg",
-        "tabs": ["MUTE VIDEO", "REPLACE AUDIO", "ADD AUDIO"],
-        "action_label": "Apply",
+        "tab_keys": ["tab_mute_video", "tab_replace_audio", "tab_add_audio"],
+        "action_key": "action_apply",
     },
     {
         "id": "scrub",
-        "label": "Metadata Scrubber",
+        "label_key": "section_scrub",
         "icon": "scrub.svg",
-        "tabs": ["METADATA SCRUBBER"],
-        "action_label": "Scrub",
+        "tab_keys": ["tab_metadata_scrubber"],
+        "action_key": "action_scrub",
     },
     {
         "id": "chunk",
-        "label": "Auto-Chunker",
+        "label_key": "section_chunk",
         "icon": "chunk.svg",
-        "tabs": ["SMART SPLIT"],
-        "action_label": "Split",
+        "tab_keys": ["tab_smart_split"],
+        "action_key": "action_split",
     },
     {
         "id": "watermark",
-        "label": "Batch Watermark",
+        "label_key": "section_watermark",
         "icon": "watermark.svg",
-        "tabs": ["BATCH WATERMARK"],
-        "action_label": "Watermark",
+        "tab_keys": ["tab_batch_watermark"],
+        "action_key": "action_watermark",
     },
     {
         "id": "frame_grabber",
-        "label": "Frame Grabber",
+        "label_key": "section_frame_grabber",
         "icon": "frame.svg",
-        "tabs": ["GRAB FRAME"],
-        "action_label": "Grab Frame",
+        "tab_keys": ["tab_grab_frame"],
+        "action_key": "action_grab_frame",
     },
     {
         "id": "palette",
-        "label": "Hex Palette",
+        "label_key": "section_palette",
         "icon": "palette.svg",
-        "tabs": ["EXTRACT PALETTE", "COLOR WHEEL"],
-        "action_label": "Extract",
+        "tab_keys": ["tab_extract_palette", "tab_color_wheel"],
+        "action_key": "action_extract",
     },
     {
         "id": "bg_eraser",
-        "label": "BG Eraser",
+        "label_key": "section_bg_eraser",
         "icon": "bg_eraser.svg",
-        "tabs": ["REMOVE BACKGROUND"],
-        "action_label": "Remove Background",
+        "tab_keys": ["tab_remove_background"],
+        "action_key": "action_remove_bg",
     },
     {
         "id": "history",
-        "label": "History",
+        "label_key": "section_history",
         "icon": "history.svg",
-        "tabs": ["HISTORY"],
-        "action_label": None,
+        "tab_keys": ["tab_history"],
+        "action_key": None,
     },
     {
         "id": "settings",
-        "label": "Settings",
+        "label_key": "section_settings",
         "icon": "settings.svg",
-        "tabs": ["SETTINGS"],
-        "action_label": None,
+        "tab_keys": ["tab_settings"],
+        "action_key": None,
     },
     {
         "id": "tutorial",
-        "label": "How to Use",
+        "label_key": "section_tutorial",
         "icon": "help.svg",
-        "tabs": ["HOW TO USE"],
-        "action_label": None,
+        "tab_keys": ["tab_how_to_use"],
+        "action_key": None,
+    },
+    {
+        "id": "bug_reporter",
+        "label_key": "section_bug_reporter",
+        "icon": "bug_report.svg",
+        "tab_keys": ["tab_bug_reporter"],
+        "action_key": None,
     },
 ]
+
+
+def _section(index: int) -> dict:
+    """Return section meta resolved with current translations."""
+    m = _SECTIONS_META[index]
+    return {
+        "id": m["id"],
+        "label": tr(m["label_key"]),
+        "icon": m["icon"],
+        "tabs": [tr(k) for k in m["tab_keys"]],
+        "action_label": tr(m["action_key"]) if m["action_key"] else None,
+    }
 
 # ── SVG icon helper ───────────────────────────────────────────────────────────
 
@@ -324,13 +345,13 @@ class TitleBar(QWidget):
             self._logo.setPixmap(logo_px)
         layout.addWidget(self._logo)
 
-        self._title = QLabel("Videl")
+        self._title = QLabel(tr("app_name"))
         self._title.setObjectName("TitleLabel")
         layout.addWidget(self._title)
         layout.addStretch()
 
         # Download queue icon with badge
-        self._btn_queue = self._ctrl_btn("⬇", "Download Queue")
+        self._btn_queue = self._ctrl_btn("⬇", tr("titlebar_queue"))
         queue_px = _load_svg_icon("queue.svg", 18, "#8B949E")
         if not queue_px.isNull():
             from PySide6.QtGui import QIcon
@@ -346,12 +367,12 @@ class TitleBar(QWidget):
         layout.addWidget(self._btn_queue)
 
         # Keyboard shortcuts reference button
-        self._btn_shortcuts = self._ctrl_btn("⌨", "Keyboard Shortcuts")
+        self._btn_shortcuts = self._ctrl_btn("⌨", tr("titlebar_shortcuts"))
         self._btn_shortcuts.clicked.connect(self._on_shortcuts_btn)
         layout.addWidget(self._btn_shortcuts)
 
         # Notification bell with badge overlay
-        self._btn_bell = self._ctrl_btn("🔔", "Notifications")
+        self._btn_bell = self._ctrl_btn("🔔", tr("titlebar_notifications"))
         self._bell_badge = QLabel("", self._btn_bell)
         self._bell_badge.setObjectName("BellBadge")
         self._bell_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -362,10 +383,10 @@ class TitleBar(QWidget):
         layout.addWidget(self._btn_bell)
 
         # Window control buttons (⋯  —  □  ✕)
-        self._btn_menu = self._ctrl_btn("⋯", "More options")
-        self._btn_min = self._ctrl_btn("—", "Minimize")
-        self._btn_max = self._ctrl_btn("□", "Maximize / Restore")
-        self._btn_close = self._ctrl_btn("✕", "Close")
+        self._btn_menu = self._ctrl_btn("⋯", tr("titlebar_more"))
+        self._btn_min = self._ctrl_btn("—", tr("titlebar_minimize"))
+        self._btn_max = self._ctrl_btn("□", tr("titlebar_maximize"))
+        self._btn_close = self._ctrl_btn("✕", tr("titlebar_close"))
         self._btn_close.setObjectName("CloseBtn")
 
         self._btn_menu.clicked.connect(self._on_menu)
@@ -375,6 +396,10 @@ class TitleBar(QWidget):
 
         for btn in (self._btn_menu, self._btn_min, self._btn_max, self._btn_close):
             layout.addWidget(btn)
+
+    def retranslate_ui(self) -> None:
+        """Refresh title text after language change (tooltips updated by MainWindow)."""
+        self._title.setText(tr("app_name"))
 
     def _ctrl_btn(self, text: str, tooltip: str) -> QPushButton:
         btn = QPushButton(text)
@@ -396,19 +421,19 @@ class TitleBar(QWidget):
         menu = QMenu(self)
 
         current_mode = win.theme_manager.get_current_mode()
-        for mode, label in [("auto", "Auto (System)"), ("dark", "Dark"), ("light", "Light")]:
-            act = menu.addAction(label)
+        for mode, label_key in [("auto", "menu_theme_auto"), ("dark", "menu_theme_dark"), ("light", "menu_theme_light")]:
+            act = menu.addAction(tr(label_key))
             act.setCheckable(True)
             act.setChecked(current_mode == mode)
             act.triggered.connect(lambda _, m=mode: win.theme_manager.set_mode(m))
 
         menu.addSeparator()
-        settings_act = menu.addAction("Settings")
+        settings_act = menu.addAction(tr("menu_settings"))
         settings_act.triggered.connect(lambda: win._navigate_to(16))
 
         menu.addSeparator()
         from PySide6.QtWidgets import QApplication
-        quit_act = menu.addAction("Quit")
+        quit_act = menu.addAction(tr("menu_quit"))
         quit_act.triggered.connect(QApplication.quit)
 
         pos = self._btn_menu.mapToGlobal(self._btn_menu.rect().bottomLeft())
@@ -425,17 +450,23 @@ class TitleBar(QWidget):
             font.setBold(True)
             act.setFont(font)
 
-        _heading("Keyboard Shortcuts")
+        _heading(tr("shortcuts_heading"))
         menu.addSeparator()
         for shortcut, description in [
-            ("Ctrl + Enter", "Trigger primary action (Download / Convert / Trim…)"),
-            ("Esc",          "Cancel in-progress operation"),
-            ("Ctrl + V",     "Paste clipboard URL → Download section"),
+            ("Ctrl+Enter",  "Trigger primary action (Download / Convert / Trim…)"),
+            ("Esc",         "Cancel in-progress operation"),
+            ("Ctrl+V",      "Paste clipboard URL → Download section"),
+            ("Ctrl+H",      "Go to Home dashboard"),
+            ("Ctrl+T",      "Go to Tools page"),
+            ("Ctrl+1–9",    "Jump to tool section 1–9"),
+            ("Ctrl+,",      "Open Settings"),
+            ("F1",          "Open How to Use guide"),
+            ("Ctrl+Q",      "Quit Videl"),
         ]:
-            act = menu.addAction(f"  {shortcut:<18}  {description}")
+            act = menu.addAction(f"  {shortcut:<16}  {description}")
             act.setEnabled(False)
         menu.addSeparator()
-        see_act = menu.addAction("See full guide →  How to Use")
+        see_act = menu.addAction(tr("shortcuts_see_guide"))
         see_act.triggered.connect(lambda: self.window()._navigate_to(17))
 
         pos = self._btn_shortcuts.mapToGlobal(self._btn_shortcuts.rect().bottomLeft())
@@ -625,13 +656,19 @@ class SettingsSection(QScrollArea):
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(14)
 
-        layout.addWidget(self._section_header("APPEARANCE"))
+        self._hdr_appearance = self._section_header(tr("settings_header_appearance"))
+        layout.addWidget(self._hdr_appearance)
 
         row = QHBoxLayout()
-        row.addWidget(QLabel("Theme"))
+        self._lbl_theme = QLabel(tr("settings_label_theme"))
+        row.addWidget(self._lbl_theme)
         row.addStretch()
         self._theme_combo = QComboBox()
-        self._theme_combo.addItems(["Auto (System)", "Light", "Dark"])
+        self._theme_combo.addItems([
+            tr("settings_theme_auto"),
+            tr("settings_theme_light"),
+            tr("settings_theme_dark"),
+        ])
         self._theme_combo.setCurrentIndex(
             {"auto": 0, "light": 1, "dark": 2}.get(self._settings.theme_mode, 0)
         )
@@ -648,52 +685,53 @@ class SettingsSection(QScrollArea):
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(14)
 
-        layout.addWidget(self._section_header("BEHAVIOR"))
+        self._hdr_behavior = self._section_header(tr("settings_header_behavior"))
+        layout.addWidget(self._hdr_behavior)
 
         row = QHBoxLayout()
-        lbl = QLabel("Quit on close")
-        row.addWidget(lbl)
-        hint = QLabel("When enabled, × closes the app instead of minimizing to tray.")
-        hint.setObjectName("TextMuted")
-        hint.setWordWrap(True)
-        hint.setStyleSheet("font-size: 12px;")
+        self._lbl_quit = QLabel(tr("settings_label_quit_on_close"))
+        row.addWidget(self._lbl_quit)
+        self._hint_quit = QLabel(tr("settings_hint_quit_on_close"))
+        self._hint_quit.setObjectName("TextMuted")
+        self._hint_quit.setWordWrap(True)
+        self._hint_quit.setStyleSheet("font-size: 12px;")
 
         self._quit_check = QCheckBox()
         self._quit_check.setChecked(self._settings.quit_on_close)
-        self._quit_check.setToolTip(
-            "Checked → × closes the application.\n"
-            "Unchecked → × minimizes to system tray (Phase 5)."
-        )
         self._quit_check.stateChanged.connect(self._on_quit_changed)
         row.addStretch()
         row.addWidget(self._quit_check)
         layout.addLayout(row)
-        layout.addWidget(hint)
+        layout.addWidget(self._hint_quit)
 
         import sys
         if sys.platform == "win32":
             from utils.startup import is_startup_enabled
             startup_row = QHBoxLayout()
-            startup_lbl = QLabel("Start with Windows")
-            startup_row.addWidget(startup_lbl)
-            startup_hint = QLabel("Launch automatically when you log in.")
-            startup_hint.setObjectName("TextMuted")
-            startup_hint.setWordWrap(True)
-            startup_hint.setStyleSheet("font-size: 12px;")
+            self._lbl_startup = QLabel(tr("settings_label_start_with_windows"))
+            startup_row.addWidget(self._lbl_startup)
+            self._hint_startup = QLabel(tr("settings_hint_start_with_windows"))
+            self._hint_startup.setObjectName("TextMuted")
+            self._hint_startup.setWordWrap(True)
+            self._hint_startup.setStyleSheet("font-size: 12px;")
             self._startup_check = QCheckBox()
             self._startup_check.setChecked(is_startup_enabled())
             self._startup_check.stateChanged.connect(self._on_startup_changed)
             startup_row.addStretch()
             startup_row.addWidget(self._startup_check)
             layout.addLayout(startup_row)
-            layout.addWidget(startup_hint)
+            layout.addWidget(self._hint_startup)
         else:
             self._startup_check = None
+            self._lbl_startup = None
+            self._hint_startup = None
 
-        layout.addWidget(self._section_header("ADVANCED"))
+        self._hdr_advanced = self._section_header(tr("settings_header_advanced"))
+        layout.addWidget(self._hdr_advanced)
 
         timeout_row = QHBoxLayout()
-        timeout_row.addWidget(QLabel("Browser intercept timeout (s)"))
+        self._lbl_timeout = QLabel(tr("settings_label_intercept_timeout"))
+        timeout_row.addWidget(self._lbl_timeout)
         timeout_row.addStretch()
         self._timeout_spin = QSpinBox()
         self._timeout_spin.setRange(10, 300)
@@ -711,34 +749,35 @@ class SettingsSection(QScrollArea):
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(14)
 
-        layout.addWidget(self._section_header("FILE PATHS & ENCODING"))
+        self._hdr_paths = self._section_header(tr("settings_header_file_paths"))
+        layout.addWidget(self._hdr_paths)
 
-        # Output folder
-        layout.addWidget(QLabel("Default output folder"))
+        self._lbl_output_folder = QLabel(tr("settings_label_output_folder"))
+        layout.addWidget(self._lbl_output_folder)
         folder_row = QHBoxLayout()
         self._folder_input = QLineEdit()
-        self._folder_input.setPlaceholderText("Default — same directory as source file")
+        self._folder_input.setPlaceholderText(tr("settings_placeholder_output_folder"))
         if self._settings.output_folder:
             self._folder_input.setText(self._settings.output_folder)
         self._folder_input.textChanged.connect(self._on_folder_changed)
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_folder)
+        self._browse_folder_btn = QPushButton(tr("btn_browse"))
+        self._browse_folder_btn.setObjectName("BrowseBtn")
+        self._browse_folder_btn.setFixedWidth(90)
+        self._browse_folder_btn.clicked.connect(self._browse_folder)
         folder_row.addWidget(self._folder_input)
-        folder_row.addWidget(browse_btn)
+        folder_row.addWidget(self._browse_folder_btn)
         layout.addLayout(folder_row)
 
-        # Default video codec
         codec_row = QHBoxLayout()
-        codec_row.addWidget(QLabel("Default video codec"))
+        self._lbl_codec = QLabel(tr("settings_label_codec"))
+        codec_row.addWidget(self._lbl_codec)
         codec_row.addStretch()
         self._codec_combo = QComboBox()
         self._codec_combo.addItems([
-            "Original (keep source)",
-            "H.264 (libx264)",
-            "H.265 / HEVC (libx265)",
-            "VP9 (libvpx-vp9)",
+            tr("settings_codec_original"),
+            tr("settings_codec_h264"),
+            tr("settings_codec_h265"),
+            tr("settings_codec_vp9"),
         ])
         self._codec_combo.setCurrentIndex(
             {"original": 0, "h264": 1, "hevc": 2, "vp9": 3}.get(
@@ -758,21 +797,18 @@ class SettingsSection(QScrollArea):
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
 
-        layout.addWidget(self._section_header("OUTPUT NAMING TEMPLATE"))
+        self._hdr_naming = self._section_header(tr("settings_header_naming"))
+        layout.addWidget(self._hdr_naming)
 
-        hint = QLabel(
-            "Controls how converted/processed files are named. "
-            "Placeholders: {name} (source stem), {ext} (target extension), "
-            "{date} (YYYYMMDD), {datetime} (YYYYMMDD_HHMMSS)."
-        )
-        hint.setObjectName("TextMuted")
-        hint.setWordWrap(True)
-        hint.setStyleSheet("font-size: 12px;")
-        layout.addWidget(hint)
+        self._hint_naming = QLabel(tr("settings_hint_naming"))
+        self._hint_naming.setObjectName("TextMuted")
+        self._hint_naming.setWordWrap(True)
+        self._hint_naming.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._hint_naming)
 
         self._template_input = QLineEdit()
         self._template_input.setObjectName("PillInput")
-        self._template_input.setPlaceholderText("{name}_converted")
+        self._template_input.setPlaceholderText(tr("settings_placeholder_naming"))
         self._template_input.setText(self._settings.output_name_template)
         self._template_input.textChanged.connect(self._on_template_changed)
         layout.addWidget(self._template_input)
@@ -793,7 +829,7 @@ class SettingsSection(QScrollArea):
     def _update_template_preview(self, template: str) -> None:
         from utils.naming import apply_name_template
         example = apply_name_template(template, "my_video.mp4", ext="mp4")
-        self._template_preview.setText(f"Preview: {example}.mp4")
+        self._template_preview.setText(f"{tr('settings_preview_label')}{example}.mp4")
 
     def _build_cookies_card(self) -> QFrame:
         card = self._card()
@@ -801,64 +837,59 @@ class SettingsSection(QScrollArea):
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(14)
 
-        layout.addWidget(self._section_header("COOKIES (INSTAGRAM / TIKTOK / ETC.)"))
+        self._hdr_cookies = self._section_header(tr("settings_header_cookies"))
+        layout.addWidget(self._hdr_cookies)
 
-        # -- Option A: cookies.txt file (recommended) --
-        layout.addWidget(QLabel("Cookies file  (recommended)"))
+        self._lbl_cookies_file = QLabel(tr("settings_label_cookies_file"))
+        layout.addWidget(self._lbl_cookies_file)
 
-        hint_file = QLabel(
-            "Export your browser cookies to a .txt file using the "
-            "“Get cookies.txt LOCALLY” extension (Chrome/Brave/Edge/Firefox), "
-            "then select it here. Log into Instagram first, then export from instagram.com."
-        )
-        hint_file.setObjectName("TextMuted")
-        hint_file.setWordWrap(True)
-        hint_file.setStyleSheet("font-size: 12px;")
-        layout.addWidget(hint_file)
+        self._hint_cookies_file = QLabel(tr("settings_hint_cookies_file"))
+        self._hint_cookies_file.setObjectName("TextMuted")
+        self._hint_cookies_file.setWordWrap(True)
+        self._hint_cookies_file.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._hint_cookies_file)
 
         file_row = QHBoxLayout()
         self._cookies_file_input = QLineEdit()
         self._cookies_file_input.setObjectName("PillInput")
-        self._cookies_file_input.setPlaceholderText("No cookies file selected")
+        self._cookies_file_input.setPlaceholderText(tr("settings_placeholder_cookies_file"))
         self._cookies_file_input.setText(self._settings.cookies_file or "")
         self._cookies_file_input.setReadOnly(True)
         file_row.addWidget(self._cookies_file_input)
-        browse_cookies_btn = QPushButton("Browse…")
-        browse_cookies_btn.setObjectName("BrowseBtn")
-        browse_cookies_btn.setFixedWidth(90)
-        browse_cookies_btn.clicked.connect(self._browse_cookies_file)
-        file_row.addWidget(browse_cookies_btn)
-        clear_cookies_btn = QPushButton("Clear")
-        clear_cookies_btn.setObjectName("BrowseBtn")
-        clear_cookies_btn.setFixedWidth(60)
-        clear_cookies_btn.clicked.connect(self._clear_cookies_file)
-        file_row.addWidget(clear_cookies_btn)
+        self._browse_cookies_btn = QPushButton(tr("btn_browse"))
+        self._browse_cookies_btn.setObjectName("BrowseBtn")
+        self._browse_cookies_btn.setFixedWidth(90)
+        self._browse_cookies_btn.clicked.connect(self._browse_cookies_file)
+        file_row.addWidget(self._browse_cookies_btn)
+        self._clear_cookies_btn = QPushButton(tr("btn_clear"))
+        self._clear_cookies_btn.setObjectName("BrowseBtn")
+        self._clear_cookies_btn.setFixedWidth(60)
+        self._clear_cookies_btn.clicked.connect(self._clear_cookies_file)
+        file_row.addWidget(self._clear_cookies_btn)
         layout.addLayout(file_row)
 
-        # -- Option B: browser (fallback, less reliable) --
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
         sep.setObjectName("Separator")
         sep.setFixedHeight(1)
         layout.addWidget(sep)
 
-        layout.addWidget(self._section_header("OR — READ FROM BROWSER (LESS RELIABLE)"))
+        self._hdr_cookies_browser = self._section_header(tr("settings_header_cookies_browser"))
+        layout.addWidget(self._hdr_cookies_browser)
 
-        hint_browser = QLabel(
-            "Browser must be closed or unlocked. May fail on Brave/Chrome due to "
-            "OS-level cookie encryption. Ignored if a cookies file is set above."
-        )
-        hint_browser.setObjectName("TextMuted")
-        hint_browser.setWordWrap(True)
-        hint_browser.setStyleSheet("font-size: 12px;")
-        layout.addWidget(hint_browser)
+        self._hint_cookies_browser = QLabel(tr("settings_hint_cookies_browser"))
+        self._hint_cookies_browser.setObjectName("TextMuted")
+        self._hint_cookies_browser.setWordWrap(True)
+        self._hint_cookies_browser.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._hint_cookies_browser)
 
         row = QHBoxLayout()
-        row.addWidget(QLabel("Use cookies from browser"))
+        self._lbl_cookies_browser = QLabel(tr("settings_label_cookies_browser"))
+        row.addWidget(self._lbl_cookies_browser)
         row.addStretch()
         self._cookies_combo = QComboBox()
         self._cookies_combo.addItems([
-            "Disabled", "Chrome", "Firefox", "Edge",
+            tr("settings_cookies_disabled"), "Chrome", "Firefox", "Edge",
             "Brave", "Opera", "Chromium", "Safari",
         ])
         _browser_map = {
@@ -881,31 +912,29 @@ class SettingsSection(QScrollArea):
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
 
-        layout.addWidget(self._section_header("SPOTIFY CREDENTIALS"))
+        self._hdr_spotify = self._section_header(tr("settings_header_spotify"))
+        layout.addWidget(self._hdr_spotify)
 
-        hint = QLabel(
-            "The default spotdl credentials are shared and rate-limited. "
-            "Create a free app at developer.spotify.com → set Redirect URI to "
-            "http://127.0.0.1:8888/callback (required by Spotify but never used) "
-            "→ paste your Client ID and Secret below."
-        )
-        hint.setObjectName("TextMuted")
-        hint.setWordWrap(True)
-        hint.setStyleSheet("font-size: 12px;")
-        layout.addWidget(hint)
+        self._hint_spotify = QLabel(tr("settings_hint_spotify"))
+        self._hint_spotify.setObjectName("TextMuted")
+        self._hint_spotify.setWordWrap(True)
+        self._hint_spotify.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._hint_spotify)
 
-        layout.addWidget(QLabel("Client ID"))
+        self._lbl_spotify_id = QLabel(tr("settings_label_spotify_id"))
+        layout.addWidget(self._lbl_spotify_id)
         self._spotify_id_input = QLineEdit()
         self._spotify_id_input.setObjectName("PillInput")
-        self._spotify_id_input.setPlaceholderText("Leave blank to use spotdl default (rate-limited)")
+        self._spotify_id_input.setPlaceholderText(tr("settings_placeholder_spotify_id"))
         self._spotify_id_input.setText(self._settings.spotify_client_id)
         self._spotify_id_input.textChanged.connect(self._on_spotify_id_changed)
         layout.addWidget(self._spotify_id_input)
 
-        layout.addWidget(QLabel("Client Secret"))
+        self._lbl_spotify_secret = QLabel(tr("settings_label_spotify_secret"))
+        layout.addWidget(self._lbl_spotify_secret)
         self._spotify_secret_input = QLineEdit()
         self._spotify_secret_input.setObjectName("PillInput")
-        self._spotify_secret_input.setPlaceholderText("Leave blank to use spotdl default (rate-limited)")
+        self._spotify_secret_input.setPlaceholderText(tr("settings_placeholder_spotify_secret"))
         self._spotify_secret_input.setText(self._settings.spotify_client_secret)
         self._spotify_secret_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._spotify_secret_input.textChanged.connect(self._on_spotify_secret_changed)
@@ -919,17 +948,18 @@ class SettingsSection(QScrollArea):
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(14)
 
-        layout.addWidget(self._section_header("TOOLS"))
+        self._hdr_tools = self._section_header(tr("settings_header_tools"))
+        layout.addWidget(self._hdr_tools)
 
         row = QHBoxLayout()
-        lbl = QLabel("yt-dlp")
-        lbl.setObjectName("TextSecondary")
-        row.addWidget(lbl)
-        hint = QLabel("Update the download engine to the latest version.")
-        hint.setObjectName("TextMuted")
-        hint.setStyleSheet("font-size: 12px;")
-        row.addWidget(hint, 1)
-        self._ytdlp_btn = QPushButton("Update yt-dlp")
+        self._lbl_ytdlp = QLabel(tr("settings_label_ytdlp"))
+        self._lbl_ytdlp.setObjectName("TextSecondary")
+        row.addWidget(self._lbl_ytdlp)
+        self._hint_ytdlp = QLabel(tr("settings_hint_ytdlp"))
+        self._hint_ytdlp.setObjectName("TextMuted")
+        self._hint_ytdlp.setStyleSheet("font-size: 12px;")
+        row.addWidget(self._hint_ytdlp, 1)
+        self._ytdlp_btn = QPushButton(tr("settings_btn_update_ytdlp"))
         self._ytdlp_btn.setFixedWidth(140)
         self._ytdlp_btn.clicked.connect(self._on_update_ytdlp)
         row.addWidget(self._ytdlp_btn)
@@ -941,6 +971,88 @@ class SettingsSection(QScrollArea):
         layout.addWidget(self._ytdlp_status)
 
         return card
+
+    def retranslate_ui(self) -> None:
+        """Update all translatable text in the settings section."""
+        # Appearance
+        self._hdr_appearance.setText(tr("settings_header_appearance"))
+        self._lbl_theme.setText(tr("settings_label_theme"))
+        ci = self._theme_combo.currentIndex()
+        self._theme_combo.blockSignals(True)
+        self._theme_combo.clear()
+        self._theme_combo.addItems([
+            tr("settings_theme_auto"), tr("settings_theme_light"), tr("settings_theme_dark"),
+        ])
+        self._theme_combo.setCurrentIndex(ci)
+        self._theme_combo.blockSignals(False)
+
+        # Behavior
+        self._hdr_behavior.setText(tr("settings_header_behavior"))
+        self._lbl_quit.setText(tr("settings_label_quit_on_close"))
+        self._hint_quit.setText(tr("settings_hint_quit_on_close"))
+        if self._lbl_startup:
+            self._lbl_startup.setText(tr("settings_label_start_with_windows"))
+        if self._hint_startup:
+            self._hint_startup.setText(tr("settings_hint_start_with_windows"))
+        self._hdr_advanced.setText(tr("settings_header_advanced"))
+        self._lbl_timeout.setText(tr("settings_label_intercept_timeout"))
+
+        # File paths
+        self._hdr_paths.setText(tr("settings_header_file_paths"))
+        self._lbl_output_folder.setText(tr("settings_label_output_folder"))
+        self._folder_input.setPlaceholderText(tr("settings_placeholder_output_folder"))
+        self._browse_folder_btn.setText(tr("btn_browse"))
+        self._lbl_codec.setText(tr("settings_label_codec"))
+        ci = self._codec_combo.currentIndex()
+        self._codec_combo.blockSignals(True)
+        self._codec_combo.clear()
+        self._codec_combo.addItems([
+            tr("settings_codec_original"), tr("settings_codec_h264"),
+            tr("settings_codec_h265"), tr("settings_codec_vp9"),
+        ])
+        self._codec_combo.setCurrentIndex(ci)
+        self._codec_combo.blockSignals(False)
+
+        # Naming
+        self._hdr_naming.setText(tr("settings_header_naming"))
+        self._hint_naming.setText(tr("settings_hint_naming"))
+        self._template_input.setPlaceholderText(tr("settings_placeholder_naming"))
+        self._update_template_preview(self._settings.output_name_template)
+
+        # Cookies
+        self._hdr_cookies.setText(tr("settings_header_cookies"))
+        self._lbl_cookies_file.setText(tr("settings_label_cookies_file"))
+        self._hint_cookies_file.setText(tr("settings_hint_cookies_file"))
+        self._cookies_file_input.setPlaceholderText(tr("settings_placeholder_cookies_file"))
+        self._browse_cookies_btn.setText(tr("btn_browse"))
+        self._clear_cookies_btn.setText(tr("btn_clear"))
+        self._hdr_cookies_browser.setText(tr("settings_header_cookies_browser"))
+        self._hint_cookies_browser.setText(tr("settings_hint_cookies_browser"))
+        self._lbl_cookies_browser.setText(tr("settings_label_cookies_browser"))
+        ci = self._cookies_combo.currentIndex()
+        self._cookies_combo.blockSignals(True)
+        self._cookies_combo.clear()
+        self._cookies_combo.addItems([
+            tr("settings_cookies_disabled"), "Chrome", "Firefox", "Edge",
+            "Brave", "Opera", "Chromium", "Safari",
+        ])
+        self._cookies_combo.setCurrentIndex(ci)
+        self._cookies_combo.blockSignals(False)
+
+        # Spotify
+        self._hdr_spotify.setText(tr("settings_header_spotify"))
+        self._hint_spotify.setText(tr("settings_hint_spotify"))
+        self._lbl_spotify_id.setText(tr("settings_label_spotify_id"))
+        self._spotify_id_input.setPlaceholderText(tr("settings_placeholder_spotify_id"))
+        self._lbl_spotify_secret.setText(tr("settings_label_spotify_secret"))
+        self._spotify_secret_input.setPlaceholderText(tr("settings_placeholder_spotify_secret"))
+
+        # Tools
+        self._hdr_tools.setText(tr("settings_header_tools"))
+        self._lbl_ytdlp.setText(tr("settings_label_ytdlp"))
+        self._hint_ytdlp.setText(tr("settings_hint_ytdlp"))
+        self._ytdlp_btn.setText(tr("settings_btn_update_ytdlp"))
+
 
     def _on_update_ytdlp(self) -> None:
         from gui.worker import Worker
@@ -997,7 +1109,7 @@ class SettingsSection(QScrollArea):
 
     def _browse_folder(self) -> None:
         start = self._folder_input.text() or os.path.expanduser("~")
-        directory = QFileDialog.getExistingDirectory(self, "Select Output Folder", start)
+        directory = QFileDialog.getExistingDirectory(self, tr("dialog_select_output_folder"), start)
         if directory:
             self._folder_input.setText(directory)
 
@@ -1011,8 +1123,8 @@ class SettingsSection(QScrollArea):
 
     def _browse_cookies_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
-            self, "Select cookies.txt", os.path.expanduser("~"),
-            "Cookies file (*.txt);;All files (*)"
+            self, tr("dialog_select_cookies"), os.path.expanduser("~"),
+            tr("dialog_cookies_filter")
         )
         if path:
             self._cookies_file_input.setText(path)
@@ -1143,7 +1255,7 @@ class WelcomeDialog(QDialog):
         if not px.isNull():
             logo.setPixmap(px)
         hdr.addWidget(logo)
-        title = QLabel("Welcome to Videl")
+        title = QLabel(tr("welcome_title"))
         title.setStyleSheet("font-size: 16px; font-weight: bold; color: #E6EDF3;")
         hdr.addWidget(title)
         hdr.addStretch()
@@ -1157,11 +1269,7 @@ class WelcomeDialog(QDialog):
         v.addWidget(sep)
 
         # Body text
-        body = QLabel(
-            "Looks like this is your first time here.\n\n"
-            "Head over to How to Use in the sidebar to get up to speed "
-            "with all the features — downloading, converting, trimming, and more."
-        )
+        body = QLabel(tr("welcome_body"))
         body.setWordWrap(True)
         body.setStyleSheet("color: #8B949E; font-size: 13px; line-height: 1.5;")
         v.addWidget(body)
@@ -1175,7 +1283,7 @@ class WelcomeDialog(QDialog):
         if not hint_px.isNull():
             hint_icon.setPixmap(hint_px)
         hint.addWidget(hint_icon)
-        hint_lbl = QLabel('Look for the glowing icon in the sidebar.')
+        hint_lbl = QLabel(tr("welcome_hint"))
         hint_lbl.setStyleSheet("color: #F59E0B; font-size: 12px;")
         hint.addWidget(hint_lbl)
         hint.addStretch()
@@ -1186,7 +1294,7 @@ class WelcomeDialog(QDialog):
         btn_row.setSpacing(10)
         btn_row.addStretch()
 
-        dismiss_btn = QPushButton("Maybe later")
+        dismiss_btn = QPushButton(tr("welcome_dismiss"))
         dismiss_btn.setObjectName("SecondaryBtn")
         dismiss_btn.setFixedHeight(36)
         dismiss_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1207,7 +1315,7 @@ class WelcomeDialog(QDialog):
         dismiss_btn.clicked.connect(self.reject)
         btn_row.addWidget(dismiss_btn)
 
-        go_btn = QPushButton("Take me there  →")
+        go_btn = QPushButton(tr("welcome_go"))
         go_btn.setObjectName("PrimaryActionBtn")
         go_btn.setFixedHeight(36)
         go_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1307,15 +1415,16 @@ class MainWindow(QMainWindow):
         status_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         status_bar.customContextMenuRequested.connect(self._show_status_context_menu)
         self.setStatusBar(status_bar)
-        status_bar.showMessage("Ready")
+        status_bar.showMessage(tr("status_ready"))
         # QSizeGrip added to corner for window resizing (M-6)
         grip = QSizeGrip(self)
         status_bar.addPermanentWidget(grip)
         self._status_bar = status_bar
-        self._status_message = "Ready"
+        self._status_message = tr("status_ready")
 
         # ── Keyboard shortcuts ────────────────────────────────────────────────
         from PySide6.QtGui import QShortcut, QKeySequence
+        from PySide6.QtWidgets import QApplication as _QApp
         # Ctrl+Enter — trigger the primary action for the current section
         QShortcut(QKeySequence("Ctrl+Return"), self).activated.connect(
             self._on_primary_action
@@ -1330,6 +1439,32 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+V"), self).activated.connect(
             self._paste_url_from_clipboard
         )
+        # Ctrl+1–9 — jump to tool sections by number
+        _section_hotkeys = [
+            ("Ctrl+1", 0),   # Download
+            ("Ctrl+2", 1),   # Convert
+            ("Ctrl+3", 2),   # Trim
+            ("Ctrl+4", 3),   # Document
+            ("Ctrl+5", 4),   # GIF
+            ("Ctrl+6", 5),   # Compress
+            ("Ctrl+7", 6),   # Merge
+            ("Ctrl+8", 7),   # Spatial
+            ("Ctrl+9", 15),  # History
+        ]
+        for _key, _idx in _section_hotkeys:
+            QShortcut(QKeySequence(_key), self).activated.connect(
+                lambda _=None, i=_idx: self._navigate_to(i)
+            )
+        # Navigation shortcuts
+        QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(self._go_home)
+        QShortcut(QKeySequence("Ctrl+T"), self).activated.connect(self._go_tools)
+        QShortcut(QKeySequence("Ctrl+,"), self).activated.connect(
+            lambda: self._navigate_to(16)
+        )
+        QShortcut(QKeySequence(Qt.Key.Key_F1), self).activated.connect(
+            lambda: self._navigate_to(17)
+        )
+        QShortcut(QKeySequence("Ctrl+Q"), self).activated.connect(_QApp.quit)
 
         # Always keep the How to Use icon glowing so it's easy to find
         self._help_nav_btn.start_glow()
@@ -1373,9 +1508,9 @@ class MainWindow(QMainWindow):
             logo.setPixmap(logo_px)
         h_row.addWidget(logo)
 
-        app_name = QLabel("Videl")
-        app_name.setObjectName("SidebarTitle")
-        h_row.addWidget(app_name)
+        self._sidebar_brand = QLabel(tr("app_name"))
+        self._sidebar_brand.setObjectName("SidebarTitle")
+        h_row.addWidget(self._sidebar_brand)
         h_row.addStretch()
         layout.addWidget(header)
 
@@ -1386,18 +1521,21 @@ class MainWindow(QMainWindow):
         layout.addWidget(sep)
 
         # ── Four primary nav buttons ──────────────────────────────────────────
-        self._home_nav_btn    = NavButton("Home",       "dashboard.svg")
-        self._tools_nav_btn   = NavButton("Tools",      "convert.svg")
-        self._settings_nav_btn = NavButton("Settings",  "settings.svg")
-        self._help_nav_btn    = NavButton("How to Use", "help.svg")
+        self._home_nav_btn         = NavButton(tr("nav_home"),         "dashboard.svg")
+        self._tools_nav_btn        = NavButton(tr("nav_tools"),        "convert.svg")
+        self._settings_nav_btn     = NavButton(tr("nav_settings"),     "settings.svg")
+        self._help_nav_btn         = NavButton(tr("nav_how_to_use"),   "help.svg")
+        self._bug_reporter_nav_btn = NavButton(tr("nav_bug_reporter"), "bug_report.svg")
 
         self._home_nav_btn.clicked.connect(self._go_home)
         self._tools_nav_btn.clicked.connect(self._go_tools)
         self._settings_nav_btn.clicked.connect(lambda: self._navigate_to(16))
         self._help_nav_btn.clicked.connect(lambda: self._navigate_to(17))
+        self._bug_reporter_nav_btn.clicked.connect(lambda: self._navigate_to(18))
 
         for btn in (self._home_nav_btn, self._tools_nav_btn,
-                    self._settings_nav_btn, self._help_nav_btn):
+                    self._settings_nav_btn, self._help_nav_btn,
+                    self._bug_reporter_nav_btn):
             layout.addWidget(btn)
 
         # Keep a list for active-state management
@@ -1406,6 +1544,7 @@ class MainWindow(QMainWindow):
             self._tools_nav_btn,
             self._settings_nav_btn,
             self._help_nav_btn,
+            self._bug_reporter_nav_btn,
         ]
 
         layout.addStretch()
@@ -1431,9 +1570,9 @@ class MainWindow(QMainWindow):
             moon_lbl.setPixmap(moon_px)
         dm_layout.addWidget(moon_lbl)
 
-        dm_label = QLabel("Dark Mode")
-        dm_label.setObjectName("DarkModeLabel")
-        dm_layout.addWidget(dm_label)
+        self._dm_label = QLabel(tr("dark_mode"))
+        self._dm_label.setObjectName("DarkModeLabel")
+        dm_layout.addWidget(self._dm_label)
         dm_layout.addStretch()
 
         self._dm_toggle = ToggleSwitchButton()
@@ -1442,6 +1581,44 @@ class MainWindow(QMainWindow):
         dm_layout.addWidget(self._dm_toggle)
         layout.addWidget(dm_row)
 
+        # ── Language toggle (EN / AR) ─────────────────────────────────────────
+        lang_sep = QFrame()
+        lang_sep.setFrameShape(QFrame.Shape.HLine)
+        lang_sep.setObjectName("Separator")
+        lang_sep.setFixedHeight(1)
+        layout.addWidget(lang_sep)
+
+        lang_row = QWidget()
+        lang_row.setObjectName("DarkModeRow")
+        lang_row.setFixedHeight(44)
+        lang_layout = QHBoxLayout(lang_row)
+        lang_layout.setContentsMargins(12, 0, 12, 0)
+        lang_layout.setSpacing(6)
+
+        self._lang_en_btn = QPushButton("EN")
+        self._lang_en_btn.setObjectName("LangBtn")
+        self._lang_en_btn.setFixedSize(42, 26)
+        self._lang_en_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._lang_en_btn.setCheckable(True)
+        self._lang_en_btn.clicked.connect(lambda: self._switch_language("en"))
+
+        self._lang_ar_btn = QPushButton("AR")
+        self._lang_ar_btn.setObjectName("LangBtn")
+        self._lang_ar_btn.setFixedSize(42, 26)
+        self._lang_ar_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._lang_ar_btn.setCheckable(True)
+        self._lang_ar_btn.clicked.connect(lambda: self._switch_language("ar"))
+
+        current_lang = I18n.instance().current_language
+        self._lang_en_btn.setChecked(current_lang == "en")
+        self._lang_ar_btn.setChecked(current_lang == "ar")
+
+        lang_layout.addStretch()
+        lang_layout.addWidget(self._lang_en_btn)
+        lang_layout.addWidget(self._lang_ar_btn)
+        lang_layout.addStretch()
+        layout.addWidget(lang_row)
+
         return sidebar
 
     def _on_dm_toggle(self, checked: bool) -> None:
@@ -1449,6 +1626,107 @@ class MainWindow(QMainWindow):
         self.settings.theme_mode = mode
         self.theme_manager.set_mode(mode)
         SettingsManager.save(self.settings)
+
+    def _switch_language(self, lang: str) -> None:
+        """Switch UI language and persist to settings."""
+        i18n = I18n.instance()
+        if i18n.current_language == lang:
+            return
+        i18n.set_language(lang)
+        self.theme_manager.set_rtl(i18n.is_rtl)
+        self.settings.language = lang
+        SettingsManager.save(self.settings)
+        self._retranslate_ui()
+
+    def _retranslate_ui(self) -> None:
+        """Update all translatable strings in the main window after a language change."""
+        lang = I18n.instance().current_language
+
+        self.title_bar.retranslate_ui()
+        if hasattr(self, "_sidebar_brand"):
+            self._sidebar_brand.setText(tr("app_name"))
+
+        # Sidebar nav buttons
+        self._home_nav_btn._text_label.setText(tr("nav_home"))
+        self._tools_nav_btn._text_label.setText(tr("nav_tools"))
+        self._settings_nav_btn._text_label.setText(tr("nav_settings"))
+        self._help_nav_btn._text_label.setText(tr("nav_how_to_use"))
+        self._bug_reporter_nav_btn._text_label.setText(tr("nav_bug_reporter"))
+        self._dm_label.setText(tr("dark_mode"))
+
+        # Language toggle button checked state
+        self._lang_en_btn.blockSignals(True)
+        self._lang_ar_btn.blockSignals(True)
+        self._lang_en_btn.setChecked(lang == "en")
+        self._lang_ar_btn.setChecked(lang == "ar")
+        self._lang_en_btn.blockSignals(False)
+        self._lang_ar_btn.blockSignals(False)
+
+        # Title bar tooltips
+        self.title_bar._btn_queue.setToolTip(tr("titlebar_queue"))
+        self.title_bar._btn_shortcuts.setToolTip(tr("titlebar_shortcuts"))
+        self.title_bar._btn_bell.setToolTip(tr("titlebar_notifications"))
+        self.title_bar._btn_min.setToolTip(tr("titlebar_minimize"))
+        self.title_bar._btn_max.setToolTip(tr("titlebar_maximize"))
+        self.title_bar._btn_close.setToolTip(tr("titlebar_close"))
+        self.title_bar._btn_menu.setToolTip(tr("titlebar_more"))
+
+        # Status bar
+        if self._status_message == tr("status_ready") or self._status_message in (
+            "Ready", "جاهز"
+        ):
+            self._status_bar.showMessage(tr("status_ready"))
+            self._status_message = tr("status_ready")
+
+        # Re-render tab bar for current section if it's a tool section
+        if self._current_section < len(_SECTIONS_META):
+            self._section_tab_bar.blockSignals(True)
+            current_tab = self._section_tab_bar.currentIndex()
+            while self._section_tab_bar.count():
+                self._section_tab_bar.removeTab(0)
+            for tab_label in _section(self._current_section)["tabs"]:
+                self._section_tab_bar.addTab(tab_label)
+            self._section_tab_bar.setCurrentIndex(max(0, current_tab))
+            self._section_tab_bar.blockSignals(False)
+
+        # Primary action button
+        action_label = _section(self._current_section).get("action_label") if self._current_section < len(_SECTIONS_META) else None
+        if action_label and self._action_btn_container.isVisible():
+            is_busy = self._section_busy.get(self._current_section, False)
+            self._primary_btn.setText(tr("action_cancel") if is_busy else action_label)
+
+        # Settings section
+        self._settings_section_widget.retranslate_ui()
+        self._bug_reporter_section.retranslate_ui()
+
+        # Notify home/tools pages to refresh their text
+        if hasattr(self._home_page, "retranslate_ui"):
+            self._home_page.retranslate_ui()
+        if hasattr(self._tools_page, "retranslate_ui"):
+            self._tools_page.retranslate_ui()
+
+        # Notify all tool section tabs
+        for section in (
+            self._download_section,
+            self._convert_section,
+            self._trim_section,
+            self._document_section,
+            self._gif_section,
+            self._compress_section,
+            self._merge_section,
+            self._spatial_section,
+            self._mux_section,
+            self._scrub_section,
+            self._chunk_section,
+            self._watermark_section,
+            self._frame_grabber_section,
+            self._palette_section,
+            self._bg_eraser_section,
+            self._history_section,
+            self._tutorial_section,
+        ):
+            if hasattr(section, "retranslate_ui"):
+                section.retranslate_ui()
 
     def _on_theme_mode_changed(self, mode: str) -> None:
         """Sync sidebar toggle and settings combo when theme changes from any source."""
@@ -1509,6 +1787,7 @@ class MainWindow(QMainWindow):
         self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
         self._tutorial_section = TutorialSection()
+        self._bug_reporter_section = BugReporterSection()
 
         self._section_widgets: list[QWidget] = [
             self._download_section,         # index 0 — download
@@ -1529,6 +1808,7 @@ class MainWindow(QMainWindow):
             self._history_section,          # index 15 — history
             self._settings_section_widget,  # index 16 — settings
             self._tutorial_section,         # index 17 — how to use
+            self._bug_reporter_section,     # index 18 — bug reporter
         ]
 
         # Connect status signals from all operation sections.
@@ -1574,8 +1854,8 @@ class MainWindow(QMainWindow):
             show_tools_cb=self._go_tools,
         )
         self._tools_page = ToolsPage(navigate_cb=self._navigate_from_card)
-        self._content_stack.addWidget(self._home_page)   # index 18
-        self._content_stack.addWidget(self._tools_page)  # index 19
+        self._content_stack.addWidget(self._home_page)   # index 19
+        self._content_stack.addWidget(self._tools_page)  # index 20
 
         # Separator above primary action button
         sep2 = QFrame()
@@ -1612,12 +1892,14 @@ class MainWindow(QMainWindow):
         if index == 15:
             self._history_section.refresh()
 
-        # Update sidebar: settings (16) and help (17) highlight their buttons;
+        # Update sidebar: settings (16), help (17), bug reporter (18) highlight their buttons;
         # all other tool sections show no sidebar button active.
         if index == 16:
             self._set_sidebar_active(self._settings_nav_btn)
         elif index == 17:
             self._set_sidebar_active(self._help_nav_btn)
+        elif index == 18:
+            self._set_sidebar_active(self._bug_reporter_nav_btn)
         else:
             self._set_sidebar_active(None)
 
@@ -1628,18 +1910,19 @@ class MainWindow(QMainWindow):
         self._section_tab_bar.setVisible(True)
 
         # Rebuild the section tab bar for this section
+        sec = _section(index)
         self._section_tab_bar.blockSignals(True)
         while self._section_tab_bar.count():
             self._section_tab_bar.removeTab(0)
-        for tab_label in _SECTIONS[index]["tabs"]:
+        for tab_label in sec["tabs"]:
             self._section_tab_bar.addTab(tab_label)
         self._section_tab_bar.blockSignals(False)
 
         # Show/hide primary action button
-        action_label = _SECTIONS[index].get("action_label")
+        action_label = sec.get("action_label")
         if action_label:
             is_busy = self._section_busy.get(index, False)
-            self._primary_btn.setText("Cancel" if is_busy else action_label)
+            self._primary_btn.setText(tr("action_cancel") if is_busy else action_label)
             self._action_btn_container.setVisible(True)
         else:
             self._action_btn_container.setVisible(False)
@@ -1647,14 +1930,14 @@ class MainWindow(QMainWindow):
     def _go_home(self) -> None:
         """Switch to the Home Dashboard page."""
         self._set_sidebar_active(self._home_nav_btn)
-        self._content_stack.setCurrentIndex(18)
+        self._content_stack.setCurrentIndex(19)
         self._section_tab_bar.setVisible(False)
         self._action_btn_container.setVisible(False)
 
     def _go_tools(self) -> None:
         """Switch to the Tools Grid page."""
         self._set_sidebar_active(self._tools_nav_btn)
-        self._content_stack.setCurrentIndex(19)
+        self._content_stack.setCurrentIndex(20)
         self._section_tab_bar.setVisible(False)
         self._action_btn_container.setVisible(False)
 
@@ -1693,7 +1976,7 @@ class MainWindow(QMainWindow):
         active = [j for j in queue if j["status"] in ("pending", "downloading")]
         menu = QMenu(self)
         if not active:
-            empty = menu.addAction("No active downloads")
+            empty = menu.addAction(tr("menu_no_downloads"))
             empty.setEnabled(False)
         else:
             for job in active:
@@ -1708,9 +1991,9 @@ class MainWindow(QMainWindow):
         self._section_busy[section_index] = busy
         if section_index != self._current_section:
             return
-        action_label = _SECTIONS[section_index].get("action_label")
+        action_label = _section(section_index).get("action_label")
         if action_label:
-            self._primary_btn.setText("Cancel" if busy else action_label)
+            self._primary_btn.setText(tr("action_cancel") if busy else action_label)
 
     def _on_section_tab_changed(self, tab_index: int) -> None:
         """Sub-tab change within a section — delegate to the current section widget."""
@@ -1747,7 +2030,7 @@ class MainWindow(QMainWindow):
             return
         from PySide6.QtWidgets import QApplication
         menu = QMenu(self)
-        copy_act = menu.addAction("Copy message")
+        copy_act = menu.addAction(tr("menu_copy_message"))
         action = menu.exec(self._status_bar.mapToGlobal(pos))
         if action is copy_act:
             QApplication.clipboard().setText(msg)
@@ -1770,14 +2053,14 @@ class MainWindow(QMainWindow):
 
         # T019: notify via tray only when the window is not visible.
         if not self.isVisible() and self._is_final_status(message, is_error):
-            title = "Videl — Error" if is_error else "Videl"
+            title = tr("tray_error_title") if is_error else tr("tray_running_title")
             self._tray.notify(title, message, is_error)
 
     def _show_notifications(self, anchor) -> None:
         """Show the notification history popup anchored below *anchor*."""
         menu = QMenu(self)
         if not self._notifications:
-            empty = menu.addAction("No notifications yet")
+            empty = menu.addAction(tr("menu_no_notifications"))
             empty.setEnabled(False)
         else:
             for n in reversed(self._notifications[-15:]):
@@ -1796,7 +2079,7 @@ class MainWindow(QMainWindow):
                 else:
                     act.setEnabled(False)
             menu.addSeparator()
-            clear_act = menu.addAction("Clear All")
+            clear_act = menu.addAction(tr("menu_clear_all"))
             clear_act.triggered.connect(self._clear_notifications)
         pos = anchor.mapToGlobal(anchor.rect().bottomLeft())
         menu.exec(pos)
@@ -1882,7 +2165,7 @@ class MainWindow(QMainWindow):
         dropped_files, error_msg = DndHandler.process_drop(urls)
 
         if not dropped_files:
-            self.update_status(error_msg or "Drop failed — unsupported files.", True)
+            self.update_status(error_msg or tr("status_drop_failed"), True)
             event.ignore()
             return
 
@@ -1900,7 +2183,7 @@ class MainWindow(QMainWindow):
         }.get(target_tab or "", -1)
 
         if section_index == -1:
-            self.update_status("Could not determine target section for dropped files.", True)
+            self.update_status(tr("status_drop_no_section"), True)
             event.ignore()
             return
 
@@ -1924,7 +2207,7 @@ class MainWindow(QMainWindow):
 
         event.acceptProposedAction()
         self.update_status(
-            f"Loaded {len(paths)} file(s) — ready.", False
+            tr("status_loaded").format(count=len(paths)), False
         )
 
     # ── Close event ───────────────────────────────────────────────────────────
@@ -1950,6 +2233,6 @@ class MainWindow(QMainWindow):
             if SystemTrayIcon.is_available():
                 self._tray.show()
                 self._tray.notify(
-                    "Videl",
-                    "Running in the background. Click the tray icon to restore.",
+                    tr("tray_running_title"),
+                    tr("tray_running_body"),
                 )

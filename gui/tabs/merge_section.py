@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.i18n import tr
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 from gui.worker import Worker
@@ -82,7 +83,8 @@ class MergeSection(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("VIDEO FILES  (drag to reorder — top = first)"))
+        self._hdr_files = _section_header(tr("hdr_video_files_list"))
+        layout.addWidget(self._hdr_files)
 
         self._file_list = QListWidget()
         self._file_list.setObjectName("FileList")
@@ -93,34 +95,34 @@ class MergeSection(QWidget):
         btn_row = QHBoxLayout()
         btn_row.addStretch()
 
-        add_btn = QPushButton("Add Files…")
-        add_btn.setObjectName("BrowseBtn")
-        add_btn.clicked.connect(self._add_files)
-        btn_row.addWidget(add_btn)
+        self._merge_add_btn = QPushButton(tr("btn_add_files"))
+        self._merge_add_btn.setObjectName("BrowseBtn")
+        self._merge_add_btn.clicked.connect(self._add_files)
+        btn_row.addWidget(self._merge_add_btn)
 
-        up_btn = QPushButton("▲")
-        up_btn.setObjectName("BrowseBtn")
-        up_btn.setFixedWidth(36)
-        up_btn.setToolTip("Move selected item up")
-        up_btn.clicked.connect(self._move_up)
-        btn_row.addWidget(up_btn)
+        self._merge_up_btn = QPushButton("▲")
+        self._merge_up_btn.setObjectName("BrowseBtn")
+        self._merge_up_btn.setFixedWidth(36)
+        self._merge_up_btn.setToolTip(tr("tip_merge_move_up"))
+        self._merge_up_btn.clicked.connect(self._move_up)
+        btn_row.addWidget(self._merge_up_btn)
 
-        down_btn = QPushButton("▼")
-        down_btn.setObjectName("BrowseBtn")
-        down_btn.setFixedWidth(36)
-        down_btn.setToolTip("Move selected item down")
-        down_btn.clicked.connect(self._move_down)
-        btn_row.addWidget(down_btn)
+        self._merge_down_btn = QPushButton("▼")
+        self._merge_down_btn.setObjectName("BrowseBtn")
+        self._merge_down_btn.setFixedWidth(36)
+        self._merge_down_btn.setToolTip(tr("tip_merge_move_down"))
+        self._merge_down_btn.clicked.connect(self._move_down)
+        btn_row.addWidget(self._merge_down_btn)
 
-        remove_btn = QPushButton("Remove")
-        remove_btn.setObjectName("BrowseBtn")
-        remove_btn.clicked.connect(self._remove_selected)
-        btn_row.addWidget(remove_btn)
+        self._merge_remove_btn = QPushButton(tr("btn_remove"))
+        self._merge_remove_btn.setObjectName("BrowseBtn")
+        self._merge_remove_btn.clicked.connect(self._remove_selected)
+        btn_row.addWidget(self._merge_remove_btn)
 
-        clear_btn = QPushButton("Clear")
-        clear_btn.setObjectName("BrowseBtn")
-        clear_btn.clicked.connect(self._file_list.clear)
-        btn_row.addWidget(clear_btn)
+        self._merge_clear_btn = QPushButton(tr("btn_clear_all"))
+        self._merge_clear_btn.setObjectName("BrowseBtn")
+        self._merge_clear_btn.clicked.connect(self._file_list.clear)
+        btn_row.addWidget(self._merge_clear_btn)
 
         layout.addLayout(btn_row)
         return card
@@ -130,28 +132,31 @@ class MergeSection(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("OUTPUT"))
+        self._hdr_out = _section_header(tr("hdr_output_folder"))
+        layout.addWidget(self._hdr_out)
 
-        layout.addWidget(QLabel("Output filename"))
+        self._lbl_merge_fn = QLabel(tr("lbl_output_filename"))
+        layout.addWidget(self._lbl_merge_fn)
         self._name_input = QLineEdit()
         self._name_input.setObjectName("PillInput")
-        self._name_input.setPlaceholderText("merged.mp4")
+        self._name_input.setPlaceholderText(tr("ph_merged_mp4"))
         layout.addWidget(self._name_input)
 
-        layout.addWidget(QLabel("Output folder"))
+        self._lbl_merge_folder = QLabel(tr("lbl_output_folder_lbl"))
+        layout.addWidget(self._lbl_merge_folder)
         row = QHBoxLayout()
         self._out_input = QLineEdit()
         self._out_input.setObjectName("PillInput")
-        self._out_input.setPlaceholderText("Same directory as first video file")
+        self._out_input.setPlaceholderText(tr("ph_first_video"))
         if self._settings.output_folder:
             self._out_input.setText(self._settings.output_folder)
         row.addWidget(self._out_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_output)
-        row.addWidget(browse_btn)
+        self._merge_browse_out_btn = QPushButton(tr("btn_browse"))
+        self._merge_browse_out_btn.setObjectName("BrowseBtn")
+        self._merge_browse_out_btn.setFixedWidth(90)
+        self._merge_browse_out_btn.clicked.connect(self._browse_output)
+        row.addWidget(self._merge_browse_out_btn)
         layout.addLayout(row)
         return card
 
@@ -205,6 +210,21 @@ class MergeSection(QWidget):
         row = self._file_list.currentRow()
         if row >= 0:
             self._file_list.takeItem(row)
+
+
+    def retranslate_ui(self) -> None:
+        self._hdr_files.setText(tr("hdr_video_files_list"))
+        self._merge_add_btn.setText(tr("btn_add_files"))
+        self._merge_up_btn.setToolTip(tr("tip_merge_move_up"))
+        self._merge_down_btn.setToolTip(tr("tip_merge_move_down"))
+        self._merge_remove_btn.setText(tr("btn_remove"))
+        self._merge_clear_btn.setText(tr("btn_clear_all"))
+        self._hdr_out.setText(tr("hdr_output_folder"))
+        self._lbl_merge_fn.setText(tr("lbl_output_filename"))
+        self._name_input.setPlaceholderText(tr("ph_merged_mp4"))
+        self._lbl_merge_folder.setText(tr("lbl_output_folder_lbl"))
+        self._out_input.setPlaceholderText(tr("ph_first_video"))
+        self._merge_browse_out_btn.setText(tr("btn_browse"))
 
     def _browse_output(self) -> None:
         start = self._out_input.text() or os.path.expanduser("~")
@@ -369,7 +389,7 @@ class MergeSection(QWidget):
         self._progress_bar.setVisible(busy)
         self._progress_label.setVisible(busy)
         if busy:
-            self._progress_label.setText("Merging videos…")
+            self._progress_label.setText(tr("dyn_merging"))
         self.busy_changed.emit(busy)
 
     def _on_result(self, result: dict) -> None:

@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QVBoxLayout, QWidget,
 )
 
+from core.i18n import tr
 from core.bg_eraser import remove_background, IMAGE_EXTS
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
@@ -72,33 +73,32 @@ class BgEraserSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("SOURCE IMAGE"))
+        self._hdr_src = _section_header(tr("hdr_source_img"))
+        layout.addWidget(self._hdr_src)
 
-        hint = QLabel(
-            "Accepts JPG, PNG, WEBP, BMP. Output is always a PNG with transparent background. "
-            "First run downloads the AI model (~170 MB) and caches it locally."
-        )
-        hint.setObjectName("TextMuted")
-        hint.setWordWrap(True)
-        hint.setStyleSheet("font-size: 12px;")
-        layout.addWidget(hint)
+        self._hint_src = QLabel(tr("hint_bg_source_formats"))
+        self._hint_src.setObjectName("TextMuted")
+        self._hint_src.setWordWrap(True)
+        self._hint_src.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._hint_src)
 
         row = QHBoxLayout()
         self._input_edit = QLineEdit()
         self._input_edit.setObjectName("PillInput")
-        self._input_edit.setPlaceholderText("Path to image…")
+        self._input_edit.setPlaceholderText(tr("ph_img"))
         self._input_edit.textChanged.connect(self._on_input_changed)
         row.addWidget(self._input_edit)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_input)
-        row.addWidget(browse_btn)
+        self._browse_in_btn = QPushButton(tr("btn_browse"))
+        self._browse_in_btn.setObjectName("BrowseBtn")
+        self._browse_in_btn.setFixedWidth(90)
+        self._browse_in_btn.clicked.connect(self._browse_input)
+        row.addWidget(self._browse_in_btn)
         layout.addLayout(row)
 
         # Input preview thumbnail
-        self._input_preview = QLabel("No preview")
+        self._preview_placeholder_key: str | None = "hint_bg_no_preview"
+        self._input_preview = QLabel(tr("hint_bg_no_preview"))
         self._input_preview.setFixedSize(220, 140)
         self._input_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._input_preview.setObjectName("Card")
@@ -116,19 +116,20 @@ class BgEraserSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("OUTPUT FILE"))
+        self._hdr_out = _section_header(tr("hdr_output_file"))
+        layout.addWidget(self._hdr_out)
 
         row = QHBoxLayout()
         self._output_edit = QLineEdit()
         self._output_edit.setObjectName("PillInput")
-        self._output_edit.setPlaceholderText("Auto — <source_name>_nobg.png")
+        self._output_edit.setPlaceholderText(tr("ph_nobg_auto"))
         row.addWidget(self._output_edit)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_output)
-        row.addWidget(browse_btn)
+        self._browse_out_btn = QPushButton(tr("btn_browse"))
+        self._browse_out_btn.setObjectName("BrowseBtn")
+        self._browse_out_btn.setFixedWidth(90)
+        self._browse_out_btn.clicked.connect(self._browse_output)
+        row.addWidget(self._browse_out_btn)
         layout.addLayout(row)
         return card
 
@@ -153,9 +154,11 @@ class BgEraserSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("RESULT PREVIEW"))
+        self._hdr_result = _section_header(tr("hdr_result_preview"))
+        layout.addWidget(self._hdr_result)
 
-        self._result_preview = QLabel("Run the eraser to see the result here.")
+        self._result_placeholder_key: str | None = "hint_bg_result_placeholder"
+        self._result_preview = QLabel(tr("hint_bg_result_placeholder"))
         self._result_preview.setMinimumSize(400, 200)
         self._result_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._result_preview.setObjectName("Card")
@@ -171,7 +174,7 @@ class BgEraserSection(QScrollArea):
         btn_row.setSpacing(8)
         btn_row.addStretch()
 
-        self._open_btn = QPushButton("Open in Explorer")
+        self._open_btn = QPushButton(tr("btn_open_explorer"))
         self._open_btn.setObjectName("BrowseBtn")
         self._open_btn.setVisible(False)
         self._open_btn.clicked.connect(self._open_result_folder)
@@ -183,6 +186,27 @@ class BgEraserSection(QScrollArea):
         return card
 
     # ── Helpers ───────────────────────────────────────────────────────────────
+
+
+    def _set_input_preview_placeholder(self, key: str) -> None:
+        self._preview_placeholder_key = key
+        self._input_preview.setPixmap(QPixmap())
+        self._input_preview.setText(tr(key))
+
+    def retranslate_ui(self) -> None:
+        self._hdr_src.setText(tr("hdr_source_img"))
+        self._hint_src.setText(tr("hint_bg_source_formats"))
+        self._input_edit.setPlaceholderText(tr("ph_img"))
+        self._browse_in_btn.setText(tr("btn_browse"))
+        if self._preview_placeholder_key:
+            self._input_preview.setText(tr(self._preview_placeholder_key))
+        self._hdr_out.setText(tr("hdr_output_file"))
+        self._output_edit.setPlaceholderText(tr("ph_nobg_auto"))
+        self._browse_out_btn.setText(tr("btn_browse"))
+        self._hdr_result.setText(tr("hdr_result_preview"))
+        if self._result_placeholder_key:
+            self._result_preview.setText(tr(self._result_placeholder_key))
+        self._open_btn.setText(tr("btn_open_explorer"))
 
     def _browse_input(self) -> None:
         ext_filter = "Images (" + " ".join(f"*{e}" for e in sorted(IMAGE_EXTS)) + ")"
@@ -212,18 +236,18 @@ class BgEraserSection(QScrollArea):
     def _load_input_preview(self) -> None:
         path = self._input_edit.text().strip()
         if not path or not os.path.isfile(path):
-            self._input_preview.setPixmap(QPixmap())
-            self._input_preview.setText("No preview")
+            self._set_input_preview_placeholder("hint_bg_no_preview")
             return
         px = QPixmap(path)
         if not px.isNull():
+            self._preview_placeholder_key = None
             self._input_preview.setPixmap(
                 px.scaled(220, 140, Qt.AspectRatioMode.KeepAspectRatio,
                           Qt.TransformationMode.SmoothTransformation)
             )
             self._input_preview.setText("")
         else:
-            self._input_preview.setText("Cannot load image")
+            self._set_input_preview_placeholder("err_palette_bad_image")
 
     def populate_file(self, path: str) -> None:
         self._input_edit.setText(path)
@@ -285,12 +309,14 @@ class BgEraserSection(QScrollArea):
 
         px = QPixmap(out_path)
         if not px.isNull():
+            self._result_placeholder_key = None
             self._result_preview.setPixmap(
                 px.scaled(600, 400, Qt.AspectRatioMode.KeepAspectRatio,
                           Qt.TransformationMode.SmoothTransformation)
             )
             self._result_preview.setText("")
         else:
+            self._result_placeholder_key = None
             self._result_preview.setText(out_path)
 
         self._open_btn.setVisible(True)

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.i18n import tr
 from core.scrubber import scrub_batch, _SUPPORTED_EXTS
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
@@ -74,16 +75,14 @@ class ScrubSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("FILES  (drag & drop or browse)"))
+        self._hdr_files = _section_header(tr("hdr_files_queue"))
+        layout.addWidget(self._hdr_files)
 
-        hint = QLabel(
-            "Add media files to scrub. All GPS coordinates, timestamps, camera info, "
-            "and EXIF tags will be removed using FFmpeg stream copy (no quality loss)."
-        )
-        hint.setObjectName("TextMuted")
-        hint.setWordWrap(True)
-        hint.setStyleSheet("font-size: 12px;")
-        layout.addWidget(hint)
+        self._hint_intro = QLabel(tr("hint_scrub_intro"))
+        self._hint_intro.setObjectName("TextMuted")
+        self._hint_intro.setWordWrap(True)
+        self._hint_intro.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._hint_intro)
 
         self._file_list = QListWidget()
         self._file_list.setObjectName("FileList")
@@ -95,25 +94,25 @@ class ScrubSection(QScrollArea):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
-        add_btn = QPushButton("Add Files…")
-        add_btn.setObjectName("BrowseBtn")
-        add_btn.clicked.connect(self._browse_add_files)
-        btn_row.addWidget(add_btn)
+        self._add_files_btn = QPushButton(tr("btn_add_files"))
+        self._add_files_btn.setObjectName("BrowseBtn")
+        self._add_files_btn.clicked.connect(self._browse_add_files)
+        btn_row.addWidget(self._add_files_btn)
 
-        add_dir_btn = QPushButton("Add Folder…")
-        add_dir_btn.setObjectName("BrowseBtn")
-        add_dir_btn.clicked.connect(self._browse_add_folder)
-        btn_row.addWidget(add_dir_btn)
+        self._add_dir_btn = QPushButton(tr("btn_add_folder"))
+        self._add_dir_btn.setObjectName("BrowseBtn")
+        self._add_dir_btn.clicked.connect(self._browse_add_folder)
+        btn_row.addWidget(self._add_dir_btn)
 
-        remove_btn = QPushButton("Remove Selected")
-        remove_btn.setObjectName("BrowseBtn")
-        remove_btn.clicked.connect(self._remove_selected)
-        btn_row.addWidget(remove_btn)
+        self._remove_btn = QPushButton(tr("btn_remove_selected"))
+        self._remove_btn.setObjectName("BrowseBtn")
+        self._remove_btn.clicked.connect(self._remove_selected)
+        btn_row.addWidget(self._remove_btn)
 
-        clear_btn = QPushButton("Clear All")
-        clear_btn.setObjectName("BrowseBtn")
-        clear_btn.clicked.connect(self._file_list.clear)
-        btn_row.addWidget(clear_btn)
+        self._clear_btn = QPushButton(tr("btn_clear_all"))
+        self._clear_btn.setObjectName("BrowseBtn")
+        self._clear_btn.clicked.connect(self._file_list.clear)
+        btn_row.addWidget(self._clear_btn)
 
         btn_row.addStretch()
         layout.addLayout(btn_row)
@@ -135,30 +134,28 @@ class ScrubSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("OUTPUT FOLDER"))
+        self._hdr_out = _section_header(tr("hdr_output_folder"))
+        layout.addWidget(self._hdr_out)
 
-        hint = QLabel(
-            "Scrubbed files are saved with a _clean suffix. "
-            "Leave blank to save next to the originals."
-        )
-        hint.setObjectName("TextMuted")
-        hint.setWordWrap(True)
-        hint.setStyleSheet("font-size: 12px;")
-        layout.addWidget(hint)
+        self._hint_out = QLabel(tr("hint_scrub_output"))
+        self._hint_out.setObjectName("TextMuted")
+        self._hint_out.setWordWrap(True)
+        self._hint_out.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._hint_out)
 
         row = QHBoxLayout()
         self._out_input = QLineEdit()
         self._out_input.setObjectName("PillInput")
-        self._out_input.setPlaceholderText("Same directory as each source file")
+        self._out_input.setPlaceholderText(tr("ph_each_source"))
         if self._settings.output_folder:
             self._out_input.setText(self._settings.output_folder)
         row.addWidget(self._out_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_output)
-        row.addWidget(browse_btn)
+        self._browse_out_btn = QPushButton(tr("btn_browse"))
+        self._browse_out_btn.setObjectName("BrowseBtn")
+        self._browse_out_btn.setFixedWidth(90)
+        self._browse_out_btn.clicked.connect(self._browse_output)
+        row.addWidget(self._browse_out_btn)
         layout.addLayout(row)
         return card
 
@@ -215,7 +212,23 @@ class ScrubSection(QScrollArea):
 
     def _update_count(self) -> None:
         n = self._file_list.count()
-        self._count_label.setText(f"{n} file{'s' if n != 1 else ''} queued")
+        self._count_label.setText(
+            tr("lbl_queue_files_one") if n == 1 else tr("lbl_queue_files_many").format(n=n)
+        )
+
+
+    def retranslate_ui(self) -> None:
+        self._hdr_files.setText(tr("hdr_files_queue"))
+        self._hint_intro.setText(tr("hint_scrub_intro"))
+        self._add_files_btn.setText(tr("btn_add_files"))
+        self._add_dir_btn.setText(tr("btn_add_folder"))
+        self._remove_btn.setText(tr("btn_remove_selected"))
+        self._clear_btn.setText(tr("btn_clear_all"))
+        self._update_count()
+        self._hdr_out.setText(tr("hdr_output_folder"))
+        self._hint_out.setText(tr("hint_scrub_output"))
+        self._out_input.setPlaceholderText(tr("ph_each_source"))
+        self._browse_out_btn.setText(tr("btn_browse"))
 
     def _browse_output(self) -> None:
         start = self._out_input.text() or os.path.expanduser("~")

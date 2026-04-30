@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.i18n import tr
 from core.spatial import crop_media, extract_frame, resize_media, rotate_flip_chain
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
@@ -53,12 +54,12 @@ _COMMON_RESOLUTIONS: dict[str, tuple[int, int] | None] = {
     "TikTok / Reels (1080×1920)":    (1080, 1920),
 }
 
-_OP_LABELS = {
-    "cw90":   "90° CW",
-    "ccw90":  "90° CCW",
-    "rot180": "180°",
-    "fliph":  "Flip H",
-    "flipv":  "Flip V",
+_OP_CHAIN_KEYS = {
+    "cw90": "spa_chain_cw90",
+    "ccw90": "spa_chain_ccw90",
+    "rot180": "spa_chain_rot180",
+    "fliph": "spa_chain_fliph",
+    "flipv": "spa_chain_flipv",
 }
 
 
@@ -180,20 +181,21 @@ class SpatialSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("SOURCE FILE"))
+        self._hdr_src = _section_header(tr("hdr_source_file"))
+        layout.addWidget(self._hdr_src)
 
         row = QHBoxLayout()
         self._file_input = QLineEdit()
         self._file_input.setObjectName("PillInput")
-        self._file_input.setPlaceholderText("Video or image file…")
+        self._file_input.setPlaceholderText(tr("ph_vid_img"))
         self._file_input.textChanged.connect(self._on_source_changed)
         row.addWidget(self._file_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_file)
-        row.addWidget(browse_btn)
+        self._browse_src_btn = QPushButton(tr("btn_browse"))
+        self._browse_src_btn.setObjectName("BrowseBtn")
+        self._browse_src_btn.setFixedWidth(90)
+        self._browse_src_btn.clicked.connect(self._browse_file)
+        row.addWidget(self._browse_src_btn)
         layout.addLayout(row)
 
         self._source_info = QLabel()
@@ -207,9 +209,11 @@ class SpatialSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("PREVIEW"))
+        self._hdr_preview = _section_header(tr("hdr_preview"))
+        layout.addWidget(self._hdr_preview)
 
-        self._preview_label = QLabel("No file loaded — browse a video or image above.")
+        self._spatial_preview_text_key = "hint_spatial_no_file_preview"
+        self._preview_label = QLabel(tr("hint_spatial_no_file_preview"))
         self._preview_label.setObjectName("TextMuted")
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._preview_label.setMinimumHeight(220)
@@ -230,7 +234,8 @@ class SpatialSection(QScrollArea):
         inner = QVBoxLayout(card)
         inner.setContentsMargins(20, 16, 20, 16)
         inner.setSpacing(12)
-        inner.addWidget(_section_header("RESIZE OPTIONS"))
+        self._hdr_resize = _section_header(tr("hdr_resize_opts"))
+        inner.addWidget(self._hdr_resize)
 
         inner.addWidget(
             PresetsBar(
@@ -243,7 +248,7 @@ class SpatialSection(QScrollArea):
 
         # Preset resolutions
         preset_row = QHBoxLayout()
-        preset_row.addWidget(QLabel("Preset resolution"))
+        preset_row.addWidget(QLabel(tr("lbl_preset_resolution")))
         preset_row.addStretch()
         self._resize_preset_combo = QComboBox()
         self._resize_preset_combo.addItems(list(_COMMON_RESOLUTIONS.keys()))
@@ -255,7 +260,7 @@ class SpatialSection(QScrollArea):
 
         # Aspect ratio
         ar_row = QHBoxLayout()
-        ar_row.addWidget(QLabel("Aspect ratio"))
+        ar_row.addWidget(QLabel(tr("lbl_aspect_ratio")))
         ar_row.addStretch()
         self._resize_ar_combo = QComboBox()
         self._resize_ar_combo.addItems(list(_ASPECT_RATIOS.keys()))
@@ -270,7 +275,7 @@ class SpatialSection(QScrollArea):
         dims_row.setSpacing(16)
 
         w_col = QVBoxLayout()
-        w_col.addWidget(QLabel("Target Width (px)"))
+        w_col.addWidget(QLabel(tr("lbl_target_width")))
         self._resize_w_spin = QSpinBox()
         self._resize_w_spin.setRange(1, 7680)
         self._resize_w_spin.setValue(1920)
@@ -281,7 +286,7 @@ class SpatialSection(QScrollArea):
         dims_row.addLayout(w_col)
 
         h_col = QVBoxLayout()
-        h_col.addWidget(QLabel("Target Height (px)"))
+        h_col.addWidget(QLabel(tr("lbl_target_height")))
         self._resize_h_spin = QSpinBox()
         self._resize_h_spin.setRange(1, 7680)
         self._resize_h_spin.setValue(1080)
@@ -291,7 +296,7 @@ class SpatialSection(QScrollArea):
         h_col.addWidget(self._resize_h_spin)
         dims_row.addLayout(h_col)
 
-        self._resize_lock_ar = QPushButton("🔓 Lock AR")
+        self._resize_lock_ar = QPushButton(tr("spa_lock_ar_unlocked"))
         self._resize_lock_ar.setObjectName("BrowseBtn")
         self._resize_lock_ar.setCheckable(True)
         self._resize_lock_ar.setFixedSize(100, 36)
@@ -314,7 +319,8 @@ class SpatialSection(QScrollArea):
         inner = QVBoxLayout(card)
         inner.setContentsMargins(20, 16, 20, 16)
         inner.setSpacing(12)
-        inner.addWidget(_section_header("CROP OPTIONS"))
+        self._hdr_crop = _section_header(tr("hdr_crop_opts"))
+        inner.addWidget(self._hdr_crop)
 
         inner.addWidget(
             PresetsBar(
@@ -327,7 +333,7 @@ class SpatialSection(QScrollArea):
 
         # Aspect ratio preset
         ar_row = QHBoxLayout()
-        ar_row.addWidget(QLabel("Aspect ratio preset"))
+        ar_row.addWidget(QLabel(tr("lbl_aspect_ratio_preset")))
         ar_row.addStretch()
         self._crop_ar_combo = QComboBox()
         self._crop_ar_combo.addItems(list(_ASPECT_RATIOS.keys()))
@@ -341,7 +347,7 @@ class SpatialSection(QScrollArea):
         dims_row.setSpacing(16)
 
         cw_col = QVBoxLayout()
-        cw_col.addWidget(QLabel("Crop Width (px)"))
+        cw_col.addWidget(QLabel(tr("lbl_crop_width")))
         self._crop_w_spin = QSpinBox()
         self._crop_w_spin.setRange(1, 7680)
         self._crop_w_spin.setValue(1280)
@@ -351,7 +357,7 @@ class SpatialSection(QScrollArea):
         dims_row.addLayout(cw_col)
 
         ch_col = QVBoxLayout()
-        ch_col.addWidget(QLabel("Crop Height (px)"))
+        ch_col.addWidget(QLabel(tr("lbl_crop_height")))
         self._crop_h_spin = QSpinBox()
         self._crop_h_spin.setRange(1, 7680)
         self._crop_h_spin.setValue(720)
@@ -367,7 +373,7 @@ class SpatialSection(QScrollArea):
         offset_row.setSpacing(16)
 
         x_col = QVBoxLayout()
-        x_col.addWidget(QLabel("X offset (px)"))
+        x_col.addWidget(QLabel(tr("lbl_x_offset")))
         self._crop_x_spin = QSpinBox()
         self._crop_x_spin.setRange(0, 7680)
         self._crop_x_spin.setValue(0)
@@ -377,7 +383,7 @@ class SpatialSection(QScrollArea):
         offset_row.addLayout(x_col)
 
         y_col = QVBoxLayout()
-        y_col.addWidget(QLabel("Y offset (px)"))
+        y_col.addWidget(QLabel(tr("lbl_y_offset")))
         self._crop_y_spin = QSpinBox()
         self._crop_y_spin.setRange(0, 7680)
         self._crop_y_spin.setValue(0)
@@ -388,14 +394,11 @@ class SpatialSection(QScrollArea):
         offset_row.addStretch()
         inner.addLayout(offset_row)
 
-        hint = QLabel(
-            "X=0, Y=0 starts from top-left corner. "
-            "Use the aspect ratio preset to auto-fill crop dimensions."
-        )
-        hint.setObjectName("TextMuted")
-        hint.setWordWrap(True)
-        hint.setStyleSheet("font-size: 11px;")
-        inner.addWidget(hint)
+        self._crop_xy_hint = QLabel(tr("hint_spatial_crop_xy"))
+        self._crop_xy_hint.setObjectName("TextMuted")
+        self._crop_xy_hint.setWordWrap(True)
+        self._crop_xy_hint.setStyleSheet("font-size: 11px;")
+        inner.addWidget(self._crop_xy_hint)
 
         layout.addWidget(card)
         layout.addStretch()
@@ -411,36 +414,34 @@ class SpatialSection(QScrollArea):
         inner = QVBoxLayout(card)
         inner.setContentsMargins(20, 16, 20, 16)
         inner.setSpacing(12)
-        inner.addWidget(_section_header("ROTATE & FLIP"))
+        self._hdr_rotate = _section_header(tr("hdr_rotate_flip"))
+        inner.addWidget(self._hdr_rotate)
 
-        hint = QLabel(
-            "Each click adds to the sequence — preview updates live. "
-            "Click Reset to start over."
-        )
-        hint.setObjectName("TextMuted")
-        hint.setStyleSheet("font-size: 12px;")
-        inner.addWidget(hint)
+        self._rotate_ops_hint = QLabel(tr("hint_spatial_rotate_ops"))
+        self._rotate_ops_hint.setObjectName("TextMuted")
+        self._rotate_ops_hint.setStyleSheet("font-size: 12px;")
+        inner.addWidget(self._rotate_ops_hint)
 
         btns_row = QHBoxLayout()
         btns_row.setSpacing(8)
 
         ops = [
-            ("↻  90° CW",   "cw90"),
-            ("↺  90° CCW",  "ccw90"),
-            ("↕  180°",     "rot180"),
-            ("⇔  Flip H",   "fliph"),
-            ("↕  Flip V",   "flipv"),
+            ("spa_rot_cw90",   "cw90"),
+            ("spa_rot_ccw90",  "ccw90"),
+            ("spa_rot_180",     "rot180"),
+            ("spa_flip_h",   "fliph"),
+            ("spa_flip_v",   "flipv"),
         ]
         self._op_buttons: dict[str, QPushButton] = {}
-        for label, op in ops:
-            btn = QPushButton(label)
+        for label_key, op in ops:
+            btn = QPushButton(tr(label_key))
             btn.setObjectName("BrowseBtn")
             btn.setFixedHeight(38)
             btn.clicked.connect(lambda _checked, o=op: self._apply_rotate_op(o))
             btns_row.addWidget(btn)
             self._op_buttons[op] = btn
 
-        reset_btn = QPushButton("Reset")
+        reset_btn = QPushButton(tr("btn_reset"))
         reset_btn.setObjectName("BrowseBtn")
         reset_btn.setFixedHeight(38)
         reset_btn.clicked.connect(self._reset_rotate_ops)
@@ -449,7 +450,7 @@ class SpatialSection(QScrollArea):
         inner.addLayout(btns_row)
 
         # Shows current accumulated chain e.g. "90° CW → Flip H"
-        self._ops_chain_label = QLabel("No operations — click a button above.")
+        self._ops_chain_label = QLabel(tr("dyn_no_ops"))
         self._ops_chain_label.setObjectName("TextMuted")
         self._ops_chain_label.setStyleSheet("font-size: 12px; color: #3B82F6;")
         self._ops_chain_label.setWordWrap(True)
@@ -464,21 +465,22 @@ class SpatialSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("OUTPUT FOLDER"))
+        self._hdr_out = _section_header(tr("hdr_output_folder"))
+        layout.addWidget(self._hdr_out)
 
         row = QHBoxLayout()
         self._out_input = QLineEdit()
         self._out_input.setObjectName("PillInput")
-        self._out_input.setPlaceholderText("Same directory as source file")
+        self._out_input.setPlaceholderText(tr("ph_same_dir"))
         if self._settings.output_folder:
             self._out_input.setText(self._settings.output_folder)
         row.addWidget(self._out_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_output)
-        row.addWidget(browse_btn)
+        self._browse_out_btn = QPushButton(tr("btn_browse"))
+        self._browse_out_btn.setObjectName("BrowseBtn")
+        self._browse_out_btn.setFixedWidth(90)
+        self._browse_out_btn.clicked.connect(self._browse_output)
+        row.addWidget(self._browse_out_btn)
         layout.addLayout(row)
         return card
 
@@ -502,18 +504,61 @@ class SpatialSection(QScrollArea):
 
     # ── Source handling ────────────────────────────────────────────────────────
 
+    def _refresh_ops_chain_label(self) -> None:
+        if not self._accumulated_ops:
+            self._ops_chain_label.setText(tr("dyn_no_ops"))
+        else:
+            self._ops_chain_label.setText(
+                " → ".join(tr(_OP_CHAIN_KEYS[o]) for o in self._accumulated_ops)
+            )
+
+    def retranslate_ui(self) -> None:
+        self._hdr_src.setText(tr("hdr_source_file"))
+        self._browse_src_btn.setText(tr("btn_browse"))
+        self._file_input.setPlaceholderText(tr("ph_vid_img"))
+        self._hdr_preview.setText(tr("hdr_preview"))
+        pm = self._preview_label.pixmap()
+        if pm is None or pm.isNull():
+            key = getattr(self, "_spatial_preview_text_key", None) or "hint_spatial_no_file_preview"
+            self._preview_label.setText(tr(key))
+        self._hdr_resize.setText(tr("hdr_resize_opts"))
+        self._hdr_crop.setText(tr("hdr_crop_opts"))
+        self._crop_xy_hint.setText(tr("hint_spatial_crop_xy"))
+        self._hdr_rotate.setText(tr("hdr_rotate_flip"))
+        self._rotate_ops_hint.setText(tr("hint_spatial_rotate_ops"))
+        op_keys = {
+            "cw90": "spa_rot_cw90", "ccw90": "spa_rot_ccw90", "rot180": "spa_rot_180",
+            "fliph": "spa_flip_h", "flipv": "spa_flip_v",
+        }
+        for op, key in op_keys.items():
+            if op in self._op_buttons:
+                self._op_buttons[op].setText(tr(key))
+        self._refresh_ops_chain_label()
+        self._hdr_out.setText(tr("hdr_output_folder"))
+        self._out_input.setPlaceholderText(tr("ph_same_dir"))
+        self._browse_out_btn.setText(tr("btn_browse"))
+        self._resize_lock_ar.setText(
+            tr("spa_lock_ar_locked") if self._resize_lock_ar.isChecked() else tr("spa_lock_ar_unlocked")
+        )
+        p = self._file_input.text().strip()
+        if p and os.path.isfile(p):
+            self._source_info.setText(self._source_info_line(p))
+
+    def _source_info_line(self, path: str) -> str:
+        ext = os.path.splitext(path)[1].lower()
+        size_mb = os.path.getsize(path) / (1024 * 1024)
+        ftype = (
+            tr("type_label_video") if ext in _VIDEO_EXTS
+            else (tr("type_label_image") if ext in _IMAGE_EXTS else tr("type_label_file"))
+        )
+        return f"{ftype}  ·  {size_mb:.1f} MB"
+
     def _on_source_changed(self, path: str) -> None:
         path = path.strip()
         if not os.path.isfile(path):
             self._source_info.setText("")
             return
-        ext = os.path.splitext(path)[1].lower()
-        size_mb = os.path.getsize(path) / (1024 * 1024)
-        ftype = (
-            "Video" if ext in _VIDEO_EXTS
-            else ("Image" if ext in _IMAGE_EXTS else "File")
-        )
-        self._source_info.setText(f"{ftype}  ·  {size_mb:.1f} MB")
+        self._source_info.setText(self._source_info_line(path))
         self._reset_rotate_ops()
         self._load_preview_frame(path)
 
@@ -540,7 +585,8 @@ class SpatialSection(QScrollArea):
 
     def _load_preview_frame(self, path: str) -> None:
         self._preview_label.setPixmap(QPixmap())
-        self._preview_label.setText("Loading preview…")
+        self._spatial_preview_text_key = "hint_spatial_loading_preview"
+        self._preview_label.setText(tr("hint_spatial_loading_preview"))
         self._original_pixmap = None
 
         ext = os.path.splitext(path)[1].lower()
@@ -550,7 +596,8 @@ class SpatialSection(QScrollArea):
                 self._original_pixmap = px
                 self._refresh_preview()
             else:
-                self._preview_label.setText("Preview unavailable.")
+                self._spatial_preview_text_key = "err_spatial_preview_unavailable"
+                self._preview_label.setText(tr("err_spatial_preview_unavailable"))
             return
 
         def do_extract():
@@ -571,12 +618,14 @@ class SpatialSection(QScrollArea):
                 self._original_pixmap = px
                 self._refresh_preview()
                 return
-        self._preview_label.setText("Preview unavailable for this file.")
+        self._spatial_preview_text_key = "err_spatial_preview_unavailable"
+        self._preview_label.setText(tr("err_spatial_preview_unavailable"))
 
     def _refresh_preview(self, *_args) -> None:
         """Route to the correct preview renderer for the active sub-tab."""
         if not self._original_pixmap:
             return
+        self._spatial_preview_text_key = None
         if self._current_sub_tab == 0:
             self._resize_preview()
         elif self._current_sub_tab == 1:
@@ -675,13 +724,13 @@ class SpatialSection(QScrollArea):
 
     def _on_lock_ar_toggled(self, locked: bool) -> None:
         if locked:
-            self._resize_lock_ar.setText("🔒 Lock AR")
+            self._resize_lock_ar.setText(tr("spa_lock_ar_locked"))
             self._resize_lock_ar.setStyleSheet(
                 "background-color: #1D4ED8; color: #FFFFFF;"
                 " border: 1px solid #3B82F6; border-radius: 6px;"
             )
         else:
-            self._resize_lock_ar.setText("🔓 Lock AR")
+            self._resize_lock_ar.setText(tr("spa_lock_ar_unlocked"))
             self._resize_lock_ar.setStyleSheet("")
 
     def _on_resize_preset_changed(self, text: str) -> None:
@@ -763,8 +812,7 @@ class SpatialSection(QScrollArea):
         self._accumulated_transform = self._accumulated_transform * delta
 
         # Update chain label
-        chain = " → ".join(_OP_LABELS.get(o, o) for o in self._accumulated_ops)
-        self._ops_chain_label.setText(chain)
+        self._refresh_ops_chain_label()
 
         if self._original_pixmap:
             self._rotate_flip_preview()
@@ -772,7 +820,7 @@ class SpatialSection(QScrollArea):
     def _reset_rotate_ops(self) -> None:
         self._accumulated_ops.clear()
         self._accumulated_transform = QTransform()
-        self._ops_chain_label.setText("No operations — click a button above.")
+        self._refresh_ops_chain_label()
         self._refresh_preview()
 
     # ── Primary action ─────────────────────────────────────────────────────────
@@ -818,7 +866,7 @@ class SpatialSection(QScrollArea):
                 self.status_message.emit("No operations selected — click a transform button.", True)
                 return
             ops = list(self._accumulated_ops)
-            chain = " → ".join(_OP_LABELS.get(o, o) for o in ops)
+            chain = " → ".join(tr(_OP_CHAIN_KEYS[o]) for o in ops)
             self.status_message.emit(f"Applying {chain}…", False)
             self._progress_label.setText(f"Applying {chain}…")
 

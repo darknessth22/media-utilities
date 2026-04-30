@@ -35,6 +35,7 @@ try:
 except ImportError:
     _MULTIMEDIA_AVAILABLE = False
 
+from core.i18n import tr
 from core.downloader import download_media, fetch_playlist_entries, get_available_formats, get_platform, get_preview_stream_url
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
@@ -103,7 +104,7 @@ class _JobRow(QFrame):
         self._name_lbl.setStyleSheet("font-size: 12px;")
         top.addWidget(self._name_lbl, 1)
 
-        self._status_lbl = QLabel("Pending")
+        self._status_lbl = QLabel(tr("dyn_pending"))
         self._status_lbl.setObjectName("TextMuted")
         self._status_lbl.setStyleSheet("font-size: 11px; margin-right: 4px;")
         top.addWidget(self._status_lbl)
@@ -135,7 +136,7 @@ class _JobRow(QFrame):
 
     def set_downloading(self) -> None:
         self._dot.setStyleSheet("color: #3B82F6; font-size: 10px;")
-        self._status_lbl.setText("Downloading")
+        self._status_lbl.setText(tr("dyn_downloading"))
         self._progress_bar.setVisible(True)
         self._info_lbl.setVisible(True)
 
@@ -156,14 +157,14 @@ class _JobRow(QFrame):
 
     def set_done(self) -> None:
         self._dot.setStyleSheet("color: #3FB950; font-size: 10px;")
-        self._status_lbl.setText("Done ✓")
+        self._status_lbl.setText(tr("dyn_done"))
         self._progress_bar.setVisible(False)
         self._info_lbl.setVisible(False)
         self._cancel_btn.setEnabled(False)
 
     def set_error(self, msg: str = "") -> None:
         self._dot.setStyleSheet("color: #F85149; font-size: 10px;")
-        self._status_lbl.setText("Error")
+        self._status_lbl.setText(tr("dyn_error"))
         self._progress_bar.setVisible(False)
         if msg:
             self._info_lbl.setText(msg[:80])
@@ -172,7 +173,7 @@ class _JobRow(QFrame):
 
     def set_cancelled(self) -> None:
         self._dot.setStyleSheet("color: #8B949E; font-size: 10px;")
-        self._status_lbl.setText("Cancelled")
+        self._status_lbl.setText(tr("dyn_cancelled"))
         self._progress_bar.setVisible(False)
         self._info_lbl.setVisible(False)
         self._cancel_btn.setEnabled(False)
@@ -284,14 +285,13 @@ class DownloadSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("SOURCE URL"))
+        self._hdr_url = _section_header(tr("hdr_source_url"))
+        layout.addWidget(self._hdr_url)
 
         row = QHBoxLayout()
         self._url_input = QLineEdit()
         self._url_input.setObjectName("PillInput")
-        self._url_input.setPlaceholderText(
-            "YouTube, YouTube Music, Spotify, Facebook, Instagram, TikTok, Twitter/X, LinkedIn, Twitch…"
-        )
+        self._url_input.setPlaceholderText(tr("ph_url_services"))
         self._url_input.textChanged.connect(self._on_url_changed)
         row.addWidget(self._url_input)
         layout.addLayout(row)
@@ -311,10 +311,11 @@ class DownloadSection(QScrollArea):
         layout = QVBoxLayout(self._playlist_card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("PLAYLIST"))
+        self._hdr_playlist = _section_header(tr("hdr_playlist"))
+        layout.addWidget(self._hdr_playlist)
 
         load_row = QHBoxLayout()
-        self._load_playlist_btn = QPushButton("Load Playlist")
+        self._load_playlist_btn = QPushButton(tr("btn_load_playlist"))
         self._load_playlist_btn.setObjectName("BrowseBtn")
         self._load_playlist_btn.setFixedWidth(120)
         self._load_playlist_btn.clicked.connect(self._load_playlist)
@@ -323,11 +324,12 @@ class DownloadSection(QScrollArea):
         self._playlist_status_lbl.setObjectName("TextMuted")
         self._playlist_status_lbl.setStyleSheet("font-size: 12px;")
         load_row.addWidget(self._playlist_status_lbl)
+        self._playlist_status_key: str | None = None
         load_row.addStretch()
         layout.addLayout(load_row)
 
         self._playlist_table = QTableWidget(0, 3)
-        self._playlist_table.setHorizontalHeaderLabels(["", "Title", "Duration"])
+        self._playlist_table.setHorizontalHeaderLabels(["", tr("lbl_title"), tr("lbl_duration")])
         hdr = self._playlist_table.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -342,20 +344,20 @@ class DownloadSection(QScrollArea):
         layout.addWidget(self._playlist_table)
 
         action_row = QHBoxLayout()
-        self._select_all_btn = QPushButton("Select All")
+        self._select_all_btn = QPushButton(tr("btn_select_all"))
         self._select_all_btn.setObjectName("ChipBtn")
         self._select_all_btn.setFixedWidth(80)
         self._select_all_btn.setVisible(False)
         self._select_all_btn.clicked.connect(lambda: self._set_all_playlist_checked(True))
         action_row.addWidget(self._select_all_btn)
-        self._deselect_all_btn = QPushButton("Deselect All")
+        self._deselect_all_btn = QPushButton(tr("btn_deselect_all"))
         self._deselect_all_btn.setObjectName("ChipBtn")
         self._deselect_all_btn.setFixedWidth(90)
         self._deselect_all_btn.setVisible(False)
         self._deselect_all_btn.clicked.connect(lambda: self._set_all_playlist_checked(False))
         action_row.addWidget(self._deselect_all_btn)
         action_row.addStretch()
-        self._download_selected_btn = QPushButton("Download Selected")
+        self._download_selected_btn = QPushButton(tr("btn_download_selected"))
         self._download_selected_btn.setObjectName("BrowseBtn")
         self._download_selected_btn.setFixedWidth(150)
         self._download_selected_btn.setVisible(False)
@@ -363,13 +365,11 @@ class DownloadSection(QScrollArea):
         action_row.addWidget(self._download_selected_btn)
         layout.addLayout(action_row)
 
-        hint = QLabel(
-            "Quality matched by resolution across all selected videos — formats loaded from first video."
-        )
-        hint.setObjectName("TextMuted")
-        hint.setWordWrap(True)
-        hint.setStyleSheet("font-size: 12px;")
-        layout.addWidget(hint)
+        self._playlist_quality_hint = QLabel(tr("hint_playlist_quality"))
+        self._playlist_quality_hint.setObjectName("TextMuted")
+        self._playlist_quality_hint.setWordWrap(True)
+        self._playlist_quality_hint.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._playlist_quality_hint)
         return self._playlist_card
 
     def _build_type_card(self) -> QFrame:
@@ -377,13 +377,14 @@ class DownloadSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("MEDIA TYPE"))
+        self._hdr_media_type = _section_header(tr("hdr_media_type"))
+        layout.addWidget(self._hdr_media_type)
 
         row = QHBoxLayout()
         row.setSpacing(16)
         self._type_group = QButtonGroup(self)
-        self._video_radio = QRadioButton("Video")
-        self._audio_radio = QRadioButton("Audio only")
+        self._video_radio = QRadioButton(tr("lbl_video"))
+        self._audio_radio = QRadioButton(tr("lbl_audio_only"))
         self._video_radio.setChecked(True)
         self._type_group.addButton(self._video_radio, 0)
         self._type_group.addButton(self._audio_radio, 1)
@@ -419,10 +420,10 @@ class DownloadSection(QScrollArea):
         vaf_layout = QVBoxLayout(self._video_audio_fmt_container)
         vaf_layout.setContentsMargins(0, 4, 0, 0)
         vaf_layout.setSpacing(4)
-        vaf_lbl = QLabel("Audio format in video:")
-        vaf_lbl.setObjectName("TextMuted")
-        vaf_lbl.setStyleSheet("font-size: 11px;")
-        vaf_layout.addWidget(vaf_lbl)
+        self._lbl_audio_in_video = QLabel(tr("lbl_audio_fmt_in_video"))
+        self._lbl_audio_in_video.setObjectName("TextMuted")
+        self._lbl_audio_in_video.setStyleSheet("font-size: 11px;")
+        vaf_layout.addWidget(self._lbl_audio_in_video)
         vaf_row = QHBoxLayout()
         vaf_row.setContentsMargins(0, 0, 0, 0)
         vaf_row.setSpacing(8)
@@ -448,25 +449,24 @@ class DownloadSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("VIDEO QUALITY"))
+        self._hdr_quality = _section_header(tr("hdr_video_quality"))
+        layout.addWidget(self._hdr_quality)
 
         row = QHBoxLayout()
         self._quality_combo = QComboBox()
         self._quality_combo.setObjectName("QualityCombo")
-        self._quality_combo.addItem("Best available (default)")
+        self._quality_combo.addItem(tr("lbl_best_available"))
         self._quality_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         row.addWidget(self._quality_combo)
 
-        self._check_fmt_btn = QPushButton("Check Formats")
+        self._check_fmt_btn = QPushButton(tr("btn_check_formats"))
         self._check_fmt_btn.setObjectName("BrowseBtn")
         self._check_fmt_btn.setFixedWidth(120)
         self._check_fmt_btn.clicked.connect(self._check_formats)
         row.addWidget(self._check_fmt_btn)
         layout.addLayout(row)
 
-        self._quality_hint = QLabel(
-            'Click "Check Formats" to see available resolutions for the URL.'
-        )
+        self._quality_hint = QLabel(tr("hint_check_formats_download"))
         self._quality_hint.setObjectName("TextMuted")
         self._quality_hint.setStyleSheet("font-size: 12px;")
         layout.addWidget(self._quality_hint)
@@ -479,10 +479,11 @@ class DownloadSection(QScrollArea):
         layout.setSpacing(10)
 
         header_row = QHBoxLayout()
-        header_row.addWidget(_section_header("TIME RANGE  (optional — HH:MM:SS or MM:SS)"))
+        self._hdr_time_range = _section_header(tr("hdr_time_range"))
+        header_row.addWidget(self._hdr_time_range)
         header_row.addStretch()
 
-        self._load_preview_btn = QPushButton("Load Preview")
+        self._load_preview_btn = QPushButton(tr("btn_load_preview"))
         self._load_preview_btn.setObjectName("BrowseBtn")
         self._load_preview_btn.setFixedWidth(110)
         self._load_preview_btn.setVisible(_MULTIMEDIA_AVAILABLE)
@@ -496,21 +497,23 @@ class DownloadSection(QScrollArea):
         row.setSpacing(16)
 
         start_col = QVBoxLayout()
-        start_col.addWidget(QLabel("Start"))
+        self._lbl_trim_start = QLabel(tr("lbl_start"))
+        start_col.addWidget(self._lbl_trim_start)
         self._start_input = QLineEdit()
         self._start_input.setObjectName("PillInput")
         self._start_input.setFixedWidth(110)
-        self._start_input.setPlaceholderText("0:00")
+        self._start_input.setPlaceholderText(tr("ph_trim_start_short"))
         self._start_input.textChanged.connect(self._on_time_input_changed)
         start_col.addWidget(self._start_input)
         row.addLayout(start_col)
 
         end_col = QVBoxLayout()
-        end_col.addWidget(QLabel("End"))
+        self._lbl_trim_end = QLabel(tr("lbl_end"))
+        end_col.addWidget(self._lbl_trim_end)
         self._end_input = QLineEdit()
         self._end_input.setObjectName("PillInput")
         self._end_input.setFixedWidth(110)
-        self._end_input.setPlaceholderText("end of video")
+        self._end_input.setPlaceholderText(tr("ph_trim_end"))
         self._end_input.textChanged.connect(self._on_time_input_changed)
         end_col.addWidget(self._end_input)
         row.addLayout(end_col)
@@ -533,18 +536,16 @@ class DownloadSection(QScrollArea):
         layout.addWidget(self._video_widget)
 
         ctrl_row = QHBoxLayout()
-        self._play_btn = QPushButton("Play")
+        self._play_btn = QPushButton(tr("btn_play"))
         self._play_btn.setObjectName("ChipBtn")
         self._play_btn.setFixedWidth(70)
         self._play_btn.clicked.connect(self._toggle_playback)
         ctrl_row.addWidget(self._play_btn)
 
-        self._reload_preview_btn = QPushButton("Reload")
+        self._reload_preview_btn = QPushButton(tr("btn_reload"))
         self._reload_preview_btn.setObjectName("ChipBtn")
         self._reload_preview_btn.setFixedWidth(70)
-        self._reload_preview_btn.setToolTip(
-            "CDN preview links expire — click to re-fetch a fresh URL."
-        )
+        self._reload_preview_btn.setToolTip(tr("tooltip_reload_preview"))
         self._reload_preview_btn.clicked.connect(
             lambda: self._load_preview(self._url_input.text().strip())
         )
@@ -563,19 +564,19 @@ class DownloadSection(QScrollArea):
         range_layout = QVBoxLayout()
         range_layout.setSpacing(4)
 
-        lbl_s = QLabel("Start Marker")
-        lbl_s.setObjectName("TextMuted")
-        lbl_s.setStyleSheet("font-size: 10px;")
-        range_layout.addWidget(lbl_s)
+        self._lbl_start_marker = QLabel(tr("lbl_start_marker"))
+        self._lbl_start_marker.setObjectName("TextMuted")
+        self._lbl_start_marker.setStyleSheet("font-size: 10px;")
+        range_layout.addWidget(self._lbl_start_marker)
         self._start_slider = QSlider(Qt.Orientation.Horizontal)
         self._start_slider.setObjectName("StartSlider")
         self._start_slider.sliderMoved.connect(self._on_start_slider_moved)
         range_layout.addWidget(self._start_slider)
 
-        lbl_e = QLabel("End Marker")
-        lbl_e.setObjectName("TextMuted")
-        lbl_e.setStyleSheet("font-size: 10px;")
-        range_layout.addWidget(lbl_e)
+        self._lbl_end_marker = QLabel(tr("lbl_end_marker"))
+        self._lbl_end_marker.setObjectName("TextMuted")
+        self._lbl_end_marker.setStyleSheet("font-size: 10px;")
+        range_layout.addWidget(self._lbl_end_marker)
         self._end_slider = QSlider(Qt.Orientation.Horizontal)
         self._end_slider.setObjectName("EndSlider")
         self._end_slider.sliderMoved.connect(self._on_end_slider_moved)
@@ -583,14 +584,11 @@ class DownloadSection(QScrollArea):
 
         layout.addLayout(range_layout)
 
-        expiry_note = QLabel(
-            "Preview links from Facebook / Instagram / LinkedIn expire quickly"
-            " — use Reload if playback stalls."
-        )
-        expiry_note.setObjectName("TextMuted")
-        expiry_note.setWordWrap(True)
-        expiry_note.setStyleSheet("font-size: 11px;")
-        layout.addWidget(expiry_note)
+        self._preview_expiry_note = QLabel(tr("hint_preview_cdn_expire"))
+        self._preview_expiry_note.setObjectName("TextMuted")
+        self._preview_expiry_note.setWordWrap(True)
+        self._preview_expiry_note.setStyleSheet("font-size: 11px;")
+        layout.addWidget(self._preview_expiry_note)
 
         self._preview_status = QLabel()
         self._preview_status.setObjectName("TextSecondary")
@@ -605,21 +603,22 @@ class DownloadSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("OUTPUT FOLDER"))
+        self._hdr_output = _section_header(tr("hdr_output_folder"))
+        layout.addWidget(self._hdr_output)
 
         row = QHBoxLayout()
         self._out_input = QLineEdit()
         self._out_input.setObjectName("PillInput")
-        self._out_input.setPlaceholderText("Current working directory")
+        self._out_input.setPlaceholderText(tr("ph_cwd"))
         if self._settings.output_folder:
             self._out_input.setText(self._settings.output_folder)
         row.addWidget(self._out_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_output)
-        row.addWidget(browse_btn)
+        self._out_browse_btn = QPushButton(tr("btn_browse"))
+        self._out_browse_btn.setObjectName("BrowseBtn")
+        self._out_browse_btn.setFixedWidth(90)
+        self._out_browse_btn.clicked.connect(self._browse_output)
+        row.addWidget(self._out_browse_btn)
         layout.addLayout(row)
         return card
 
@@ -631,13 +630,15 @@ class DownloadSection(QScrollArea):
         outer.setSpacing(10)
 
         header_row = QHBoxLayout()
-        header_lbl = _section_header("DOWNLOAD QUEUE")
+        self._hdr_queue = _section_header(tr("hdr_download_queue"))
+        header_lbl = self._hdr_queue
         header_lbl.setStyleSheet(
             "font-size: 11px; font-weight: bold; letter-spacing: 1px;"
         )
         header_row.addWidget(header_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
         header_row.addStretch()
-        clear_btn = QPushButton("Clear done")
+        self._clear_done_btn = QPushButton(tr("btn_clear_done"))
+        clear_btn = self._clear_done_btn
         clear_btn.setObjectName("BrowseBtn")
         clear_btn.setFixedHeight(26)
         clear_btn.setFixedWidth(80)
@@ -652,6 +653,61 @@ class DownloadSection(QScrollArea):
         return self._queue_card
 
     # ── Control handlers ───────────────────────────────────────────────────────
+
+
+    def retranslate_ui(self) -> None:
+        self._hdr_url.setText(tr("hdr_source_url"))
+        self._url_input.setPlaceholderText(tr("ph_url_services"))
+        self._hdr_playlist.setText(tr("hdr_playlist"))
+        self._load_playlist_btn.setText(tr("btn_load_playlist"))
+        self._select_all_btn.setText(tr("btn_select_all"))
+        self._deselect_all_btn.setText(tr("btn_deselect_all"))
+        self._download_selected_btn.setText(tr("btn_download_selected"))
+        self._playlist_quality_hint.setText(tr("hint_playlist_quality"))
+        self._hdr_media_type.setText(tr("hdr_media_type"))
+        self._video_radio.setText(tr("lbl_video"))
+        self._audio_radio.setText(tr("lbl_audio_only"))
+        self._lbl_audio_in_video.setText(tr("lbl_audio_fmt_in_video"))
+        self._hdr_quality.setText(tr("hdr_video_quality"))
+        self._check_fmt_btn.setText(tr("btn_check_formats"))
+        if self._quality_combo.count():
+            self._quality_combo.setItemText(0, tr("lbl_best_available"))
+        self._quality_hint.setText(tr("hint_check_formats_download"))
+        self._hdr_time_range.setText(tr("hdr_time_range"))
+        self._load_preview_btn.setText(tr("btn_load_preview"))
+        if _MULTIMEDIA_AVAILABLE:
+            self._play_btn.setText(tr("btn_play"))
+            self._reload_preview_btn.setText(tr("btn_reload"))
+            self._reload_preview_btn.setToolTip(tr("tooltip_reload_preview"))
+            self._lbl_start_marker.setText(tr("lbl_start_marker"))
+            self._lbl_end_marker.setText(tr("lbl_end_marker"))
+            self._preview_expiry_note.setText(tr("hint_preview_cdn_expire"))
+        self._lbl_trim_start.setText(tr("lbl_start"))
+        self._lbl_trim_end.setText(tr("lbl_end"))
+        self._start_input.setPlaceholderText(tr("ph_trim_start_short"))
+        self._end_input.setPlaceholderText(tr("ph_trim_end"))
+        self._hdr_output.setText(tr("hdr_output_folder"))
+        self._out_input.setPlaceholderText(tr("ph_cwd"))
+        self._out_browse_btn.setText(tr("btn_browse"))
+        self._hdr_queue.setText(tr("hdr_download_queue"))
+        self._clear_done_btn.setText(tr("btn_clear_done"))
+        self._playlist_table.setHorizontalHeaderLabels(
+            ["", tr("lbl_title"), tr("lbl_duration")]
+        )
+        self._refresh_playlist_status_lbl()
+
+    def _refresh_playlist_status_lbl(self) -> None:
+        key = getattr(self, "_playlist_status_key", None)
+        if not key:
+            return
+        if key == "count":
+            n = getattr(self, "_playlist_loaded_count", 0)
+            self._playlist_status_lbl.setText(tr("lbl_playlist_video_count").format(n=n))
+        elif key == "error":
+            msg = getattr(self, "_playlist_err_msg", "") or ""
+            self._playlist_status_lbl.setText(tr("err_download_playlist").format(msg=msg[:60]))
+        else:
+            self._playlist_status_lbl.setText(tr(key))
 
     def _on_url_changed(self, url: str) -> None:
         url = url.strip()
@@ -729,7 +785,7 @@ class DownloadSection(QScrollArea):
         if not url:
             return
         self._load_preview_btn.setEnabled(False)
-        self._load_preview_btn.setText("Loading…")
+        self._load_preview_btn.setText(tr("dyn_loading"))
         self.status_message.emit("Fetching preview stream…", False)
         worker = Worker(lambda: get_preview_stream_url(url))
         worker.signals.result.connect(self._on_preview_loaded)
@@ -739,7 +795,7 @@ class DownloadSection(QScrollArea):
 
     def _on_preview_loaded(self, result: dict) -> None:
         self._load_preview_btn.setEnabled(True)
-        self._load_preview_btn.setText("Load Preview")
+        self._load_preview_btn.setText(tr("btn_load_preview"))
         if "error" in result:
             self.status_message.emit(f"Preview unavailable: {result['error']}", True)
             self._preview_card.setVisible(False)
@@ -760,7 +816,7 @@ class DownloadSection(QScrollArea):
 
     def _on_preview_error(self, err_tuple: tuple) -> None:
         self._load_preview_btn.setEnabled(True)
-        self._load_preview_btn.setText("Load Preview")
+        self._load_preview_btn.setText(tr("btn_load_preview"))
         _, msg, _ = err_tuple
         self.status_message.emit(f"Preview error: {msg}", True)
 
@@ -782,11 +838,11 @@ class DownloadSection(QScrollArea):
     def _toggle_playback(self) -> None:
         if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self._player.pause()
-            self._play_btn.setText("Play")
+            self._play_btn.setText(tr("btn_play"))
             self._pos_timer.stop()
         else:
             self._player.play()
-            self._play_btn.setText("Pause")
+            self._play_btn.setText(tr("btn_pause"))
             self._pos_timer.start()
 
     def _on_player_pos_changed(self) -> None:
@@ -849,17 +905,19 @@ class DownloadSection(QScrollArea):
         self._select_all_btn.setVisible(False)
         self._deselect_all_btn.setVisible(False)
         self._download_selected_btn.setVisible(False)
+        self._playlist_status_key = None
         self._playlist_status_lbl.setText("")
         self._load_playlist_btn.setEnabled(True)
-        self._load_playlist_btn.setText("Load Playlist")
+        self._load_playlist_btn.setText(tr("btn_load_playlist"))
 
     def _load_playlist(self) -> None:
         url = self._url_input.text().strip()
         if not url:
             return
         self._load_playlist_btn.setEnabled(False)
-        self._load_playlist_btn.setText("Loading…")
-        self._playlist_status_lbl.setText("Fetching playlist…")
+        self._load_playlist_btn.setText(tr("dyn_loading"))
+        self._playlist_status_key = "dyn_fetching_playlist"
+        self._playlist_status_lbl.setText(tr("dyn_fetching_playlist"))
         self._playlist_table.setVisible(False)
         self._select_all_btn.setVisible(False)
         self._deselect_all_btn.setVisible(False)
@@ -873,9 +931,10 @@ class DownloadSection(QScrollArea):
 
     def _on_playlist_loaded(self, entries: list) -> None:
         self._load_playlist_btn.setEnabled(True)
-        self._load_playlist_btn.setText("Reload")
+        self._load_playlist_btn.setText(tr("btn_reload"))
         if not entries:
-            self._playlist_status_lbl.setText("No videos found.")
+            self._playlist_status_key = "err_playlist_empty"
+            self._playlist_status_lbl.setText(tr("err_playlist_empty"))
             return
         self._playlist_table.setRowCount(0)
         for entry in entries:
@@ -902,7 +961,11 @@ class DownloadSection(QScrollArea):
             dur_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._playlist_table.setItem(row, 2, dur_item)
 
-        self._playlist_status_lbl.setText(f"{len(entries)} video(s)")
+        self._playlist_status_key = "count"
+        self._playlist_loaded_count = len(entries)
+        self._playlist_status_lbl.setText(
+            tr("lbl_playlist_video_count").format(n=len(entries))
+        )
         self._playlist_table.setVisible(True)
         self._select_all_btn.setVisible(True)
         self._deselect_all_btn.setVisible(True)
@@ -910,9 +973,13 @@ class DownloadSection(QScrollArea):
 
     def _on_playlist_error(self, err_tuple: tuple) -> None:
         self._load_playlist_btn.setEnabled(True)
-        self._load_playlist_btn.setText("Load Playlist")
+        self._load_playlist_btn.setText(tr("btn_load_playlist"))
         _, msg, _ = err_tuple
-        self._playlist_status_lbl.setText(f"Error: {str(msg)[:60]}")
+        self._playlist_status_key = "error"
+        self._playlist_err_msg = str(msg)
+        self._playlist_status_lbl.setText(
+            tr("err_download_playlist").format(msg=str(msg)[:60])
+        )
 
     def _set_all_playlist_checked(self, checked: bool) -> None:
         for row in range(self._playlist_table.rowCount()):
@@ -1001,7 +1068,7 @@ class DownloadSection(QScrollArea):
             self.status_message.emit("Enter a URL first.", True)
             return
         self._check_fmt_btn.setEnabled(False)
-        self._check_fmt_btn.setText("Checking…")
+        self._check_fmt_btn.setText(tr("dyn_checking"))
         self.status_message.emit("Fetching available formats…", False)
         _url = url
         worker = Worker(lambda: get_available_formats(_url))
@@ -1012,10 +1079,10 @@ class DownloadSection(QScrollArea):
 
     def _on_formats_fetched(self, formats: list) -> None:
         self._check_fmt_btn.setEnabled(True)
-        self._check_fmt_btn.setText("Check Formats")
+        self._check_fmt_btn.setText(tr("btn_check_formats"))
         self._formats = formats
         self._quality_combo.clear()
-        self._quality_combo.addItem("Best available (default)", None)
+        self._quality_combo.addItem(tr("lbl_best_available"), None)
         for fmt in formats:
             self._quality_combo.addItem(
                 fmt["display"],
@@ -1028,7 +1095,7 @@ class DownloadSection(QScrollArea):
 
     def _on_formats_error(self, err_tuple: tuple) -> None:
         self._check_fmt_btn.setEnabled(True)
-        self._check_fmt_btn.setText("Check Formats")
+        self._check_fmt_btn.setText(tr("btn_check_formats"))
         _, msg, _ = err_tuple
         self.status_message.emit(f"Format check failed: {msg}", True)
 
@@ -1153,7 +1220,7 @@ class DownloadSection(QScrollArea):
         self._platform_label.setText("")
         self._playlist_card.setVisible(False)
         self._quality_combo.clear()
-        self._quality_combo.addItem("Best available (default)")
+        self._quality_combo.addItem(tr("lbl_best_available"))
         self._start_input.clear()
         self._end_input.clear()
         self._video_radio.setChecked(True)

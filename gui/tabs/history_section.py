@@ -25,10 +25,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.i18n import tr
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 
-_COLUMNS = ["Type", "File Name", "Date / Time", "Status"]
+_COLUMN_KEYS = ["hist_col_type", "hist_col_file", "hist_col_date", "hist_col_status"]
 _PAGE_SIZE = 20
 
 
@@ -78,7 +79,7 @@ class HistoryTableModel(QAbstractTableModel):
         return len(self._items)
 
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
-        return len(_COLUMNS)
+        return len(_COLUMN_KEYS)
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or index.row() >= len(self._items):
@@ -95,7 +96,11 @@ class HistoryTableModel(QAbstractTableModel):
                 ts = datetime.datetime.fromtimestamp(item.timestamp)
                 return ts.strftime("%Y-%m-%d  %H:%M")
             if col == 3:
-                return "✓  Success" if item.status == "success" else "✗  Error"
+                return (
+                    tr("hist_status_success")
+                    if item.status == "success"
+                    else tr("hist_status_error")
+                )
 
         elif role == Qt.ItemDataRole.ForegroundRole:
             if col == 3:
@@ -116,7 +121,7 @@ class HistoryTableModel(QAbstractTableModel):
         role: int = Qt.ItemDataRole.DisplayRole,
     ):
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
-            return _COLUMNS[section]
+            return tr(_COLUMN_KEYS[section])
         return None
 
 
@@ -134,7 +139,7 @@ class HistorySection(QWidget):
         layout.setSpacing(12)
 
         # ── Empty-state label (shown when no items) ───────────────────────────
-        self._empty_label = QLabel("No history yet — completed operations will appear here.")
+        self._empty_label = QLabel(tr("lbl_history_empty"))
         self._empty_label.setObjectName("TextMuted")
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._empty_label)
@@ -173,17 +178,17 @@ class HistorySection(QWidget):
         btn_row.setSpacing(8)
         btn_row.addStretch()
 
-        self._play_btn = QPushButton("▶  Play Selected")
+        self._play_btn = QPushButton(tr("btn_play_selected"))
         self._play_btn.setObjectName("SecondaryBtn")
         self._play_btn.setFixedHeight(36)
         self._play_btn.clicked.connect(self._play_selected)
 
-        self._folder_btn = QPushButton("Open Folder")
+        self._folder_btn = QPushButton(tr("btn_open_folder"))
         self._folder_btn.setObjectName("SecondaryBtn")
         self._folder_btn.setFixedHeight(36)
         self._folder_btn.clicked.connect(self._open_folder)
 
-        self._clear_btn = QPushButton("Clear All")
+        self._clear_btn = QPushButton(tr("btn_clear_all"))
         self._clear_btn.setObjectName("DangerBtn")
         self._clear_btn.setFixedHeight(36)
         self._clear_btn.clicked.connect(self._clear_all)
@@ -196,6 +201,21 @@ class HistorySection(QWidget):
         self._sync_empty_state()
 
     # ── Public API ────────────────────────────────────────────────────────────
+
+
+    def retranslate_ui(self) -> None:
+        self._empty_label.setText(tr("lbl_history_empty"))
+        self._play_btn.setText(tr("btn_play_selected"))
+        self._folder_btn.setText(tr("btn_open_folder"))
+        self._clear_btn.setText(tr("btn_clear_all"))
+        last = self._model.columnCount() - 1
+        self._model.headerDataChanged.emit(Qt.Orientation.Horizontal, 0, last)
+        rows = self._model.rowCount()
+        if rows > 0:
+            tl = self._model.index(0, 0)
+            br = self._model.index(rows - 1, last)
+            self._model.dataChanged.emit(tl, br, [Qt.ItemDataRole.DisplayRole])
+
 
     def refresh(self) -> None:
         """Reload history from disk and update the view."""

@@ -77,6 +77,11 @@ def _log_path() -> Path:
 _logger: logging.Logger | None = None
 
 
+def get_log_path() -> Path:
+    """Return the active log file path (creates the directory if needed)."""
+    return _log_path()
+
+
 def get_logger(name: str = "media_utilities") -> logging.Logger:
     """Return (and create on first call) the application logger."""
     global _logger

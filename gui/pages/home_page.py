@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 from typing import Callable
 
+from core.i18n import tr
+
 from PySide6.QtCore import Qt, QPoint, QRectF
 from PySide6.QtGui import (
     QColor, QLinearGradient, QRadialGradient,
@@ -38,35 +40,49 @@ _TOOL_COLOR: dict[str, str] = {
     "history":       "#6B7280",  # gray
 }
 
-# All tools (for ToolsPage)
-_ALL_TOOLS: list[tuple[str, str, str, str, int]] = [
-    ("download", "download.svg", "Media Download",   "Download videos, audio, playlists\nfrom 1000+ websites.", 0),
-    ("convert",  "convert.svg",  "Convert Media",    "Convert videos and audios\nto any format.",              1),
-    ("compress", "compress.svg", "Compress Media",   "Compress videos and images\nwithout quality loss.",      5),
-    ("merge",    "merge.svg",    "Merge Videos",     "Merge multiple videos into\none seamless output.",       6),
-    ("trim",     "trim.svg",     "Trim Media",       "Trim and cut videos to your\ndesired length.",           2),
-    ("mux",      "mux.svg",      "Audio Mixing",     "Mix multiple audio tracks\nlike a pro.",                 8),
-    ("gif",      "gif.svg",      "GIF Creator",      "Create high-quality GIFs\nfrom videos.",                 4),
-    ("spatial",  "spatial.svg",  "Transform Media",  "Resize, crop, and rotate\nvideo files.",                 7),
-    ("document",  "document.svg", "Document Convert",  "Convert documents between\nformats.",                    3),
-    ("scrub",     "scrub.svg",     "Metadata Scrubber", "Strip GPS, timestamps and\nEXIF data from media.",  9),
-    ("chunk",     "chunk.svg",     "Auto-Chunker",      "Split files by duration\nor size (stream copy).", 10),
-    ("watermark",     "watermark.svg", "Batch Watermark",   "Stamp logos or text across\nan entire directory.", 11),
-    ("frame_grabber", "frame.svg",    "Frame Grabber",     "Extract lossless frames as\nPNG or 16-bit TIFF.",    12),
-    ("palette",       "palette.svg",    "Hex Palette",        "Analyze dominant colors and\nexport hex swatches.",   13),
-    ("bg_eraser",     "bg_eraser.svg",  "BG Eraser",          "Remove backgrounds from\nphotos offline with AI.",  14),
-    ("history",       "history.svg",    "History",            "View past operations\nand results.",                 15),
+# Static icon/id/index data — labels come from i18n at runtime.
+_ALL_TOOLS_META: list[tuple[str, str, str, str, int]] = [
+    ("download",     "download.svg",   "tool_download_name",     "tool_download_desc",     0),
+    ("convert",      "convert.svg",    "tool_convert_name",      "tool_convert_desc",      1),
+    ("compress",     "compress.svg",   "tool_compress_name",     "tool_compress_desc",     5),
+    ("merge",        "merge.svg",      "tool_merge_name",        "tool_merge_desc",        6),
+    ("trim",         "trim.svg",       "tool_trim_name",         "tool_trim_desc",         2),
+    ("mux",          "mux.svg",        "tool_mux_name",          "tool_mux_desc",          8),
+    ("gif",          "gif.svg",        "tool_gif_name",          "tool_gif_desc",          4),
+    ("spatial",      "spatial.svg",    "tool_spatial_name",      "tool_spatial_desc",      7),
+    ("document",     "document.svg",   "tool_document_name",     "tool_document_desc",     3),
+    ("scrub",        "scrub.svg",      "tool_scrub_name",        "tool_scrub_desc",        9),
+    ("chunk",        "chunk.svg",      "tool_chunk_name",        "tool_chunk_desc",       10),
+    ("watermark",    "watermark.svg",  "tool_watermark_name",    "tool_watermark_desc",   11),
+    ("frame_grabber","frame.svg",      "tool_frame_grabber_name","tool_frame_grabber_desc",12),
+    ("palette",      "palette.svg",    "tool_palette_name",      "tool_palette_desc",     13),
+    ("bg_eraser",    "bg_eraser.svg",  "tool_bg_eraser_name",    "tool_bg_eraser_desc",   14),
+    ("history",      "history.svg",    "tool_history_name",      "tool_history_desc",     15),
 ]
 
-# 7 tools shown on Home, then "+ More Tools" card
-_HOME_TOOLS: list[tuple[str, str, str, str, int]] = _ALL_TOOLS[:7]
-
-_QUICK_TOOLS: list[tuple[str, str, str, str, int]] = [
-    ("download", "download.svg", "Media Download", "Download from 1000+ sites", 0),
-    ("compress", "compress.svg", "Compress Media", "Reduce file size",           5),
-    ("convert",  "convert.svg",  "Convert Media",  "Convert to any format",      1),
-    ("merge",    "merge.svg",    "Merge Videos",   "Combine multiple videos",    6),
+_QUICK_TOOLS_META: list[tuple[str, str, str, str, int]] = [
+    ("download", "download.svg", "quick_download_name", "quick_download_desc", 0),
+    ("compress", "compress.svg", "quick_compress_name", "quick_compress_desc", 5),
+    ("convert",  "convert.svg",  "quick_convert_name",  "quick_convert_desc",  1),
+    ("merge",    "merge.svg",    "quick_merge_name",    "quick_merge_desc",    6),
 ]
+
+
+def _resolved_tools(meta: list) -> list[tuple[str, str, str, str, int]]:
+    """Resolve translation keys in tool metadata to current-language strings."""
+    return [(tid, icon, tr(nk), tr(dk), idx) for tid, icon, nk, dk, idx in meta]
+
+
+def _all_tools() -> list[tuple[str, str, str, str, int]]:
+    return _resolved_tools(_ALL_TOOLS_META)
+
+
+def _home_tools() -> list[tuple[str, str, str, str, int]]:
+    return _resolved_tools(_ALL_TOOLS_META[:7])
+
+
+def _quick_tools() -> list[tuple[str, str, str, str, int]]:
+    return _resolved_tools(_QUICK_TOOLS_META)
 
 
 # ── Icon loader ───────────────────────────────────────────────────────────────
@@ -114,6 +130,10 @@ class _GradientTitleLabel(QWidget):
     def __init__(self, text: str, parent=None) -> None:
         super().__init__(parent)
         self._text = text
+
+    def set_text(self, text: str) -> None:
+        self._text = text
+        self.update()
         font = QFont()
         font.setPointSize(20)
         font.setBold(True)
@@ -177,11 +197,12 @@ class HeroBanner(QFrame):
         left = QVBoxLayout()
         left.setSpacing(12)
 
-        self._title_lbl = _GradientTitleLabel("Welcome to Videl")
-        sub = QLabel("All-in-one media toolkit for creators.\nFast. Simple. Powerful.")
-        sub.setObjectName("HeroSubtitle")
+        self._title_lbl = _GradientTitleLabel(tr("welcome_title"))
+        self._sub_lbl = QLabel(tr("hero_subtitle"))
+        self._sub_lbl.setObjectName("HeroSubtitle")
+        sub = self._sub_lbl
         left.addWidget(self._title_lbl)
-        left.addWidget(sub)
+        left.addWidget(self._sub_lbl)
         left.addStretch()
 
         outer.addLayout(left)
@@ -284,19 +305,27 @@ class ToolCard(_ClickableFrame):
         icon_lbl.setPixmap(_load_icon(icon_file, 40, color))
         layout.addWidget(icon_lbl)
 
-        title_lbl = QLabel(title)
-        title_lbl.setObjectName("ToolCardTitle")
-        layout.addWidget(title_lbl)
+        self._title_lbl = QLabel(title)
+        self._title_lbl.setObjectName("ToolCardTitle")
+        layout.addWidget(self._title_lbl)
 
-        desc_lbl = QLabel(desc)
-        desc_lbl.setObjectName("ToolCardDesc")
-        desc_lbl.setWordWrap(True)
-        layout.addWidget(desc_lbl)
+        self._desc_lbl = QLabel(desc)
+        self._desc_lbl.setObjectName("ToolCardDesc")
+        self._desc_lbl.setWordWrap(True)
+        layout.addWidget(self._desc_lbl)
         layout.addStretch()
+
+    def update_text(self, title: str, desc: str) -> None:
+        self._title_lbl.setText(title)
+        self._desc_lbl.setText(desc)
 
 
 class MoreToolsCard(_ClickableFrame):
     """The 8th card — 'More Tools' — opens the Tools page."""
+
+    def update_text(self) -> None:
+        self._title_lbl.setText(tr("home_more_tools"))
+        self._desc_lbl.setText(tr("home_more_tools_desc"))
 
     def __init__(self, show_tools_cb: Callable[[], None], parent=None) -> None:
         super().__init__(show_tools_cb, parent)
@@ -314,16 +343,16 @@ class MoreToolsCard(_ClickableFrame):
         icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(icon_lbl)
 
-        title_lbl = QLabel("More Tools")
-        title_lbl.setObjectName("ToolCardTitle")
-        title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title_lbl)
+        self._title_lbl = QLabel(tr("home_more_tools"))
+        self._title_lbl.setObjectName("ToolCardTitle")
+        self._title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._title_lbl)
 
-        desc_lbl = QLabel("Explore more\npowerful utilities.")
-        desc_lbl.setObjectName("ToolCardDesc")
-        desc_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        desc_lbl.setWordWrap(True)
-        layout.addWidget(desc_lbl)
+        self._desc_lbl = QLabel(tr("home_more_tools_desc"))
+        self._desc_lbl.setObjectName("ToolCardDesc")
+        self._desc_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._desc_lbl.setWordWrap(True)
+        layout.addWidget(self._desc_lbl)
         layout.addStretch()
 
 
@@ -356,17 +385,24 @@ class QuickAccessCard(_ClickableFrame):
 
         text_col = QVBoxLayout()
         text_col.setSpacing(2)
-        t = QLabel(title)
-        t.setObjectName("QuickCardTitle")
-        s = QLabel(subtitle)
-        s.setObjectName("QuickCardSub")
-        text_col.addWidget(t)
-        text_col.addWidget(s)
+        self._title_lbl = QLabel(title)
+        self._title_lbl.setObjectName("QuickCardTitle")
+        self._sub_lbl = QLabel(subtitle)
+        self._sub_lbl.setObjectName("QuickCardSub")
+        text_col.addWidget(self._title_lbl)
+        text_col.addWidget(self._sub_lbl)
         layout.addLayout(text_col)
         layout.addStretch()
 
+    def update_text(self, title: str, subtitle: str) -> None:
+        self._title_lbl.setText(title)
+        self._sub_lbl.setText(subtitle)
+
 
 class ViewAllCard(_ClickableFrame):
+    def update_text(self) -> None:
+        self._lbl.setText(tr("home_view_all"))
+
     def __init__(self, show_tools_cb: Callable[[], None], parent=None) -> None:
         super().__init__(show_tools_cb, parent)
         self.setObjectName("ViewAllCard")
@@ -376,9 +412,9 @@ class ViewAllCard(_ClickableFrame):
         layout.setContentsMargins(14, 12, 14, 12)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        lbl = QLabel("View All Tools  →")
-        lbl.setObjectName("ViewAllLabel")
-        layout.addWidget(lbl)
+        self._lbl = QLabel(tr("home_view_all"))
+        self._lbl.setObjectName("ViewAllLabel")
+        layout.addWidget(self._lbl)
 
 
 # ── Grid builder ──────────────────────────────────────────────────────────────
@@ -419,48 +455,81 @@ class HomePage(QScrollArea):
         super().__init__(parent)
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
+        self._navigate_cb = navigate_cb
+        self._show_tools_cb = show_tools_cb
 
         content = QWidget()
-        root = QVBoxLayout(content)
-        root.setContentsMargins(32, 32, 32, 32)
-        root.setSpacing(28)
+        self._root = QVBoxLayout(content)
+        self._root.setContentsMargins(32, 32, 32, 32)
+        self._root.setSpacing(28)
 
         # Hero
-        root.addWidget(HeroBanner())
+        self._hero = HeroBanner()
+        self._root.addWidget(self._hero)
 
-        # Quick Access
+        # Quick Access header
         qa_hdr = QHBoxLayout()
-        qa_lbl = QLabel("QUICK ACCESS")
-        qa_lbl.setObjectName("SectionLabel")
-        qa_hdr.addWidget(qa_lbl)
+        self._qa_lbl = QLabel(tr("home_quick_access"))
+        self._qa_lbl.setObjectName("SectionLabel")
+        qa_hdr.addWidget(self._qa_lbl)
         qa_hdr.addStretch()
-        root.addLayout(qa_hdr)
+        self._root.addLayout(qa_hdr)
 
-        quick_row = QHBoxLayout()
-        quick_row.setSpacing(12)
-        for tool_id, icon_file, title, sub, idx in _QUICK_TOOLS:
-            quick_row.addWidget(
-                QuickAccessCard(tool_id, icon_file, title, sub, idx, navigate_cb)
-            )
-        quick_row.addWidget(ViewAllCard(show_tools_cb))
-        root.addLayout(quick_row)
+        # Quick Access cards
+        self._quick_row = QHBoxLayout()
+        self._quick_row.setSpacing(12)
+        self._quick_cards: list[QuickAccessCard] = []
+        self._view_all_card = ViewAllCard(show_tools_cb)
+        for tool_id, icon_file, title, sub, idx in _quick_tools():
+            card = QuickAccessCard(tool_id, icon_file, title, sub, idx, navigate_cb)
+            self._quick_cards.append(card)
+            self._quick_row.addWidget(card)
+        self._quick_row.addWidget(self._view_all_card)
+        self._root.addLayout(self._quick_row)
 
-        # Tools (7 items + More Tools card)
-        tools_lbl = QLabel("TOOLS")
-        tools_lbl.setObjectName("SectionLabel")
-        root.addWidget(tools_lbl)
+        # Tools section header
+        self._tools_lbl = QLabel(tr("home_tools_section"))
+        self._tools_lbl.setObjectName("SectionLabel")
+        self._root.addWidget(self._tools_lbl)
 
-        root.addWidget(
-            _build_tools_grid(
-                _HOME_TOOLS,
-                navigate_cb,
-                cols=4,
-                more_tools_cb=show_tools_cb,
-            )
-        )
-        root.addStretch()
+        # Tool cards grid
+        self._tool_cards: list[ToolCard] = []
+        self._more_tools_card: MoreToolsCard | None = None
+        grid_w = self._build_grid(cols=4)
+        self._root.addWidget(grid_w)
+        self._root.addStretch()
 
         self.setWidget(content)
+
+    def _build_grid(self, cols: int = 4) -> QWidget:
+        grid_widget = QWidget()
+        grid = QGridLayout(grid_widget)
+        grid.setSpacing(16)
+        grid.setContentsMargins(0, 0, 0, 0)
+
+        self._tool_cards.clear()
+        for i, (tool_id, icon_file, title, desc, idx) in enumerate(_home_tools()):
+            card = ToolCard(tool_id, icon_file, title, desc, idx, self._navigate_cb)
+            self._tool_cards.append(card)
+            grid.addWidget(card, i // cols, i % cols)
+
+        i = len(self._tool_cards)
+        self._more_tools_card = MoreToolsCard(self._show_tools_cb)
+        grid.addWidget(self._more_tools_card, i // cols, i % cols)
+        return grid_widget
+
+    def retranslate_ui(self) -> None:
+        self._hero._title_lbl.set_text(tr("welcome_title"))
+        self._hero._sub_lbl.setText(tr("hero_subtitle"))
+        self._qa_lbl.setText(tr("home_quick_access"))
+        self._tools_lbl.setText(tr("home_tools_section"))
+        self._view_all_card.update_text()
+        if self._more_tools_card:
+            self._more_tools_card.update_text()
+        for card, (_, _, title, sub, _idx) in zip(self._quick_cards, _quick_tools()):
+            card.update_text(title, sub)
+        for card, (_, _, title, desc, _idx) in zip(self._tool_cards, _home_tools()):
+            card.update_text(title, desc)
 
 
 class ToolsPage(QScrollArea):
@@ -470,21 +539,42 @@ class ToolsPage(QScrollArea):
         super().__init__(parent)
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
+        self._navigate_cb = navigate_cb
 
         content = QWidget()
         root = QVBoxLayout(content)
         root.setContentsMargins(32, 32, 32, 32)
         root.setSpacing(16)
 
-        header = QLabel("Tools")
-        header.setObjectName("PageHeader")
-        root.addWidget(header)
+        self._header = QLabel(tr("nav_tools"))
+        self._header.setObjectName("PageHeader")
+        root.addWidget(self._header)
 
-        sub = QLabel("Select a tool to get started.")
-        sub.setObjectName("TextSecondary")
-        root.addWidget(sub)
+        self._sub = QLabel(tr("tools_page_subtitle"))
+        self._sub.setObjectName("TextSecondary")
+        root.addWidget(self._sub)
 
-        root.addWidget(_build_tools_grid(_ALL_TOOLS, navigate_cb, cols=4))
+        self._tool_cards: list[ToolCard] = []
+        grid_widget = QWidget()
+        self._grid = QGridLayout(grid_widget)
+        self._grid.setSpacing(16)
+        self._grid.setContentsMargins(0, 0, 0, 0)
+        self._populate_grid()
+        root.addWidget(grid_widget)
         root.addStretch()
 
         self.setWidget(content)
+
+    def _populate_grid(self) -> None:
+        cols = 4
+        self._tool_cards.clear()
+        for i, (tool_id, icon_file, title, desc, idx) in enumerate(_all_tools()):
+            card = ToolCard(tool_id, icon_file, title, desc, idx, self._navigate_cb)
+            self._tool_cards.append(card)
+            self._grid.addWidget(card, i // cols, i % cols)
+
+    def retranslate_ui(self) -> None:
+        self._header.setText(tr("nav_tools"))
+        self._sub.setText(tr("tools_page_subtitle"))
+        for card, (_, _, title, desc, _idx) in zip(self._tool_cards, _all_tools()):
+            card.update_text(title, desc)

@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.i18n import tr
 from core.watermarker import watermark_batch, _VIDEO_EXTS, _IMAGE_EXTS, _ALL_EXTS, PRESET_OPTIONS
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
@@ -92,7 +93,8 @@ class WatermarkSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("VIDEO / IMAGE FILES"))
+        self._hdr_files = _section_header(tr("hdr_video_image_files"))
+        layout.addWidget(self._hdr_files)
 
         self._file_list = QListWidget()
         self._file_list.setObjectName("FileList")
@@ -103,30 +105,30 @@ class WatermarkSection(QScrollArea):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
-        add_btn = QPushButton("Add Files…")
-        add_btn.setObjectName("BrowseBtn")
-        add_btn.clicked.connect(self._browse_add_files)
-        btn_row.addWidget(add_btn)
+        self._wm_add_files_btn = QPushButton(tr("btn_add_files"))
+        self._wm_add_files_btn.setObjectName("BrowseBtn")
+        self._wm_add_files_btn.clicked.connect(self._browse_add_files)
+        btn_row.addWidget(self._wm_add_files_btn)
 
-        add_dir_btn = QPushButton("Add Folder…")
-        add_dir_btn.setObjectName("BrowseBtn")
-        add_dir_btn.clicked.connect(self._browse_add_folder)
-        btn_row.addWidget(add_dir_btn)
+        self._wm_add_dir_btn = QPushButton(tr("btn_add_folder"))
+        self._wm_add_dir_btn.setObjectName("BrowseBtn")
+        self._wm_add_dir_btn.clicked.connect(self._browse_add_folder)
+        btn_row.addWidget(self._wm_add_dir_btn)
 
-        remove_btn = QPushButton("Remove Selected")
-        remove_btn.setObjectName("BrowseBtn")
-        remove_btn.clicked.connect(self._remove_selected)
-        btn_row.addWidget(remove_btn)
+        self._wm_remove_btn = QPushButton(tr("btn_remove_selected"))
+        self._wm_remove_btn.setObjectName("BrowseBtn")
+        self._wm_remove_btn.clicked.connect(self._remove_selected)
+        btn_row.addWidget(self._wm_remove_btn)
 
-        clear_btn = QPushButton("Clear All")
-        clear_btn.setObjectName("BrowseBtn")
-        clear_btn.clicked.connect(self._file_list.clear)
-        btn_row.addWidget(clear_btn)
+        self._wm_clear_btn = QPushButton(tr("btn_clear_all"))
+        self._wm_clear_btn.setObjectName("BrowseBtn")
+        self._wm_clear_btn.clicked.connect(self._file_list.clear)
+        btn_row.addWidget(self._wm_clear_btn)
 
         btn_row.addStretch()
         layout.addLayout(btn_row)
 
-        self._count_label = QLabel("0 files queued")
+        self._count_label = QLabel(tr("lbl_queue_files_many").format(n=0))
         self._count_label.setObjectName("TextMuted")
         self._count_label.setStyleSheet("font-size: 12px;")
         layout.addWidget(self._count_label)
@@ -142,11 +144,12 @@ class WatermarkSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("WATERMARK TYPE"))
+        self._hdr_wm_type = _section_header(tr("hdr_watermark_type"))
+        layout.addWidget(self._hdr_wm_type)
 
         self._mode_group = QButtonGroup(self)
-        self._radio_logo = QRadioButton("Logo / image overlay")
-        self._radio_text = QRadioButton("Text watermark")
+        self._radio_logo = QRadioButton(tr("lbl_wm_logo"))
+        self._radio_text = QRadioButton(tr("lbl_wm_text"))
         self._radio_logo.setChecked(True)
         self._mode_group.addButton(self._radio_logo, 0)
         self._mode_group.addButton(self._radio_text, 1)
@@ -173,20 +176,22 @@ class WatermarkSection(QScrollArea):
         layout = QVBoxLayout(self._logo_card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(12)
-        layout.addWidget(_section_header("LOGO OPTIONS"))
+        self._hdr_logo = _section_header(tr("hdr_logo_opts"))
+        layout.addWidget(self._hdr_logo)
 
         # Logo file
-        layout.addWidget(QLabel("Logo image (PNG with transparency recommended)"))
+        self._lbl_logo_image = QLabel(tr("lbl_logo_image"))
+        layout.addWidget(self._lbl_logo_image)
         logo_row = QHBoxLayout()
         self._logo_input = QLineEdit()
         self._logo_input.setObjectName("PillInput")
-        self._logo_input.setPlaceholderText("Path to logo file…")
+        self._logo_input.setPlaceholderText(tr("ph_logo_file"))
         logo_row.addWidget(self._logo_input)
-        logo_browse = QPushButton("Browse…")
-        logo_browse.setObjectName("BrowseBtn")
-        logo_browse.setFixedWidth(90)
-        logo_browse.clicked.connect(self._browse_logo)
-        logo_row.addWidget(logo_browse)
+        self._logo_browse_btn = QPushButton(tr("btn_browse"))
+        self._logo_browse_btn.setObjectName("BrowseBtn")
+        self._logo_browse_btn.setFixedWidth(90)
+        self._logo_browse_btn.clicked.connect(self._browse_logo)
+        logo_row.addWidget(self._logo_browse_btn)
         layout.addLayout(logo_row)
 
         # Position + scale + opacity row
@@ -194,16 +199,19 @@ class WatermarkSection(QScrollArea):
         opts_row.setSpacing(16)
 
         pos_col = QVBoxLayout()
-        pos_col.addWidget(QLabel("Position"))
+        self._wm_logo_lbl_pos = QLabel(tr("lbl_position"))
+        pos_col.addWidget(self._wm_logo_lbl_pos)
         self._logo_pos = QComboBox()
-        self._logo_pos.addItems(_POSITIONS)
-        self._logo_pos.setCurrentText("bottom-right")
+        for key in _POSITIONS:
+            self._logo_pos.addItem(tr(f"pos_{key.replace('-', '_')}"), key)
+        self._logo_pos.setCurrentIndex(_POSITIONS.index("bottom-right"))
         self._logo_pos.setFixedWidth(150)
         pos_col.addWidget(self._logo_pos)
         opts_row.addLayout(pos_col)
 
         scale_col = QVBoxLayout()
-        scale_col.addWidget(QLabel("Scale (% of video width)"))
+        self._wm_logo_lbl_scale = QLabel(tr("lbl_scale_pct"))
+        scale_col.addWidget(self._wm_logo_lbl_scale)
         self._logo_scale = QSpinBox()
         self._logo_scale.setRange(1, 100)
         self._logo_scale.setValue(15)
@@ -213,7 +221,8 @@ class WatermarkSection(QScrollArea):
         opts_row.addLayout(scale_col)
 
         alpha_col = QVBoxLayout()
-        alpha_col.addWidget(QLabel("Opacity (%)"))
+        self._wm_logo_lbl_opacity = QLabel(tr("lbl_opacity_pct"))
+        alpha_col.addWidget(self._wm_logo_lbl_opacity)
         self._logo_opacity = QSpinBox()
         self._logo_opacity.setRange(1, 100)
         self._logo_opacity.setValue(80)
@@ -233,28 +242,33 @@ class WatermarkSection(QScrollArea):
         layout = QVBoxLayout(self._text_card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(12)
-        layout.addWidget(_section_header("TEXT OPTIONS"))
+        self._hdr_text = _section_header(tr("hdr_text_opts"))
+        layout.addWidget(self._hdr_text)
 
-        layout.addWidget(QLabel("Watermark text"))
+        self._lbl_wm_text_content = QLabel(tr("lbl_wm_text_content"))
+        layout.addWidget(self._lbl_wm_text_content)
         self._wm_text = QLineEdit()
         self._wm_text.setObjectName("PillInput")
-        self._wm_text.setPlaceholderText("© Your Name 2025")
+        self._wm_text.setPlaceholderText(tr("ph_wm_text_example"))
         layout.addWidget(self._wm_text)
 
         opts_row = QHBoxLayout()
         opts_row.setSpacing(16)
 
         pos_col = QVBoxLayout()
-        pos_col.addWidget(QLabel("Position"))
+        self._wm_text_lbl_pos = QLabel(tr("lbl_position"))
+        pos_col.addWidget(self._wm_text_lbl_pos)
         self._text_pos = QComboBox()
-        self._text_pos.addItems(_POSITIONS)
-        self._text_pos.setCurrentText("bottom-right")
+        for key in _POSITIONS:
+            self._text_pos.addItem(tr(f"pos_{key.replace('-', '_')}"), key)
+        self._text_pos.setCurrentIndex(_POSITIONS.index("bottom-right"))
         self._text_pos.setFixedWidth(150)
         pos_col.addWidget(self._text_pos)
         opts_row.addLayout(pos_col)
 
         size_col = QVBoxLayout()
-        size_col.addWidget(QLabel("Font size"))
+        self._wm_text_lbl_size = QLabel(tr("lbl_font_size"))
+        size_col.addWidget(self._wm_text_lbl_size)
         self._font_size = QSpinBox()
         self._font_size.setRange(8, 256)
         self._font_size.setValue(36)
@@ -263,16 +277,19 @@ class WatermarkSection(QScrollArea):
         opts_row.addLayout(size_col)
 
         color_col = QVBoxLayout()
-        color_col.addWidget(QLabel("Font color"))
+        self._wm_text_lbl_color = QLabel(tr("lbl_font_color"))
+        color_col.addWidget(self._wm_text_lbl_color)
         self._font_color = QComboBox()
-        self._font_color.addItems(_COLORS)
-        self._font_color.setCurrentText("white")
+        for c in _COLORS:
+            self._font_color.addItem(tr(f"color_{c}"), c)
+        self._font_color.setCurrentIndex(_COLORS.index("white"))
         self._font_color.setFixedWidth(100)
         color_col.addWidget(self._font_color)
         opts_row.addLayout(color_col)
 
         alpha_col = QVBoxLayout()
-        alpha_col.addWidget(QLabel("Opacity (%)"))
+        self._wm_text_lbl_opacity = QLabel(tr("lbl_opacity_pct"))
+        alpha_col.addWidget(self._wm_text_lbl_opacity)
         self._text_opacity = QSpinBox()
         self._text_opacity.setRange(1, 100)
         self._text_opacity.setValue(80)
@@ -294,13 +311,15 @@ class WatermarkSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(12)
-        layout.addWidget(_section_header("VIDEO ENCODE SETTINGS"))
+        self._hdr_encode = _section_header(tr("hdr_encode_settings"))
+        layout.addWidget(self._hdr_encode)
 
         row = QHBoxLayout()
         row.setSpacing(16)
 
         crf_col = QVBoxLayout()
-        crf_col.addWidget(QLabel("Quality (CRF / QP)"))
+        self._wm_lbl_crf = QLabel(tr("lbl_crf_quality"))
+        crf_col.addWidget(self._wm_lbl_crf)
         self._enc_crf = QSpinBox()
         self._enc_crf.setRange(1, 51)
         self._enc_crf.setValue(18)
@@ -309,7 +328,7 @@ class WatermarkSection(QScrollArea):
         row.addLayout(crf_col)
 
         preset_col = QVBoxLayout()
-        self._enc_preset_hint = QLabel("Slower = smaller file at same quality")
+        self._enc_preset_hint = QLabel(tr("hint_preset_smaller"))
         self._enc_preset_hint.setObjectName("TextMuted")
         self._enc_preset_hint.setStyleSheet("font-size: 11px;")
         preset_col.addWidget(self._enc_preset_hint)
@@ -319,16 +338,17 @@ class WatermarkSection(QScrollArea):
         row.addLayout(preset_col)
 
         hw_col = QVBoxLayout()
-        hw_col.addWidget(QLabel("Hardware Acceleration"))
+        self._wm_lbl_hw = QLabel(tr("lbl_hw_accel"))
+        hw_col.addWidget(self._wm_lbl_hw)
         self._enc_hw = QComboBox()
         self._enc_hw.setFixedWidth(160)
-        self._enc_hw.addItem("CPU (libx264)", "none")
+        self._enc_hw.addItem(tr("enc_hw_cpu"), "none")
         if "nvidia" in self._available_hw:
-            self._enc_hw.addItem("NVIDIA (NVENC)", "nvidia")
+            self._enc_hw.addItem(tr("enc_hw_nvidia"), "nvidia")
         if "amd" in self._available_hw:
-            self._enc_hw.addItem("AMD (AMF)", "amd")
+            self._enc_hw.addItem(tr("enc_hw_amd"), "amd")
         if "intel" in self._available_hw:
-            self._enc_hw.addItem("Intel (QuickSync)", "intel")
+            self._enc_hw.addItem(tr("enc_hw_intel"), "intel")
         self._enc_hw.currentIndexChanged.connect(self._on_enc_hw_changed)
         hw_col.addWidget(self._enc_hw)
         row.addLayout(hw_col)
@@ -342,18 +362,18 @@ class WatermarkSection(QScrollArea):
     def _on_enc_hw_changed(self, _idx: int) -> None:
         hw = self._enc_hw.currentData()
         presets, default = self._PRESET_OPTIONS.get(hw, self._PRESET_OPTIONS["none"])
-        hints = {
-            "none":   "Slower = smaller file at same quality",
-            "nvidia": "p1 = fastest · p7 = best quality",
-            "amd":    "Tradeoff between encode speed and compression",
-            "intel":  "Slower = smaller file at same quality",
+        hint_keys = {
+            "none": "hint_enc_preset_hw_none",
+            "nvidia": "hint_enc_preset_hw_nvidia",
+            "amd": "hint_enc_preset_hw_amd",
+            "intel": "hint_enc_preset_hw_intel",
         }
         self._enc_preset.blockSignals(True)
         self._enc_preset.clear()
         self._enc_preset.addItems(presets)
         self._enc_preset.setCurrentText(default)
         self._enc_preset.blockSignals(False)
-        self._enc_preset_hint.setText(hints.get(hw, ""))
+        self._enc_preset_hint.setText(tr(hint_keys.get(hw, "hint_enc_preset_hw_none")))
 
     # ── Output card ───────────────────────────────────────────────────────────
 
@@ -362,27 +382,28 @@ class WatermarkSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("OUTPUT FOLDER"))
+        self._hdr_out = _section_header(tr("hdr_output_folder"))
+        layout.addWidget(self._hdr_out)
 
-        hint = QLabel("Watermarked files saved with _watermarked suffix. Leave blank to save alongside originals.")
-        hint.setObjectName("TextMuted")
-        hint.setWordWrap(True)
-        hint.setStyleSheet("font-size: 12px;")
-        layout.addWidget(hint)
+        self._hint_wm_out = QLabel(tr("hint_watermark_output"))
+        self._hint_wm_out.setObjectName("TextMuted")
+        self._hint_wm_out.setWordWrap(True)
+        self._hint_wm_out.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._hint_wm_out)
 
         row = QHBoxLayout()
         self._out_input = QLineEdit()
         self._out_input.setObjectName("PillInput")
-        self._out_input.setPlaceholderText("Same directory as each source file")
+        self._out_input.setPlaceholderText(tr("ph_each_source"))
         if self._settings.output_folder:
             self._out_input.setText(self._settings.output_folder)
         row.addWidget(self._out_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_output)
-        row.addWidget(browse_btn)
+        self._wm_browse_out_btn = QPushButton(tr("btn_browse"))
+        self._wm_browse_out_btn.setObjectName("BrowseBtn")
+        self._wm_browse_out_btn.setFixedWidth(90)
+        self._wm_browse_out_btn.clicked.connect(self._browse_output)
+        row.addWidget(self._wm_browse_out_btn)
         layout.addLayout(row)
         return card
 
@@ -439,7 +460,9 @@ class WatermarkSection(QScrollArea):
 
     def _update_count(self) -> None:
         n = self._file_list.count()
-        self._count_label.setText(f"{n} file{'s' if n != 1 else ''} queued")
+        self._count_label.setText(
+            tr("lbl_queue_files_one") if n == 1 else tr("lbl_queue_files_many").format(n=n)
+        )
 
     def _browse_logo(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -448,6 +471,71 @@ class WatermarkSection(QScrollArea):
         )
         if path:
             self._logo_input.setText(path)
+
+
+    def _retranslate_wm_combos(self) -> None:
+        for combo in (self._logo_pos, self._text_pos):
+            for i in range(combo.count()):
+                data = combo.itemData(i)
+                if data is not None:
+                    combo.setItemText(i, tr(f"pos_{str(data).replace('-', '_')}"))
+        for i in range(self._font_color.count()):
+            data = self._font_color.itemData(i)
+            if data is not None:
+                self._font_color.setItemText(i, tr(f"color_{data}"))
+        cur_hw = self._enc_hw.currentData()
+        self._enc_hw.blockSignals(True)
+        self._enc_hw.clear()
+        self._enc_hw.addItem(tr("enc_hw_cpu"), "none")
+        if "nvidia" in self._available_hw:
+            self._enc_hw.addItem(tr("enc_hw_nvidia"), "nvidia")
+        if "amd" in self._available_hw:
+            self._enc_hw.addItem(tr("enc_hw_amd"), "amd")
+        if "intel" in self._available_hw:
+            self._enc_hw.addItem(tr("enc_hw_intel"), "intel")
+        restored = False
+        for i in range(self._enc_hw.count()):
+            if self._enc_hw.itemData(i) == cur_hw:
+                self._enc_hw.setCurrentIndex(i)
+                restored = True
+                break
+        if not restored:
+            self._enc_hw.setCurrentIndex(0)
+        self._enc_hw.blockSignals(False)
+        self._on_enc_hw_changed(self._enc_hw.currentIndex())
+
+    def retranslate_ui(self) -> None:
+        self._hdr_files.setText(tr("hdr_video_image_files"))
+        self._wm_add_files_btn.setText(tr("btn_add_files"))
+        self._wm_add_dir_btn.setText(tr("btn_add_folder"))
+        self._wm_remove_btn.setText(tr("btn_remove_selected"))
+        self._wm_clear_btn.setText(tr("btn_clear_all"))
+        self._update_count()
+        self._hdr_wm_type.setText(tr("hdr_watermark_type"))
+        self._radio_logo.setText(tr("lbl_wm_logo"))
+        self._radio_text.setText(tr("lbl_wm_text"))
+        self._hdr_logo.setText(tr("hdr_logo_opts"))
+        self._lbl_logo_image.setText(tr("lbl_logo_image"))
+        self._logo_input.setPlaceholderText(tr("ph_logo_file"))
+        self._logo_browse_btn.setText(tr("btn_browse"))
+        self._wm_logo_lbl_pos.setText(tr("lbl_position"))
+        self._wm_logo_lbl_scale.setText(tr("lbl_scale_pct"))
+        self._wm_logo_lbl_opacity.setText(tr("lbl_opacity_pct"))
+        self._hdr_text.setText(tr("hdr_text_opts"))
+        self._lbl_wm_text_content.setText(tr("lbl_wm_text_content"))
+        self._wm_text.setPlaceholderText(tr("ph_wm_text_example"))
+        self._wm_text_lbl_pos.setText(tr("lbl_position"))
+        self._wm_text_lbl_size.setText(tr("lbl_font_size"))
+        self._wm_text_lbl_color.setText(tr("lbl_font_color"))
+        self._wm_text_lbl_opacity.setText(tr("lbl_opacity_pct"))
+        self._hdr_encode.setText(tr("hdr_encode_settings"))
+        self._wm_lbl_crf.setText(tr("lbl_crf_quality"))
+        self._wm_lbl_hw.setText(tr("lbl_hw_accel"))
+        self._retranslate_wm_combos()
+        self._hdr_out.setText(tr("hdr_output_folder"))
+        self._hint_wm_out.setText(tr("hint_watermark_output"))
+        self._out_input.setPlaceholderText(tr("ph_each_source"))
+        self._wm_browse_out_btn.setText(tr("btn_browse"))
 
     def _browse_output(self) -> None:
         start = self._out_input.text() or os.path.expanduser("~")
@@ -482,7 +570,7 @@ class WatermarkSection(QScrollArea):
                 return
             kwargs = {
                 "logo_path": logo,
-                "position": self._logo_pos.currentText(),
+                "position": self._logo_pos.currentData(),
                 "opacity": self._logo_opacity.value() / 100.0,
                 "scale": self._logo_scale.value() / 100.0,
                 "crf": self._enc_crf.value(),
@@ -497,9 +585,9 @@ class WatermarkSection(QScrollArea):
                 return
             kwargs = {
                 "text": text,
-                "position": self._text_pos.currentText(),
+                "position": self._text_pos.currentData(),
                 "font_size": self._font_size.value(),
-                "font_color": self._font_color.currentText(),
+                "font_color": self._font_color.currentData(),
                 "opacity": self._text_opacity.value() / 100.0,
                 "crf": self._enc_crf.value(),
                 "preset": self._enc_preset.currentText(),

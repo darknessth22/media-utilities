@@ -144,6 +144,12 @@ QMenu::separator { height: 1px; margin: 4px 8px; }
 
 /* Dark mode label */
 #DarkModeLabel { font-size: 13px; }
+
+/* Language toggle buttons */
+QPushButton#LangBtn {
+    border-width: 1px; border-style: solid; border-radius: 5px;
+    font-size: 11px; font-weight: bold; padding: 0px;
+}
 """
 
 # ── Dark color overrides ───────────────────────────────────────────────────────
@@ -286,6 +292,11 @@ QMenu::separator { background-color: #1B2F4C; }
 /* Dark mode toggle row */
 #DarkModeRow { background-color: #0D1830; }
 #DarkModeLabel { color: #8B949E; }
+
+/* Language toggle */
+QPushButton#LangBtn { color: #484F58; border-color: #1B2F4C; background-color: transparent; }
+QPushButton#LangBtn:hover { color: #E6EDF3; border-color: #3B82F6; }
+QPushButton#LangBtn:checked { background-color: #3B82F6; color: #ffffff; border-color: #3B82F6; }
 """
 
 # ── Light color overrides ──────────────────────────────────────────────────────
@@ -428,6 +439,36 @@ QMenu::separator { background-color: #D0D7DE; }
 /* Dark mode toggle row */
 #DarkModeRow { background-color: #FFFFFF; }
 #DarkModeLabel { color: #57606A; }
+
+/* Language toggle */
+QPushButton#LangBtn { color: #8C959F; border-color: #D0D7DE; background-color: transparent; }
+QPushButton#LangBtn:hover { color: #0A1020; border-color: #2563EB; }
+QPushButton#LangBtn:checked { background-color: #2563EB; color: #ffffff; border-color: #2563EB; }
+"""
+
+
+# ── RTL layout-direction patch ────────────────────────────────────────────────
+# QSS border-left/border-right are physical (not logical), so they don't flip
+# automatically when QApplication.setLayoutDirection(RTL) is set.
+# This patch swaps the NavButton accent line and Sidebar separator to RTL sides.
+RTL_PATCH_QSS = """
+#Sidebar { border-right: none; border-left: 1px solid; }
+QPushButton#NavButton {
+    border-left: none;
+    border-top: none; border-bottom: none;
+    border-right-width: 3px; border-right-style: solid;
+}
+"""
+# Dark variant colors for RTL Sidebar and NavButton borders
+_RTL_DARK_COLORS = """
+#Sidebar { border-left-color: #1B2F4C; }
+QPushButton#NavButton { border-right-color: transparent; }
+QPushButton#NavButton[active="true"] { border-right-color: rgba(59,130,246,102); }
+"""
+_RTL_LIGHT_COLORS = """
+#Sidebar { border-left-color: #D0D7DE; }
+QPushButton#NavButton { border-right-color: transparent; }
+QPushButton#NavButton[active="true"] { border-right-color: rgba(37,99,235,89); }
 """
 
 
@@ -505,6 +546,7 @@ class ThemeManager(QObject):
         super().__init__()
         self.app = app
         self.mode = "auto"
+        self._rtl = False
         self.app.styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed)
 
     def initialize(self):
@@ -514,9 +556,21 @@ class ThemeManager(QObject):
         self.mode = mode
         self._apply_theme()
 
+    def set_rtl(self, is_rtl: bool) -> None:
+        """Switch between LTR and RTL layout direction and re-apply QSS."""
+        from PySide6.QtCore import Qt as _Qt
+        self._rtl = is_rtl
+        self.app.setLayoutDirection(
+            _Qt.LayoutDirection.RightToLeft if is_rtl else _Qt.LayoutDirection.LeftToRight
+        )
+        self._apply_theme()
+
     def _apply_stylesheet(self, is_dark: bool) -> None:
         palette = _DARK_PALETTE  if is_dark else _LIGHT_PALETTE
         qss     = _DARK_QSS_COMBINED if is_dark else _LIGHT_QSS_COMBINED
+        if self._rtl:
+            rtl_colors = _RTL_DARK_COLORS if is_dark else _RTL_LIGHT_COLORS
+            qss = qss + _strip_qss(RTL_PATCH_QSS + rtl_colors)
         self.app.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             self.app.setPalette(palette)
