@@ -331,6 +331,32 @@ _TUTORIAL_DATA_EN = [
         ],
     },
     {
+        "emoji": "🎤",
+        "title": "Vocal Isolator",
+        "description": (
+            "Separate any song or video into two stems — Vocals and Accompaniment (background music) — "
+            "using Meta's HTDemucs v4 AI model. Fully offline after the first model download. "
+            "Automatically routes to GPU (NVIDIA/CUDA) for fast processing, or falls back to CPU."
+        ),
+        "steps": [
+            "Click Browse and select an audio or video file "
+            "(MP3, WAV, FLAC, AAC, M4A, OGG, MP4, MKV, AVI, MOV, WEBM).",
+            "Optionally set an Output Folder — defaults to the same directory as the source file.",
+            "Check the Processing Device badge: GPU (CUDA) runs in seconds, CPU may take 2–5 minutes.",
+            "Click Isolate Vocals (or press Ctrl+Enter). "
+            "A real-time progress bar shows the AI separation percentage.",
+            "When done, the result card shows the paths to vocals.wav and no_vocals.wav. "
+            "Click Open in Explorer to jump to the output folder.",
+        ],
+        "tips": [
+            "The first run downloads the HTDemucs model (~300 MB) automatically — later runs are instant.",
+            "Install demucs before using this tab: pip install demucs",
+            "Install PyTorch with CUDA support for GPU acceleration: visit pytorch.org for the right command.",
+            "You can minimize Videl and use other tools while the AI processes in the background.",
+            "Output stems are always 44.1 kHz WAV files regardless of input format.",
+        ],
+    },
+    {
         "emoji": "✨",
         "title": "BG Eraser",
         "description": (
@@ -814,6 +840,30 @@ _TUTORIAL_DATA_AR = [
         "tips": [
             "التحليل يستخدم توليد لوحة FFmpeg — مناسب للألوان السائدة في الإطار أو المقطع.",
             "رموز hex تتطلب Pillow؛ إذا كانت العينات فارغة، ثبّت Pillow (انظر التنبيه على الشاشة).",
+        ],
+    },
+    {
+        "emoji": "🎤",
+        "title": "عازل الصوت",
+        "description": (
+            "افصل أي أغنية أو فيديو إلى مسارين — الصوت البشري والموسيقى الخلفية — "
+            "باستخدام نموذج HTDemucs v4 من Meta. يعمل دون اتصال بعد تنزيل النموذج أول مرة. "
+            "يُوجَّه التشغيل تلقائياً إلى GPU (CUDA) للسرعة، أو يعود إلى CPU."
+        ),
+        "steps": [
+            "انقر 'تصفح' واختر ملف صوت أو فيديو (MP3، WAV، FLAC، AAC، M4A، OGG، MP4، MKV، AVI، MOV، WEBM).",
+            "اختيارياً حدد مجلد الإخراج — الافتراضي هو نفس مجلد الملف المصدر.",
+            "تحقق من شارة جهاز المعالجة: GPU (CUDA) ينتهي في ثوانٍ، CPU قد يستغرق 2–5 دقائق.",
+            "انقر 'عزل الصوت' (أو Ctrl+Enter). يعرض شريط التقدم نسبة الفصل الآني.",
+            "عند الانتهاء، تظهر بطاقة النتيجة بمسارَي vocals.wav و no_vocals.wav. "
+            "انقر 'فتح في المستكشف' للانتقال إلى مجلد الإخراج.",
+        ],
+        "tips": [
+            "أول تشغيل يُنزّل نموذج HTDemucs (~300 ميغابايت) تلقائياً — التشغيلات التالية فورية.",
+            "ثبّت demucs قبل استخدام هذه الأداة: pip install demucs",
+            "ثبّت PyTorch مع دعم CUDA لتفعيل GPU: زر pytorch.org للحصول على أمر التثبيت الصحيح.",
+            "يمكنك تصغير Videl واستخدام أدوات أخرى بينما يعمل الذكاء الاصطناعي في الخلفية.",
+            "المسارات الناتجة دائماً ملفات WAV بتردد 44.1 kHz بصرف النظر عن صيغة المدخل.",
         ],
     },
     {

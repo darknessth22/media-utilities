@@ -110,6 +110,16 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 - Output saved as `<name>_nobg.png` (PNG with transparency)
 - First run downloads the model weights (~170 MB); all subsequent runs are instant and offline
 
+### Vocal Isolator
+- Separate any song or video into two stems: **Vocals** and **Accompaniment** (background music)
+- Powered by Meta's **HTDemucs v4** model — studio-grade 2-stem AI separation, fully offline after first run
+- Automatic GPU routing: uses NVIDIA CUDA if available, silently falls back to CPU on any machine
+- Real-time progress bar fed from the demucs subprocess output (no spinning wheel)
+- Runs in a dedicated background thread — use other Videl tools while the AI processes
+- Persistent warning badge when running on CPU: "May take 2–5 minutes"
+- First run downloads the HTDemucs model (~300 MB); all subsequent runs are instant and offline
+- Output: `vocals.wav` + `no_vocals.wav` in a subfolder beside the source
+
 ### PDF Toolkit
 - **Compress** — reduce file size by re-rendering pages at Screen (72 dpi), Web (150 dpi), or Print (300 dpi) quality
 - **Merge** — combine multiple PDFs into one; drag rows to set page order before merging
@@ -326,6 +336,7 @@ Stream copy — no re-encode, no quality loss. Large files split in seconds.
 - Hardware acceleration availability depends on the GPU and installed drivers
 - Spotify downloads depend on YouTube availability of the track
 - BG Eraser requires `rembg` installed; first run downloads ~170 MB of model weights
+- Vocal Isolator requires `demucs` installed (`pip install demucs`); first run downloads ~300 MB HTDemucs model weights; GPU acceleration requires PyTorch with CUDA (`pip install torch --index-url https://download.pytorch.org/whl/cu121`)
 - PDF Compress works by re-rendering pages — gains are largest on image-heavy PDFs; text-only PDFs see smaller size reductions
 
 ---

@@ -68,6 +68,12 @@ except Exception:
     print("Warning: rembg submodules not found - ensure rembg is installed before PyInstaller")
     hiddenimports += ['rembg', 'rembg.sessions', 'rembg.session_factory']
 
+try:
+    hiddenimports += collect_submodules('demucs')
+except Exception:
+    print("Warning: demucs submodules not found - Vocal Isolator will fall back to runtime pip install check")
+    hiddenimports += ['demucs']
+
 # PySide6 multimedia modules for video trimmer
 hiddenimports += [
     'PySide6.QtMultimedia',
@@ -135,8 +141,8 @@ a = Analysis(
         'PySide6.QtQuick', 'PySide6.QtQuickWidgets', 'PySide6.QtQml',
         'PySide6.QtLocation', 'PySide6.QtBluetooth', 'PySide6.QtNfc',
         'PySide6.QtSerialPort', 'PySide6.QtSensors', 'PySide6.QtVirtualKeyboard',
-        # Heavy ML frameworks not used (BG Eraser pulls scipy/scikit-image/onnxruntime via rembg)
-        'torch', 'tensorflow', 'tensorboard', 'keras',
+        # Heavy ML frameworks — torch is used by Vocal Isolator (demucs); keep if bundling that feature
+        'tensorflow', 'tensorboard', 'keras',
         'numpy.distutils',
         'matplotlib', 'pandas',
         'IPython', 'ipykernel', 'ipywidgets', 'notebook', 'jupyter',

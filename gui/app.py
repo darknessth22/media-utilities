@@ -57,6 +57,7 @@ from gui.tabs.watermark_section import WatermarkSection
 from gui.tabs.frame_grabber_section import FrameGrabberSection
 from gui.tabs.palette_section import PaletteSection
 from gui.tabs.bg_eraser_section import BgEraserSection
+from gui.tabs.vocal_isolator_section import VocalIsolatorSection
 from gui.tabs.pdf_toolkit_section import PdfToolkitSection
 from gui.tabs.bug_reporter import BugReporterSection
 from gui.pages.home_page import HomePage, ToolsPage
@@ -246,6 +247,13 @@ _SECTIONS_META = [
         "icon": "bg_eraser.svg",
         "tab_keys": ["tab_remove_background"],
         "action_key": "action_remove_bg",
+    },
+    {
+        "id": "vocal_isolator",
+        "label_key": "section_vocal_isolator",
+        "icon": "vocal_isolator.svg",
+        "tab_keys": ["tab_vocal_isolator"],
+        "action_key": "action_isolate_vocals",
     },
     {
         "id": "pdf_toolkit",
@@ -1730,6 +1738,7 @@ class MainWindow(QMainWindow):
             self._frame_grabber_section,
             self._palette_section,
             self._bg_eraser_section,
+            self._vocal_isolator_section,
             self._pdf_toolkit_section,
             self._history_section,
             self._tutorial_section,
@@ -1792,6 +1801,7 @@ class MainWindow(QMainWindow):
         self._frame_grabber_section = FrameGrabberSection(self.settings)
         self._palette_section = PaletteSection(self.settings)
         self._bg_eraser_section = BgEraserSection(self.settings)
+        self._vocal_isolator_section = VocalIsolatorSection(self.settings)
         self._pdf_toolkit_section = PdfToolkitSection(self.settings)
         self._history_section = HistorySection()
         self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
@@ -1815,11 +1825,12 @@ class MainWindow(QMainWindow):
             self._frame_grabber_section,    # index 12 — frame grabber
             self._palette_section,          # index 13 — hex palette
             self._bg_eraser_section,        # index 14 — bg eraser
-            self._pdf_toolkit_section,      # index 15 — pdf toolkit
-            self._history_section,          # index 16 — history
-            self._settings_section_widget,  # index 17 — settings
-            self._tutorial_section,         # index 18 — how to use
-            self._bug_reporter_section,     # index 19 — bug reporter
+            self._vocal_isolator_section,   # index 15 — vocal isolator
+            self._pdf_toolkit_section,      # index 16 — pdf toolkit
+            self._history_section,          # index 17 — history
+            self._settings_section_widget,  # index 18 — settings
+            self._tutorial_section,         # index 19 — how to use
+            self._bug_reporter_section,     # index 20 — bug reporter
         ]
 
         # Connect status signals from all operation sections.
@@ -1840,7 +1851,8 @@ class MainWindow(QMainWindow):
             self._frame_grabber_section,  # index 12
             self._palette_section,        # index 13
             self._bg_eraser_section,      # index 14
-            self._pdf_toolkit_section,    # index 15
+            self._vocal_isolator_section, # index 15
+            self._pdf_toolkit_section,    # index 16
         )
         for section in _op_sections:
             section.status_message.connect(self._on_status_message)
@@ -1860,14 +1872,14 @@ class MainWindow(QMainWindow):
         for widget in self._section_widgets:
             self._content_stack.addWidget(widget)
 
-        # Home and Tools pages (indices 20 and 21 in the stack)
+        # Home and Tools pages (indices 21 and 22 in the stack)
         self._home_page = HomePage(
             navigate_cb=self._navigate_from_card,
             show_tools_cb=self._go_tools,
         )
         self._tools_page = ToolsPage(navigate_cb=self._navigate_from_card)
-        self._content_stack.addWidget(self._home_page)   # index 20
-        self._content_stack.addWidget(self._tools_page)  # index 21
+        self._content_stack.addWidget(self._home_page)   # index 21
+        self._content_stack.addWidget(self._tools_page)  # index 22
 
         # Separator above primary action button
         sep2 = QFrame()
@@ -1942,14 +1954,14 @@ class MainWindow(QMainWindow):
     def _go_home(self) -> None:
         """Switch to the Home Dashboard page."""
         self._set_sidebar_active(self._home_nav_btn)
-        self._content_stack.setCurrentIndex(20)
+        self._content_stack.setCurrentIndex(21)
         self._section_tab_bar.setVisible(False)
         self._action_btn_container.setVisible(False)
 
     def _go_tools(self) -> None:
         """Switch to the Tools Grid page."""
         self._set_sidebar_active(self._tools_nav_btn)
-        self._content_stack.setCurrentIndex(21)
+        self._content_stack.setCurrentIndex(22)
         self._section_tab_bar.setVisible(False)
         self._action_btn_container.setVisible(False)
 

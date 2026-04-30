@@ -36,9 +36,10 @@ _TOOL_COLOR: dict[str, str] = {
     "watermark":     "#0E7490",  # cyan-700 — deep teal
     "frame_grabber": "#8B5CF6",  # violet-500
     "palette":       "#F43F5E",  # rose-500
-    "bg_eraser":     "#10B981",  # emerald-500
-    "pdf_toolkit":   "#EF4444",  # red-500
-    "history":       "#6B7280",  # gray
+    "bg_eraser":        "#10B981",  # emerald-500
+    "vocal_isolator":   "#A855F7",  # purple-500
+    "pdf_toolkit":      "#EF4444",  # red-500
+    "history":          "#6B7280",  # gray
 }
 
 # Static icon/id/index data — labels come from i18n at runtime.
@@ -57,9 +58,10 @@ _ALL_TOOLS_META: list[tuple[str, str, str, str, int]] = [
     ("watermark",    "watermark.svg",  "tool_watermark_name",    "tool_watermark_desc",   11),
     ("frame_grabber","frame.svg",      "tool_frame_grabber_name","tool_frame_grabber_desc",12),
     ("palette",      "palette.svg",    "tool_palette_name",      "tool_palette_desc",     13),
-    ("bg_eraser",    "bg_eraser.svg",  "tool_bg_eraser_name",    "tool_bg_eraser_desc",   14),
-    ("pdf_toolkit",  "document.svg",   "tool_pdf_toolkit_name",  "tool_pdf_toolkit_desc", 15),
-    ("history",      "history.svg",    "tool_history_name",      "tool_history_desc",     16),
+    ("bg_eraser",       "bg_eraser.svg",       "tool_bg_eraser_name",       "tool_bg_eraser_desc",      14),
+    ("vocal_isolator",  "vocal_isolator.svg",  "tool_vocal_isolator_name",  "tool_vocal_isolator_desc", 15),
+    ("pdf_toolkit",     "document.svg",        "tool_pdf_toolkit_name",     "tool_pdf_toolkit_desc",    16),
+    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        17),
 ]
 
 _QUICK_TOOLS_META: list[tuple[str, str, str, str, int]] = [
