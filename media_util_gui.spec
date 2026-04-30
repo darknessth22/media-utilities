@@ -13,7 +13,7 @@ datas += collect_data_files('fitz')
 try:
     datas += collect_data_files('rembg')
 except Exception:
-    print("Warning: rembg data files not collected — BG Eraser may need PyInstaller hook tweaks")
+    print("Warning: rembg data files not collected - BG Eraser may need PyInstaller hook tweaks")
 
 # Collect only PySide6 plugin data files (platforms, styles, imageformats)
 pyside6_binaries = []
@@ -65,7 +65,7 @@ hiddenimports += collect_submodules('pillow_heif')
 try:
     hiddenimports += collect_submodules('rembg')
 except Exception:
-    print("Warning: rembg submodules not found — ensure rembg is installed before PyInstaller")
+    print("Warning: rembg submodules not found - ensure rembg is installed before PyInstaller")
     hiddenimports += ['rembg', 'rembg.sessions', 'rembg.session_factory']
 
 # PySide6 multimedia modules for video trimmer

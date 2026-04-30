@@ -146,10 +146,29 @@ def build_executable():
 
         # Build using spec file (isolate env so tooling never triggers runtime-only integrations).
         pi_env = {**os.environ, "VIDEL_PYINSTALLER_BUILD": "1"}
-        subprocess.check_call(
-            [sys.executable, "-m", "PyInstaller", "media_util_gui.spec", "--clean"],
-            env=pi_env,
-        )
+        cmd = [sys.executable, "-m", "PyInstaller", "media_util_gui.spec", "--clean"]
+        # GitHub Actions: capture logs so the job shows the real PyInstaller error (not only exit code).
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            proc = subprocess.run(
+                cmd,
+                env=pi_env,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            if proc.returncode != 0:
+                tail = 14000
+                out = (proc.stdout or "").strip()
+                err = (proc.stderr or "").strip()
+                print("[FAIL] PyInstaller exited with code", proc.returncode)
+                if out:
+                    print("[FAIL] stdout (tail):\n", out[-tail:])
+                if err:
+                    print("[FAIL] stderr (tail):\n", err[-tail:])
+                return False
+        else:
+            subprocess.check_call(cmd, env=pi_env)
 
         print("[OK] Executable built successfully!")
         return True
