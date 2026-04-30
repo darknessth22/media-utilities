@@ -34,11 +34,17 @@ jobs:
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: |
-          if ($env:SENDGRID_API_KEY) {
-            (Get-Content gui\tabs\bug_reporter.py -Raw) -replace '@@SENDGRID_API_KEY@@', $env:SENDGRID_API_KEY | Set-Content gui\tabs\bug_reporter.py -Encoding utf8
-          } else {
-            Write-Host "Warning: SENDGRID_API_KEY secret not set — bug reporter will show key-missing error at runtime"
-          }
+          python - <<'EOF'
+          import os, pathlib
+          key = os.environ.get("SENDGRID_API_KEY", "")
+          f = pathlib.Path("gui/tabs/bug_reporter.py")
+          text = f.read_text(encoding="utf-8")
+          if key:
+              text = text.replace("@@SENDGRID_API_KEY@@", key)
+          else:
+              print("Warning: SENDGRID_API_KEY secret not set")
+          f.write_text(text, encoding="utf-8")
+          EOF
 
       - name: Install Inno Setup 6
         run: choco install innosetup --no-progress -y
