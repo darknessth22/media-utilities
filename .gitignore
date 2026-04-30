@@ -69,11 +69,12 @@ Output/
 bin/
 ffplay.exe
 
-# AI agent workflow dirs (local tooling only)
+# AI agent workflow dirs and config (local tooling only)
 .agent/
 .claude/
 .gemini/
 .specify/
+CLAUDE.md
 
 # Graphify output (generated knowledge graph, local tooling only)
 graphify-out/
