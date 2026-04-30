@@ -1299,6 +1299,8 @@ class DownloadSection(QScrollArea):
         self.status_message.emit(f"Downloading: {pending['display_name']}", False)
 
     def _on_intercept_status(self, job_id: str, msg: str) -> None:
+        if self._active_job is None or self._active_job["job_id"] != job_id:
+            return
         self.status_message.emit(msg, False)
         # Parse yt-dlp destination messages to update the job display name
         for pattern in (
@@ -1320,11 +1322,15 @@ class DownloadSection(QScrollArea):
                 break
 
     def _on_job_progress(self, job_id: str, percent: int, eta: int, speed: str) -> None:
+        if self._active_job is None or self._active_job["job_id"] != job_id:
+            return
         row = self._job_rows.get(job_id)
         if row:
             row.update_progress(percent, speed, eta)
 
     def _on_job_result(self, job_id: str, result: dict) -> None:
+        if self._active_job is None or self._active_job["job_id"] != job_id:
+            return
         job = next((j for j in self._queue if j["job_id"] == job_id), None)
         self._worker = None
         self._active_job = None
@@ -1418,6 +1424,8 @@ class DownloadSection(QScrollArea):
         QTimer.singleShot(2000, lambda: self._remove_job(job_id))
 
     def _on_job_error(self, job_id: str, err_tuple: tuple) -> None:
+        if self._active_job is None or self._active_job["job_id"] != job_id:
+            return
         job = next((j for j in self._queue if j["job_id"] == job_id), None)
         self._worker = None
         self._active_job = None
@@ -1433,6 +1441,8 @@ class DownloadSection(QScrollArea):
 
     def _on_worker_finished(self, job_id: str) -> None:
         """Called after every worker run — handles the cancelled case where result/error don't fire."""
+        if self._active_job is None or self._active_job["job_id"] != job_id:
+            return
         job = next((j for j in self._queue if j["job_id"] == job_id), None)
         if job and job["status"] == "cancelled":
             self._worker = None
