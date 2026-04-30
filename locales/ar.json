@@ -511,5 +511,62 @@
   "bug_reporter_err_no_title": "يرجى إدخال عنوان للخطأ.",
   "bug_reporter_err_no_desc": "يرجى وصف المشكلة.",
   "bug_reporter_sending": "جارٍ إرسال التقرير…",
-  "bug_reporter_err_send": "فشل الإرسال: {msg}"
+  "bug_reporter_err_send": "فشل الإرسال: {msg}",
+
+  "section_pdf_toolkit": "أدوات PDF",
+  "tab_pdf_toolkit": "أدوات PDF",
+  "tab_pdf_compress_merge": "ضغط ودمج",
+  "tab_pdf_split_extract": "تقسيم واستخراج",
+  "tool_pdf_toolkit_name": "أدوات PDF",
+  "tool_pdf_toolkit_desc": "ضغط ودمج وتقسيم ملفات PDF\nواستخراج الصور.",
+
+  "hdr_pdf_toolkit_mode": "العملية",
+  "pdf_mode_compress": "ضغط",
+  "pdf_mode_merge": "دمج",
+  "pdf_mode_split": "تقسيم",
+  "pdf_mode_extract": "استخراج صور",
+
+  "hdr_source_pdf": "ملف PDF المصدر",
+  "ph_pdf_source": "اختر ملف PDF…",
+  "dlg_select_pdf": "اختر ملف PDF",
+  "dlg_select_pdfs": "اختر ملفات PDF",
+  "dlg_save_pdf": "حفظ PDF المدموج",
+  "dlg_select_output_folder": "اختر مجلد الإخراج",
+
+  "hdr_pdf_quality": "جودة الضغط",
+  "pdf_quality_screen": "شاشة (72 نقطة)",
+  "pdf_quality_web": "ويب (150 نقطة)",
+  "pdf_quality_print": "طباعة (300 نقطة)",
+
+  "hdr_pdf_files_to_merge": "الملفات للدمج",
+  "tip_pdf_drag_to_reorder": "اسحب الصفوف لإعادة الترتيب",
+  "btn_add_files": "إضافة ملفات…",
+  "btn_remove_selected": "حذف المحدد",
+  "btn_clear_list": "مسح القائمة",
+  "hdr_output_file": "ملف الإخراج",
+  "ph_pdf_merged_output": "merged.pdf (افتراضي: مجلد الملف الأول)",
+
+  "hdr_pdf_split_range": "وضع التقسيم",
+  "pdf_split_all_pages": "جميع الصفحات",
+  "pdf_split_custom_range": "نطاق مخصص",
+  "lbl_pdf_range_hint": "الصفحات:",
+  "ph_pdf_range": "مثال: 1-3، 5، 7-9",
+
+  "hdr_pdf_extract_mode": "وضع الاستخراج",
+  "pdf_extract_embedded": "صور مضمّنة",
+  "pdf_extract_pages": "صفحات بصيغة JPEG",
+  "lbl_pdf_jpeg_dpi": "دقة JPEG:",
+
+  "status_pdf_compressing": "جارٍ ضغط PDF…",
+  "status_pdf_merging": "جارٍ دمج ملفات PDF…",
+  "status_pdf_splitting": "جارٍ تقسيم PDF…",
+  "status_pdf_extracting": "جارٍ استخراج الصور…",
+  "status_pdf_no_images": "لم يتم العثور على صور في PDF.",
+  "status_cancelled": "تم الإلغاء.",
+
+  "err_select_pdf": "يرجى اختيار ملف PDF.",
+  "err_pdf_merge_min_files": "أضف ملفَي PDF على الأقل للدمج.",
+  "err_pdf_range_empty": "أدخل نطاق الصفحات (مثال: 1-3، 5).",
+  "err_pdf_range_invalid": "صيغة النطاق غير صحيحة. استخدم مثلاً: 1-3، 5، 7-9.",
+  "err_file_not_found": "الملف غير موجود."
 }

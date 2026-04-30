@@ -37,6 +37,7 @@ _TOOL_COLOR: dict[str, str] = {
     "frame_grabber": "#8B5CF6",  # violet-500
     "palette":       "#F43F5E",  # rose-500
     "bg_eraser":     "#10B981",  # emerald-500
+    "pdf_toolkit":   "#EF4444",  # red-500
     "history":       "#6B7280",  # gray
 }
 
@@ -57,7 +58,8 @@ _ALL_TOOLS_META: list[tuple[str, str, str, str, int]] = [
     ("frame_grabber","frame.svg",      "tool_frame_grabber_name","tool_frame_grabber_desc",12),
     ("palette",      "palette.svg",    "tool_palette_name",      "tool_palette_desc",     13),
     ("bg_eraser",    "bg_eraser.svg",  "tool_bg_eraser_name",    "tool_bg_eraser_desc",   14),
-    ("history",      "history.svg",    "tool_history_name",      "tool_history_desc",     15),
+    ("pdf_toolkit",  "document.svg",   "tool_pdf_toolkit_name",  "tool_pdf_toolkit_desc", 15),
+    ("history",      "history.svg",    "tool_history_name",      "tool_history_desc",     16),
 ]
 
 _QUICK_TOOLS_META: list[tuple[str, str, str, str, int]] = [

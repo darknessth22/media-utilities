@@ -57,6 +57,7 @@ from gui.tabs.watermark_section import WatermarkSection
 from gui.tabs.frame_grabber_section import FrameGrabberSection
 from gui.tabs.palette_section import PaletteSection
 from gui.tabs.bg_eraser_section import BgEraserSection
+from gui.tabs.pdf_toolkit_section import PdfToolkitSection
 from gui.tabs.bug_reporter import BugReporterSection
 from gui.pages.home_page import HomePage, ToolsPage
 
@@ -247,6 +248,13 @@ _SECTIONS_META = [
         "action_key": "action_remove_bg",
     },
     {
+        "id": "pdf_toolkit",
+        "label_key": "section_pdf_toolkit",
+        "icon": "document.svg",
+        "tab_keys": ["tab_pdf_toolkit"],
+        "action_key": "action_apply",
+    },
+    {
         "id": "history",
         "label_key": "section_history",
         "icon": "history.svg",
@@ -429,7 +437,7 @@ class TitleBar(QWidget):
 
         menu.addSeparator()
         settings_act = menu.addAction(tr("menu_settings"))
-        settings_act.triggered.connect(lambda: win._navigate_to(16))
+        settings_act.triggered.connect(lambda: win._navigate_to(17))
 
         menu.addSeparator()
         from PySide6.QtWidgets import QApplication
@@ -467,7 +475,7 @@ class TitleBar(QWidget):
             act.setEnabled(False)
         menu.addSeparator()
         see_act = menu.addAction(tr("shortcuts_see_guide"))
-        see_act.triggered.connect(lambda: self.window()._navigate_to(17))
+        see_act.triggered.connect(lambda: self.window()._navigate_to(18))
 
         pos = self._btn_shortcuts.mapToGlobal(self._btn_shortcuts.rect().bottomLeft())
         menu.exec(pos)
@@ -1370,7 +1378,7 @@ class MainWindow(QMainWindow):
         # ── System tray (T018 / T020) ─────────────────────────────────────────
         self._tray = SystemTrayIcon(self)
         self._tray.restore_requested.connect(self._restore_from_tray)
-        self._tray.settings_requested.connect(lambda: self._navigate_to(16))
+        self._tray.settings_requested.connect(lambda: self._navigate_to(17))
         self._tray.quit_requested.connect(self._quit_from_tray)
 
         # ── Central widget ────────────────────────────────────────────────────
@@ -1459,10 +1467,10 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(self._go_home)
         QShortcut(QKeySequence("Ctrl+T"), self).activated.connect(self._go_tools)
         QShortcut(QKeySequence("Ctrl+,"), self).activated.connect(
-            lambda: self._navigate_to(16)
+            lambda: self._navigate_to(17)
         )
         QShortcut(QKeySequence(Qt.Key.Key_F1), self).activated.connect(
-            lambda: self._navigate_to(17)
+            lambda: self._navigate_to(18)
         )
         QShortcut(QKeySequence("Ctrl+Q"), self).activated.connect(_QApp.quit)
 
@@ -1529,9 +1537,9 @@ class MainWindow(QMainWindow):
 
         self._home_nav_btn.clicked.connect(self._go_home)
         self._tools_nav_btn.clicked.connect(self._go_tools)
-        self._settings_nav_btn.clicked.connect(lambda: self._navigate_to(16))
-        self._help_nav_btn.clicked.connect(lambda: self._navigate_to(17))
-        self._bug_reporter_nav_btn.clicked.connect(lambda: self._navigate_to(18))
+        self._settings_nav_btn.clicked.connect(lambda: self._navigate_to(17))
+        self._help_nav_btn.clicked.connect(lambda: self._navigate_to(18))
+        self._bug_reporter_nav_btn.clicked.connect(lambda: self._navigate_to(19))
 
         for btn in (self._home_nav_btn, self._tools_nav_btn,
                     self._settings_nav_btn, self._help_nav_btn,
@@ -1722,6 +1730,7 @@ class MainWindow(QMainWindow):
             self._frame_grabber_section,
             self._palette_section,
             self._bg_eraser_section,
+            self._pdf_toolkit_section,
             self._history_section,
             self._tutorial_section,
         ):
@@ -1783,6 +1792,7 @@ class MainWindow(QMainWindow):
         self._frame_grabber_section = FrameGrabberSection(self.settings)
         self._palette_section = PaletteSection(self.settings)
         self._bg_eraser_section = BgEraserSection(self.settings)
+        self._pdf_toolkit_section = PdfToolkitSection(self.settings)
         self._history_section = HistorySection()
         self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
@@ -1805,10 +1815,11 @@ class MainWindow(QMainWindow):
             self._frame_grabber_section,    # index 12 — frame grabber
             self._palette_section,          # index 13 — hex palette
             self._bg_eraser_section,        # index 14 — bg eraser
-            self._history_section,          # index 15 — history
-            self._settings_section_widget,  # index 16 — settings
-            self._tutorial_section,         # index 17 — how to use
-            self._bug_reporter_section,     # index 18 — bug reporter
+            self._pdf_toolkit_section,      # index 15 — pdf toolkit
+            self._history_section,          # index 16 — history
+            self._settings_section_widget,  # index 17 — settings
+            self._tutorial_section,         # index 18 — how to use
+            self._bug_reporter_section,     # index 19 — bug reporter
         ]
 
         # Connect status signals from all operation sections.
@@ -1829,6 +1840,7 @@ class MainWindow(QMainWindow):
             self._frame_grabber_section,  # index 12
             self._palette_section,        # index 13
             self._bg_eraser_section,      # index 14
+            self._pdf_toolkit_section,    # index 15
         )
         for section in _op_sections:
             section.status_message.connect(self._on_status_message)
@@ -1848,14 +1860,14 @@ class MainWindow(QMainWindow):
         for widget in self._section_widgets:
             self._content_stack.addWidget(widget)
 
-        # Home and Tools pages (indices 17 and 18 in the stack)
+        # Home and Tools pages (indices 20 and 21 in the stack)
         self._home_page = HomePage(
             navigate_cb=self._navigate_from_card,
             show_tools_cb=self._go_tools,
         )
         self._tools_page = ToolsPage(navigate_cb=self._navigate_from_card)
-        self._content_stack.addWidget(self._home_page)   # index 19
-        self._content_stack.addWidget(self._tools_page)  # index 20
+        self._content_stack.addWidget(self._home_page)   # index 20
+        self._content_stack.addWidget(self._tools_page)  # index 21
 
         # Separator above primary action button
         sep2 = QFrame()
@@ -1930,14 +1942,14 @@ class MainWindow(QMainWindow):
     def _go_home(self) -> None:
         """Switch to the Home Dashboard page."""
         self._set_sidebar_active(self._home_nav_btn)
-        self._content_stack.setCurrentIndex(19)
+        self._content_stack.setCurrentIndex(20)
         self._section_tab_bar.setVisible(False)
         self._action_btn_container.setVisible(False)
 
     def _go_tools(self) -> None:
         """Switch to the Tools Grid page."""
         self._set_sidebar_active(self._tools_nav_btn)
-        self._content_stack.setCurrentIndex(20)
+        self._content_stack.setCurrentIndex(21)
         self._section_tab_bar.setVisible(False)
         self._action_btn_container.setVisible(False)
 
@@ -1956,7 +1968,7 @@ class MainWindow(QMainWindow):
 
     def _show_welcome(self) -> None:
         dlg = WelcomeDialog(self)
-        dlg.go_to_tutorial.connect(lambda: self._navigate_to(17))
+        dlg.go_to_tutorial.connect(lambda: self._navigate_to(18))
         # Center over the main window
         geo = self.geometry()
         dlg.move(
@@ -2175,11 +2187,12 @@ class MainWindow(QMainWindow):
         # Map the DnD target_tab to the section index
         target_tab = dropped_files[0].target_tab
         section_index = {
-            "convert":  1,
-            "batch":    1,
-            "trim":     2,
-            "document": 3,
-            "scrub":    9,
+            "convert":     1,
+            "batch":       1,
+            "trim":        2,
+            "document":    3,
+            "scrub":       9,
+            "pdf_toolkit": 15,
         }.get(target_tab or "", -1)
 
         if section_index == -1:

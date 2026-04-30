@@ -511,5 +511,62 @@
   "bug_reporter_err_no_title": "Please enter a bug title.",
   "bug_reporter_err_no_desc": "Please describe the issue.",
   "bug_reporter_sending": "Sending report…",
-  "bug_reporter_err_send": "Failed to send: {msg}"
+  "bug_reporter_err_send": "Failed to send: {msg}",
+
+  "section_pdf_toolkit": "PDF Toolkit",
+  "tab_pdf_toolkit": "PDF TOOLKIT",
+  "tab_pdf_compress_merge": "COMPRESS & MERGE",
+  "tab_pdf_split_extract": "SPLIT & EXTRACT",
+  "tool_pdf_toolkit_name": "PDF Toolkit",
+  "tool_pdf_toolkit_desc": "Compress, merge, split PDFs\nand extract images.",
+
+  "hdr_pdf_toolkit_mode": "OPERATION",
+  "pdf_mode_compress": "Compress",
+  "pdf_mode_merge": "Merge",
+  "pdf_mode_split": "Split",
+  "pdf_mode_extract": "Extract Images",
+
+  "hdr_source_pdf": "SOURCE PDF",
+  "ph_pdf_source": "Select a PDF file…",
+  "dlg_select_pdf": "Select PDF",
+  "dlg_select_pdfs": "Select PDFs",
+  "dlg_save_pdf": "Save Merged PDF",
+  "dlg_select_output_folder": "Select Output Folder",
+
+  "hdr_pdf_quality": "COMPRESSION QUALITY",
+  "pdf_quality_screen": "Screen (72 dpi)",
+  "pdf_quality_web": "Web (150 dpi)",
+  "pdf_quality_print": "Print (300 dpi)",
+
+  "hdr_pdf_files_to_merge": "FILES TO MERGE",
+  "tip_pdf_drag_to_reorder": "Drag rows to reorder",
+  "btn_add_files": "Add Files…",
+  "btn_remove_selected": "Remove Selected",
+  "btn_clear_list": "Clear List",
+  "hdr_output_file": "OUTPUT FILE",
+  "ph_pdf_merged_output": "merged.pdf (defaults to first file's folder)",
+
+  "hdr_pdf_split_range": "SPLIT MODE",
+  "pdf_split_all_pages": "All Pages",
+  "pdf_split_custom_range": "Custom Range",
+  "lbl_pdf_range_hint": "Pages:",
+  "ph_pdf_range": "e.g. 1-3, 5, 7-9",
+
+  "hdr_pdf_extract_mode": "EXTRACTION MODE",
+  "pdf_extract_embedded": "Embedded Images",
+  "pdf_extract_pages": "Pages as JPEG",
+  "lbl_pdf_jpeg_dpi": "JPEG DPI:",
+
+  "status_pdf_compressing": "Compressing PDF…",
+  "status_pdf_merging": "Merging PDFs…",
+  "status_pdf_splitting": "Splitting PDF…",
+  "status_pdf_extracting": "Extracting images…",
+  "status_pdf_no_images": "No images found in PDF.",
+  "status_cancelled": "Cancelled.",
+
+  "err_select_pdf": "Please select a PDF file.",
+  "err_pdf_merge_min_files": "Add at least 2 PDF files to merge.",
+  "err_pdf_range_empty": "Enter a page range (e.g. 1-3, 5).",
+  "err_pdf_range_invalid": "Invalid range format. Use e.g. 1-3, 5, 7-9.",
+  "err_file_not_found": "File not found."
 }

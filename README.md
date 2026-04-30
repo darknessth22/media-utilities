@@ -1,6 +1,6 @@
 # Media Utility
 
-A desktop application for downloading, converting, trimming, compressing, merging, transforming, and managing media files. Built with PySide6.
+A desktop application for downloading, converting, trimming, compressing, merging, transforming, and managing media files — plus PDF tools, background removal, colour palette extraction, and frame grabbing. Built with PySide6.
 
 ---
 
@@ -91,6 +91,32 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 - Output parts named `<name>_part000.<ext>`, `<name>_part001.<ext>`, …
 - Useful for upload size limits (Discord, WhatsApp, email)
 
+### Frame Grabber
+- Extract a single frame from any video as a full-resolution JPEG or PNG
+- Set the exact timestamp (HH:MM:SS) to capture
+- Inline thumbnail preview of the grabbed frame
+- Output saved as `<name>_frame_<timestamp>.<ext>`
+
+### Hex Palette Extractor
+- Analyse any image and extract its dominant colour palette
+- Choose the number of colours (2–32)
+- Displays hex codes + colour swatches — click any swatch to copy the hex code
+- Optional colour wheel view showing hue/saturation distribution
+
+### BG Eraser
+- Remove the background from a photo in one click — fully offline after first run
+- Powered by the `rembg` AI model (U2-Net)
+- Input preview + result preview on a checkerboard transparency grid
+- Output saved as `<name>_nobg.png` (PNG with transparency)
+- First run downloads the model weights (~170 MB); all subsequent runs are instant and offline
+
+### PDF Toolkit
+- **Compress** — reduce file size by re-rendering pages at Screen (72 dpi), Web (150 dpi), or Print (300 dpi) quality
+- **Merge** — combine multiple PDFs into one; drag rows to set page order before merging
+- **Split** — export every page as its own PDF, or extract a custom range (e.g. `1-3, 5, 7-9`)
+- **Extract Images** — pull embedded images out of a PDF as JPEGs, or render every page as a high-res JPEG at a chosen DPI
+- Powered by PyMuPDF — no external tools required
+
 ### History
 - Log of all operations with status, filename, timestamp
 - Persists across restarts
@@ -127,7 +153,7 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 
 ### Python dependencies
 ```bash
-pip install PySide6>=6.6.0 yt-dlp Pillow pillow-heif PyMuPDF python-docx openpyxl python-pptx spotdl docx2pdf
+pip install PySide6>=6.6.0 yt-dlp Pillow pillow-heif PyMuPDF python-docx openpyxl python-pptx spotdl docx2pdf rembg pypdf
 ```
 
 ---
@@ -299,6 +325,8 @@ Stream copy — no re-encode, no quality loss. Large files split in seconds.
 - Some platforms require cookies for authenticated downloads
 - Hardware acceleration availability depends on the GPU and installed drivers
 - Spotify downloads depend on YouTube availability of the track
+- BG Eraser requires `rembg` installed; first run downloads ~170 MB of model weights
+- PDF Compress works by re-rendering pages — gains are largest on image-heavy PDFs; text-only PDFs see smaller size reductions
 
 ---
 

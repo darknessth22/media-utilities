@@ -481,6 +481,36 @@ _TUTORIAL_DATA_EN = [
         ],
     },
     {
+        "emoji": "📄",
+        "title": "PDF Toolkit",
+        "description": (
+            "Four PDF superpowers in one place: crush file sizes, stitch documents together, "
+            "slice out individual pages, and pull every image out of a PDF as a JPEG. "
+            "Powered by PyMuPDF — no external tools required."
+        ),
+        "steps": [
+            "Go to PDF Toolkit in the left sidebar (or press Ctrl+Enter while on this section).",
+            "Pick an operation at the top: Compress, Merge, Split, or Extract Images.",
+            "Compress — browse a PDF, choose a quality preset (Screen 72 dpi / Web 150 dpi / Print 300 dpi), "
+            "set an optional output folder, then click Apply. "
+            "Output is saved as <name>_compressed.pdf.",
+            "Merge — add two or more PDFs to the list (drag rows to reorder), "
+            "set the output file path, then click Apply.",
+            "Split — browse a PDF and choose All Pages to export each page as its own file, "
+            "or Custom Range to extract specific pages (e.g. 1-3, 5, 7-9).",
+            "Extract Images — browse a PDF, choose Embedded Images to pull raw image assets, "
+            "or Pages as JPEG to render every page at the chosen DPI. "
+            "All outputs are saved as JPEG files.",
+        ],
+        "tips": [
+            "Compress works by re-rendering pages at a lower DPI — best for image-heavy PDFs; "
+            "text-only PDFs see smaller gains.",
+            "Merge respects the order of the file list — drag rows before running.",
+            "Custom Range accepts comma-separated pages and ranges: e.g. '1, 3-5, 8'.",
+            "Pages as JPEG at 150 dpi gives a good balance of quality and file size for sharing.",
+        ],
+    },
+    {
         "emoji": "🐞",
         "title": "Bug Reporter",
         "description": (
@@ -924,6 +954,32 @@ _TUTORIAL_DATA_AR = [
             "أيقونة ⌨ في شريط العنوان تعرض هذا المرجع السريع.",
             "Ctrl+V يعترض فقط عندما لا يكون حقل إدخال مركّزاً — اللصق العادي يعمل دائماً.",
             "جميع اختصارات التنقل تعمل بغض النظر عن القسم النشط حالياً.",
+        ],
+    },
+    {
+        "emoji": "🐞",
+        "title": "أدوات PDF",
+        "description": (
+            "أربع أدوات PDF في مكان واحد: ضغط الملفات، دمج المستندات، "
+            "تقسيم الصفحات، واستخراج كل الصور بصيغة JPEG. "
+            "مدعومة بـ PyMuPDF — لا أدوات خارجية مطلوبة."
+        ),
+        "steps": [
+            "انتقل إلى 'أدوات PDF' في الشريط الجانبي (أو اضغط Ctrl+Enter من هذا القسم).",
+            "اختر العملية من الأعلى: ضغط أو دمج أو تقسيم أو استخراج صور.",
+            "ضغط — اختر ملف PDF، حدد مستوى الجودة (شاشة 72 / ويب 150 / طباعة 300 نقطة)، "
+            "ثم انقر تطبيق. يُحفظ الناتج باسم <اسم_الملف>_compressed.pdf.",
+            "دمج — أضف ملفَين أو أكثر، أعد ترتيبهم بالسحب، حدد مسار الملف الناتج، ثم انقر تطبيق.",
+            "تقسيم — اختر ملف PDF وحدد 'جميع الصفحات' لتصدير كل صفحة على حدة، "
+            "أو 'نطاق مخصص' لاستخراج صفحات محددة (مثل: 1-3، 5، 7-9).",
+            "استخراج صور — اختر 'صور مضمّنة' لاستخراج الصور الأصلية، "
+            "أو 'صفحات بصيغة JPEG' لتحويل كل صفحة إلى صورة بالدقة المختارة.",
+        ],
+        "tips": [
+            "الضغط يعيد رسم الصفحات بدقة أقل — أفضل للملفات الغنية بالصور.",
+            "الدمج يحترم ترتيب القائمة — اسحب الصفوف قبل التشغيل.",
+            "النطاق المخصص يقبل صفحات وفترات مفصولة بفواصل: مثل '1، 3-5، 8'.",
+            "دقة 150 نقطة لـ JPEG تُعطي توازناً جيداً بين الجودة وحجم الملف.",
         ],
     },
     {
