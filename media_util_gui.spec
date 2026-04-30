@@ -10,6 +10,11 @@ datas += collect_data_files('yt_dlp')
 datas += collect_data_files('pillow_heif')
 datas += collect_data_files('fitz')
 
+try:
+    datas += collect_data_files('rembg')
+except Exception:
+    print("Warning: rembg data files not collected — BG Eraser may need PyInstaller hook tweaks")
+
 # Collect only PySide6 plugin data files (platforms, styles, imageformats)
 pyside6_binaries = []
 try:
@@ -56,6 +61,12 @@ elif os.path.exists('Scripts/spotdl.exe'):
 hiddenimports = []
 hiddenimports += collect_submodules('yt_dlp')
 hiddenimports += collect_submodules('pillow_heif')
+
+try:
+    hiddenimports += collect_submodules('rembg')
+except Exception:
+    print("Warning: rembg submodules not found — ensure rembg is installed before PyInstaller")
+    hiddenimports += ['rembg', 'rembg.sessions', 'rembg.session_factory']
 
 # PySide6 multimedia modules for video trimmer
 hiddenimports += [
@@ -124,11 +135,9 @@ a = Analysis(
         'PySide6.QtQuick', 'PySide6.QtQuickWidgets', 'PySide6.QtQml',
         'PySide6.QtLocation', 'PySide6.QtBluetooth', 'PySide6.QtNfc',
         'PySide6.QtSerialPort', 'PySide6.QtSensors', 'PySide6.QtVirtualKeyboard',
-        # Heavy ML/AI libraries not needed at runtime
+        # Heavy ML frameworks not used (BG Eraser pulls scipy/scikit-image/onnxruntime via rembg)
         'torch', 'tensorflow', 'tensorboard', 'keras',
-        'onnxruntime', 'onnx',
         'numpy.distutils',
-        'scipy', 'sklearn', 'skimage',
         'matplotlib', 'pandas',
         'IPython', 'ipykernel', 'ipywidgets', 'notebook', 'jupyter',
         'cv2', 'torchvision', 'torchaudio',

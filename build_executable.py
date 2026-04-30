@@ -144,8 +144,12 @@ def build_executable():
         if os.path.exists('build'):
             shutil.rmtree('build')
 
-        # Build using spec file
-        subprocess.check_call([sys.executable, "-m", "PyInstaller", "media_util_gui.spec", "--clean"])
+        # Build using spec file (isolate env so tooling never triggers runtime-only integrations).
+        pi_env = {**os.environ, "VIDEL_PYINSTALLER_BUILD": "1"}
+        subprocess.check_call(
+            [sys.executable, "-m", "PyInstaller", "media_util_gui.spec", "--clean"],
+            env=pi_env,
+        )
 
         print("[OK] Executable built successfully!")
         return True

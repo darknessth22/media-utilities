@@ -1,6 +1,7 @@
 yt-dlp>=2023.3.4
 Pillow>=9.5.0
 pillow-heif>=0.10.0
+rembg>=2.0.0
 PyMuPDF>=1.22.5
 python-docx>=0.8.11
 pyinstaller>=5.13.0

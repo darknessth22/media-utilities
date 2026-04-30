@@ -29,6 +29,10 @@ _BUG_TYPES_AR = ["مشكلة واجهة", "مشكلة ميزة", "تعطل / خ�
 
 def _send_email(subject: str, body: str, screenshot_path: str, reporter_email: str = "") -> None:
     """Send bug report via SendGrid API. Runs in a Worker thread."""
+    # Packaging subprocess must not require secrets (GitHub Actions, etc.).
+    if os.environ.get("VIDEL_PYINSTALLER_BUILD") == "1":
+        return None
+
     api_key = (os.environ.get("SENDGRID_API_KEY") or "").strip()
     if not api_key:
         raise RuntimeError("SENDGRID_API_KEY is not set (check .env or system environment).")
