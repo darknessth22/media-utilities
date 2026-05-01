@@ -8,14 +8,14 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QFileDialog, QFrame, QHBoxLayout, QLabel,
     QLineEdit, QProgressBar, QPushButton,
-    QScrollArea, QVBoxLayout, QWidget,
+    QScrollArea, QTextEdit, QVBoxLayout, QWidget,
 )
 
 from core.i18n import tr
-from core.bg_eraser import remove_background, IMAGE_EXTS
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 from gui.worker import Worker
+from utils.model_manager import is_rembg_installed, install_rembg
 
 
 def _card() -> QFrame:
@@ -44,6 +44,7 @@ class BgEraserSection(QScrollArea):
         self._settings = settings
         self._worker: Worker | None = None
         self._last_result_path: str | None = None
+        self._install_worker: Worker | None = None
 
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -54,17 +55,122 @@ class BgEraserSection(QScrollArea):
         layout.setSpacing(16)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        layout.addWidget(self._build_source_card())
-        layout.addWidget(self._build_output_card())
-        layout.addWidget(self._build_progress_card())
-        layout.addWidget(self._build_preview_card())
+        self._install_banner = self._build_install_banner()
+        layout.addWidget(self._install_banner)
+
+        self._tools_container = QWidget()
+        tools_layout = QVBoxLayout(self._tools_container)
+        tools_layout.setContentsMargins(0, 0, 0, 0)
+        tools_layout.setSpacing(16)
+        tools_layout.addWidget(self._build_source_card())
+        tools_layout.addWidget(self._build_output_card())
+        tools_layout.addWidget(self._build_progress_card())
+        tools_layout.addWidget(self._build_preview_card())
+        layout.addWidget(self._tools_container)
 
         self.setWidget(content)
+        self._refresh_install_state()
 
         self._preview_timer = QTimer(self)
         self._preview_timer.setSingleShot(True)
         self._preview_timer.setInterval(300)
         self._preview_timer.timeout.connect(self._load_input_preview)
+
+    # ── Install banner ────────────────────────────────────────────────────────
+
+    def _build_install_banner(self) -> QFrame:
+        card = _card()
+        card.setStyleSheet(
+            "QFrame#Card { border: 1px solid rgba(245,158,11,0.4);"
+            " background: rgba(245,158,11,0.06); border-radius: 10px; }"
+        )
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
+
+        title_row = QHBoxLayout()
+        self._install_title = QLabel(f"⚠  {tr('lbl_model_not_installed')}")
+        self._install_title.setStyleSheet(
+            "font-size: 14px; font-weight: bold; color: #F59E0B;"
+        )
+        title_row.addWidget(self._install_title)
+        title_row.addStretch()
+        layout.addLayout(title_row)
+
+        self._install_desc = QLabel(tr("lbl_model_rembg_desc"))
+        self._install_desc.setObjectName("TextMuted")
+        self._install_desc.setWordWrap(True)
+        self._install_desc.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._install_desc)
+
+        self._install_btn = QPushButton(tr("btn_install_model"))
+        self._install_btn.setObjectName("PrimaryBtn")
+        self._install_btn.setFixedWidth(160)
+        self._install_btn.clicked.connect(self._start_install)
+        layout.addWidget(self._install_btn)
+
+        self._install_status = QLabel("")
+        self._install_status.setObjectName("TextMuted")
+        self._install_status.setStyleSheet("font-size: 12px; color: #3B82F6;")
+        self._install_status.setVisible(False)
+        layout.addWidget(self._install_status)
+
+        self._install_log = QTextEdit()
+        self._install_log.setReadOnly(True)
+        self._install_log.setFixedHeight(100)
+        self._install_log.setObjectName("PillInput")
+        self._install_log.setStyleSheet("font-size: 10px; font-family: monospace;")
+        self._install_log.setVisible(False)
+        layout.addWidget(self._install_log)
+
+        return card
+
+    def _refresh_install_state(self) -> None:
+        installed = is_rembg_installed()
+        self._install_banner.setVisible(not installed)
+        self._tools_container.setVisible(installed)
+
+    def _start_install(self) -> None:
+        self._install_btn.setEnabled(False)
+        self._install_status.setText(tr("lbl_model_installing"))
+        self._install_status.setVisible(True)
+        self._install_log.setVisible(True)
+        self._install_log.clear()
+
+        def _log_cb(line: str) -> None:
+            if self._install_worker:
+                self._install_worker.signals.progress.emit(0, 100, line)
+
+        self._install_worker = Worker(install_rembg, _log_cb)
+        self._install_worker.signals.progress.connect(self._on_install_log)
+        self._install_worker.signals.result.connect(self._on_install_done)
+        self._install_worker.signals.error.connect(self._on_install_error)
+        self._install_worker.start()
+
+    def _on_install_log(self, _v: int, _t: int, line: str) -> None:
+        if line:
+            self._install_log.append(line)
+
+    def _on_install_done(self, _result) -> None:
+        self._install_worker = None
+        self._install_status.setStyleSheet("font-size: 12px; color: #22C55E;")
+        self._install_status.setText(tr("lbl_model_install_done"))
+        self._install_btn.setEnabled(True)
+        # Reload the module so imports work without restart
+        try:
+            from core import bg_eraser as _be
+            import importlib
+            importlib.reload(_be)
+        except Exception:
+            pass
+        self._refresh_install_state()
+
+    def _on_install_error(self, err_tuple: tuple) -> None:
+        self._install_worker = None
+        _, msg, _ = err_tuple
+        self._install_status.setStyleSheet("font-size: 12px; color: #EF4444;")
+        self._install_status.setText(tr("lbl_model_install_failed").format(error=msg))
+        self._install_btn.setEnabled(True)
 
     # ── Source card ───────────────────────────────────────────────────────────
 
@@ -194,6 +300,9 @@ class BgEraserSection(QScrollArea):
         self._input_preview.setText(tr(key))
 
     def retranslate_ui(self) -> None:
+        self._install_title.setText(f"⚠  {tr('lbl_model_not_installed')}")
+        self._install_desc.setText(tr("lbl_model_rembg_desc"))
+        self._install_btn.setText(tr("btn_install_model"))
         self._hdr_src.setText(tr("hdr_source_img"))
         self._hint_src.setText(tr("hint_bg_source_formats"))
         self._input_edit.setPlaceholderText(tr("ph_img"))
@@ -209,7 +318,11 @@ class BgEraserSection(QScrollArea):
         self._open_btn.setText(tr("btn_open_explorer"))
 
     def _browse_input(self) -> None:
-        ext_filter = "Images (" + " ".join(f"*{e}" for e in sorted(IMAGE_EXTS)) + ")"
+        try:
+            from core.bg_eraser import IMAGE_EXTS as _IMAGE_EXTS
+        except ImportError:
+            _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+        ext_filter = "Images (" + " ".join(f"*{e}" for e in sorted(_IMAGE_EXTS)) + ")"
         path, _ = QFileDialog.getOpenFileName(
             self, "Select Image", os.path.expanduser("~"), ext_filter
         )
@@ -291,6 +404,7 @@ class BgEraserSection(QScrollArea):
         self._result_card.setVisible(False)
         self._set_busy(True, "Removing background (first run downloads ~170 MB model)…")
 
+        from core.bg_eraser import remove_background
         self._worker = Worker(remove_background, input_path, output_path)
         self._worker.signals.result.connect(self._on_result)
         self._worker.signals.error.connect(self._on_error)

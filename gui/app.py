@@ -293,6 +293,14 @@ _SECTIONS_META = [
 ]
 
 
+def _section_index(section_id: str) -> int:
+    """Return the list index of a section by its id string."""
+    for i, m in enumerate(_SECTIONS_META):
+        if m["id"] == section_id:
+            return i
+    raise ValueError(f"Unknown section id: {section_id!r}")
+
+
 def _section(index: int) -> dict:
     """Return section meta resolved with current translations."""
     m = _SECTIONS_META[index]
@@ -445,7 +453,7 @@ class TitleBar(QWidget):
 
         menu.addSeparator()
         settings_act = menu.addAction(tr("menu_settings"))
-        settings_act.triggered.connect(lambda: win._navigate_to(17))
+        settings_act.triggered.connect(lambda: win._navigate_to(_section_index("settings")))
 
         menu.addSeparator()
         from PySide6.QtWidgets import QApplication
@@ -483,7 +491,7 @@ class TitleBar(QWidget):
             act.setEnabled(False)
         menu.addSeparator()
         see_act = menu.addAction(tr("shortcuts_see_guide"))
-        see_act.triggered.connect(lambda: self.window()._navigate_to(18))
+        see_act.triggered.connect(lambda: self.window()._navigate_to(_section_index("tutorial")))
 
         pos = self._btn_shortcuts.mapToGlobal(self._btn_shortcuts.rect().bottomLeft())
         menu.exec(pos)
@@ -1386,7 +1394,7 @@ class MainWindow(QMainWindow):
         # ── System tray (T018 / T020) ─────────────────────────────────────────
         self._tray = SystemTrayIcon(self)
         self._tray.restore_requested.connect(self._restore_from_tray)
-        self._tray.settings_requested.connect(lambda: self._navigate_to(17))
+        self._tray.settings_requested.connect(lambda: self._navigate_to(_section_index("settings")))
         self._tray.quit_requested.connect(self._quit_from_tray)
 
         # ── Central widget ────────────────────────────────────────────────────
@@ -1475,10 +1483,10 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(self._go_home)
         QShortcut(QKeySequence("Ctrl+T"), self).activated.connect(self._go_tools)
         QShortcut(QKeySequence("Ctrl+,"), self).activated.connect(
-            lambda: self._navigate_to(17)
+            lambda: self._navigate_to(_section_index("settings"))
         )
         QShortcut(QKeySequence(Qt.Key.Key_F1), self).activated.connect(
-            lambda: self._navigate_to(18)
+            lambda: self._navigate_to(_section_index("tutorial"))
         )
         QShortcut(QKeySequence("Ctrl+Q"), self).activated.connect(_QApp.quit)
 
@@ -1545,9 +1553,9 @@ class MainWindow(QMainWindow):
 
         self._home_nav_btn.clicked.connect(self._go_home)
         self._tools_nav_btn.clicked.connect(self._go_tools)
-        self._settings_nav_btn.clicked.connect(lambda: self._navigate_to(17))
-        self._help_nav_btn.clicked.connect(lambda: self._navigate_to(18))
-        self._bug_reporter_nav_btn.clicked.connect(lambda: self._navigate_to(19))
+        self._settings_nav_btn.clicked.connect(lambda: self._navigate_to(_section_index("settings")))
+        self._help_nav_btn.clicked.connect(lambda: self._navigate_to(_section_index("tutorial")))
+        self._bug_reporter_nav_btn.clicked.connect(lambda: self._navigate_to(_section_index("bug_reporter")))
 
         for btn in (self._home_nav_btn, self._tools_nav_btn,
                     self._settings_nav_btn, self._help_nav_btn,
@@ -1980,7 +1988,7 @@ class MainWindow(QMainWindow):
 
     def _show_welcome(self) -> None:
         dlg = WelcomeDialog(self)
-        dlg.go_to_tutorial.connect(lambda: self._navigate_to(18))
+        dlg.go_to_tutorial.connect(lambda: self._navigate_to(_section_index("tutorial")))
         # Center over the main window
         geo = self.geometry()
         dlg.move(

@@ -581,5 +581,23 @@
   "err_pdf_merge_min_files": "أضف ملفَي PDF على الأقل للدمج.",
   "err_pdf_range_empty": "أدخل نطاق الصفحات (مثال: 1-3، 5).",
   "err_pdf_range_invalid": "صيغة النطاق غير صحيحة. استخدم مثلاً: 1-3، 5، 7-9.",
-  "err_file_not_found": "الملف غير موجود."
+  "err_file_not_found": "الملف غير موجود.",
+
+  "splash_get_started": "ابدأ الآن",
+
+  "hdr_vocal_output_format": "صيغة الإخراج",
+  "hdr_vocal_preset": "جودة المعالجة",
+  "hint_vocal_preset": "سريع: مناسب للمعاينة. متوازن: الافتراضي. جودة عالية: نموذج محسّن، أفضل نتائج لكن أبطأ.",
+  "preset_fast": "سريع",
+  "preset_balanced": "متوازن",
+  "preset_quality": "جودة عالية",
+
+  "lbl_model_not_installed": "النموذج الذكي غير مثبّت",
+  "lbl_model_rembg_desc": "نموذج إزالة الخلفية (rembg، ~170 ميغابايت) غير مثبّت على هذا الجهاز.",
+  "lbl_model_demucs_desc": "نموذج عزل الصوت (demucs، ~300 ميغابايت) غير مثبّت على هذا الجهاز.",
+  "btn_install_model": "تثبيت النموذج",
+  "lbl_model_installing": "جارٍ التثبيت… قد يستغرق بضع دقائق",
+  "lbl_model_install_done": "تم تثبيت النموذج — جاهز للاستخدام.",
+  "lbl_model_install_failed": "فشل التثبيت: {error}",
+  "lbl_model_install_log": "سجل التثبيت:"
 }

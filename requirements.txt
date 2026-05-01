@@ -1,8 +1,8 @@
 yt-dlp>=2023.3.4
 Pillow>=9.5.0
 pillow-heif>=0.10.0
-rembg>=2.0.0
-onnxruntime>=1.16.0
+# rembg and demucs installed on-demand via in-app button (not bundled in build)
+# onnxruntime is a dependency of rembg — also installed on-demand
 PyMuPDF>=1.22.5
 python-docx>=0.8.11
 pyinstaller>=5.13.0

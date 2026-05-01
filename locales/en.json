@@ -581,5 +581,23 @@
   "err_pdf_merge_min_files": "Add at least 2 PDF files to merge.",
   "err_pdf_range_empty": "Enter a page range (e.g. 1-3, 5).",
   "err_pdf_range_invalid": "Invalid range format. Use e.g. 1-3, 5, 7-9.",
-  "err_file_not_found": "File not found."
+  "err_file_not_found": "File not found.",
+
+  "splash_get_started": "Get Started",
+
+  "hdr_vocal_output_format": "OUTPUT FORMAT",
+  "hdr_vocal_preset": "QUALITY PRESET",
+  "hint_vocal_preset": "Fast: quick pass, good for previews. Balanced: default. Quality: fine-tuned model, best results but slower.",
+  "preset_fast": "Fast",
+  "preset_balanced": "Balanced",
+  "preset_quality": "Quality",
+
+  "lbl_model_not_installed": "AI Model Not Installed",
+  "lbl_model_rembg_desc": "The background removal model (rembg, ~170 MB) is not installed on this machine.",
+  "lbl_model_demucs_desc": "The vocal isolation model (demucs, ~300 MB) is not installed on this machine.",
+  "btn_install_model": "Install Model",
+  "lbl_model_installing": "Installing… this may take a few minutes",
+  "lbl_model_install_done": "Model installed — ready to use.",
+  "lbl_model_install_failed": "Installation failed: {error}",
+  "lbl_model_install_log": "Installation log:"
 }

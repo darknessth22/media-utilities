@@ -18,7 +18,7 @@ if os.path.isfile(_env_path):
                 os.environ.setdefault(_k.strip(), _v.strip())
 
 from PySide6.QtWidgets import QApplication, QMessageBox
-from PySide6.QtCore import QThread, QTimer, Signal, qInstallMessageHandler, QtMsgType
+from PySide6.QtCore import Qt, QThread, QTimer, Signal, qInstallMessageHandler, QtMsgType
 
 
 def _qt_message_handler(mode, _context, message):
@@ -35,11 +35,15 @@ def _qt_message_handler(mode, _context, message):
 
 qInstallMessageHandler(_qt_message_handler)
 
+from utils.model_manager import ensure_ai_packages_on_path
+ensure_ai_packages_on_path()
+
 from core.settings import SettingsManager
 from core.version import VERSION
 from core.i18n import I18n
 from gui.app import MainWindow
 from gui.theme import ThemeManager
+from gui.pages.splash_screen import SplashScreen
 
 _APP_ICON = os.path.join(os.path.dirname(__file__), "assets", "videl_icon.png")
 
@@ -76,9 +80,28 @@ def main() -> None:
     theme_manager.set_rtl(i18n.is_rtl)
     theme_manager.set_mode(settings.theme_mode)
 
-    # Create and show the main window immediately so the user sees the UI.
-    window = MainWindow(settings, theme_manager)
-    window.show()
+    # Show splash; create main window only when user clicks "Get Started".
+    splash = SplashScreen()
+    splash.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
+    screen = app.primaryScreen().availableGeometry()
+    sw = min(1100, screen.width())
+    sh = min(700, screen.height())
+    splash.setGeometry(
+        screen.x() + (screen.width() - sw) // 2,
+        screen.y() + (screen.height() - sh) // 2,
+        sw, sh,
+    )
+    splash.show()
+
+    def _on_ready():
+        splash.close()
+        win = MainWindow(settings, theme_manager)
+        win.show()
+        checker = _DepsChecker(win)
+        checker.done.connect(lambda err: _on_deps_checked(err, win))
+        checker.start()
+
+    splash.ready_to_start.connect(_on_ready)
 
     # Allow Ctrl+C (SIGINT) to quit the Qt event loop cleanly.
     # Qt's C++ loop doesn't return to Python regularly, so we use a short
@@ -88,10 +111,7 @@ def main() -> None:
     _sigint_timer.start(200)
     _sigint_timer.timeout.connect(lambda: None)
 
-    # Check dependencies in the background; notify on critical failure.
-    checker = _DepsChecker(window)
-    checker.done.connect(lambda err: _on_deps_checked(err, window))
-    checker.start()
+
 
     sys.exit(app.exec())
 

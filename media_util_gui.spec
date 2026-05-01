@@ -10,10 +10,8 @@ datas += collect_data_files('yt_dlp')
 datas += collect_data_files('pillow_heif')
 datas += collect_data_files('fitz')
 
-try:
-    datas += collect_data_files('rembg')
-except Exception:
-    print("Warning: rembg data files not collected - BG Eraser may need PyInstaller hook tweaks")
+# rembg and demucs are NOT bundled — installed on-demand by the user via in-app button.
+# Their packages land in ai_packages/ next to the exe at runtime.
 
 # Collect only PySide6 plugin data files (platforms, styles, imageformats)
 pyside6_binaries = []
@@ -62,17 +60,8 @@ hiddenimports = []
 hiddenimports += collect_submodules('yt_dlp')
 hiddenimports += collect_submodules('pillow_heif')
 
-try:
-    hiddenimports += collect_submodules('rembg')
-except Exception:
-    print("Warning: rembg submodules not found - ensure rembg is installed before PyInstaller")
-    hiddenimports += ['rembg', 'rembg.sessions', 'rembg.session_factory']
-
-try:
-    hiddenimports += collect_submodules('demucs')
-except Exception:
-    print("Warning: demucs submodules not found - Vocal Isolator will fall back to runtime pip install check")
-    hiddenimports += ['demucs']
+# pip must be bundled so the frozen exe can install AI packages at runtime.
+hiddenimports += ['pip', 'pip._internal', 'pip._internal.cli.main']
 
 # PySide6 multimedia modules for video trimmer
 hiddenimports += [
