@@ -6,10 +6,14 @@
     <title>Videl | The All-in-One Media Workstation</title>
     <meta name="description" content="The ultimate offline media workstation. Download videos, isolate studio-quality vocals, batch process PDFs, and manipulate media — all locally, all private.">
 
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/videl_icon.png">
+
     <!-- Open Graph -->
     <meta property="og:title" content="Videl — The All-in-One Media Workstation">
     <meta property="og:description" content="Studio AI audio separation, video tools, PDF suite. 100% offline. Free download.">
     <meta property="og:type" content="website">
+    <meta property="og:image" content="assets/videl_logo.png">
 
     <style>
         /* ─── Design Tokens ─────────────────────────────────────── */
@@ -67,14 +71,10 @@
             border-bottom: 1px solid var(--border);
         }
 
-        .nav-logo {
-            font-size: 1.4rem;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            background: linear-gradient(135deg, #ffffff 0%, #60a5fa 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+        .nav-logo img {
+            height: 32px;
+            width: auto;
+            display: block;
         }
 
         .nav-links {
@@ -127,6 +127,14 @@
             height: 500px;
             background: radial-gradient(ellipse, rgba(13,110,253,0.12) 0%, transparent 70%);
             pointer-events: none;
+        }
+
+        .hero-logo {
+            height: 80px;
+            width: auto;
+            margin: 0 auto 24px;
+            display: block;
+            filter: drop-shadow(0 0 24px rgba(13,110,253,0.4));
         }
 
         .hero-badge {
@@ -266,35 +274,42 @@
         .chrome-dot:nth-child(3) { background: #28c840; }
 
         .frame-content {
-            height: 420px;
+            display: block;
+            background: var(--bg-card);
+        }
+
+        .frame-content img,
+        .frame-content .app-gif {
+            width: 100%;
+            display: block;
+            border: none;
+        }
+
+        /* Tab switcher for screenshot / gif */
+        .preview-tabs {
             display: flex;
-            align-items: center;
-            justify-content: center;
+            gap: 0;
+            background: #0d1525;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .preview-tab {
+            padding: 8px 20px;
+            font-size: 0.8rem;
             color: var(--muted);
-            font-size: 1rem;
-            flex-direction: column;
-            gap: 16px;
-            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-card-2) 100%);
-        }
-
-        .frame-content .play-btn {
-            width: 64px; height: 64px;
-            border-radius: 50%;
-            background: rgba(13,110,253,0.2);
-            border: 2px solid var(--blue);
-            display: flex;
-            align-items: center;
-            justify-content: center;
             cursor: pointer;
-            transition: background 0.2s, transform 0.2s;
+            border-bottom: 2px solid transparent;
+            transition: color 0.2s, border-color 0.2s;
+            user-select: none;
         }
 
-        .frame-content .play-btn:hover {
-            background: rgba(13,110,253,0.4);
-            transform: scale(1.08);
+        .preview-tab.active {
+            color: var(--text);
+            border-bottom-color: var(--blue);
         }
 
-        .play-btn svg { width: 24px; height: 24px; fill: var(--blue); margin-left: 4px; }
+        .preview-panel { display: none; }
+        .preview-panel.active { display: block; }
 
         /* ─── Stats Strip ─────────────────────────────────────────── */
         .stats {
@@ -523,7 +538,7 @@
 
 <!-- ─── Navigation ───────────────────────────────────────────────── -->
 <nav>
-    <span class="nav-logo">▶ Videl</span>
+    <span class="nav-logo"><img src="assets/videl_logo.png" alt="Videl"></span>
     <ul class="nav-links">
         <li><a href="#features">Features</a></li>
         <li><a href="#tech">Technology</a></li>
@@ -534,6 +549,8 @@
 
 <!-- ─── Hero ─────────────────────────────────────────────────────── -->
 <section class="hero" id="download">
+    <img src="assets/videl_logo.png" alt="Videl Logo" class="hero-logo">
+
     <div class="hero-badge">Free & Open Source · Windows 64-bit</div>
 
     <h1>The All-in-One<br>Media Workstation</h1>
@@ -563,12 +580,18 @@
                 <div class="chrome-dot"></div>
                 <div class="chrome-dot"></div>
                 <div class="chrome-dot"></div>
+                <div class="preview-tabs" style="margin-left:12px;border-bottom:none;background:transparent;">
+                    <span class="preview-tab active" onclick="switchTab('screenshot',this)">Screenshot</span>
+                    <span class="preview-tab" onclick="switchTab('overview',this)">Overview GIF</span>
+                </div>
             </div>
             <div class="frame-content">
-                <div class="play-btn" title="Promo video placeholder">
-                    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                <div class="preview-panel active" id="panel-screenshot">
+                    <img src="new screen gui.png" alt="Videl App Screenshot">
                 </div>
-                <p style="font-size:0.9rem">Drop your promo video or screenshot here</p>
+                <div class="preview-panel" id="panel-overview">
+                    <img src="app-gui.gif" alt="Videl App Overview" class="app-gif">
+                </div>
             </div>
         </div>
     </div>
@@ -681,6 +704,13 @@
 
 <!-- ─── Self-Updating GitHub API Fetch ──────────────────────────────── -->
 <script>
+    function switchTab(panel, el) {
+        document.querySelectorAll('.preview-panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.preview-tab').forEach(t => t.classList.remove('active'));
+        document.getElementById('panel-' + panel).classList.add('active');
+        el.classList.add('active');
+    }
+
     /**
      * CONFIGURE THIS: replace with your actual GitHub repo path.
      * Format: 'username/repo-name'
