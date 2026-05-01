@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Videl | The All-in-One Media Workstation</title>
+    <meta name="description" content="The ultimate offline media workstation. Download videos, isolate studio-quality vocals, batch process PDFs, and manipulate media — all locally, all private.">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Videl — The All-in-One Media Workstation">
+    <meta property="og:description" content="Studio AI audio separation, video tools, PDF suite. 100% offline. Free download.">
+    <meta property="og:type" content="website">
+
+    <style>
+        /* ─── Design Tokens ─────────────────────────────────────── */
+        :root {
+            --blue:        #0D6EFD;
+            --blue-hover:  #0b5ed7;
+            --blue-glow:   rgba(13, 110, 253, 0.35);
+            --bg:          #0a0f1e;
+            --bg-card:     #111827;
+            --bg-card-2:   #1a2335;
+            --border:      #1e2d45;
+            --border-bright: #2a3f5f;
+            --text:        #f1f5f9;
+            --muted:       #64748b;
+            --muted-light: #94a3b8;
+            --accent-teal: #0ea5e9;
+            --accent-purple: #818cf8;
+        }
+
+        /* ─── Reset ──────────────────────────────────────────────── */
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ─── Noise Texture Overlay ──────────────────────────────── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ─── Nav ─────────────────────────────────────────────────── */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 100;
+            padding: 16px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(10, 15, 30, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .nav-logo {
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #ffffff 0%, #60a5fa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--muted-light);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover { color: var(--text); }
+
+        .nav-cta {
+            background: var(--blue);
+            color: white !important;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: 600;
+            transition: background 0.2s, transform 0.2s !important;
+        }
+
+        .nav-cta:hover {
+            background: var(--blue-hover) !important;
+            transform: translateY(-1px);
+        }
+
+        /* ─── Hero ────────────────────────────────────────────────── */
+        .hero {
+            position: relative;
+            text-align: center;
+            padding: 160px 20px 80px;
+            max-width: 900px;
+            margin: 0 auto;
+            z-index: 1;
+        }
+
+        /* Radial glow behind hero text */
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -60%);
+            width: 700px;
+            height: 500px;
+            background: radial-gradient(ellipse, rgba(13,110,253,0.12) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .hero-badge {
+            display: inline-block;
+            background: rgba(13,110,253,0.15);
+            border: 1px solid rgba(13,110,253,0.35);
+            color: #60a5fa;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 6px 16px;
+            border-radius: 20px;
+            margin-bottom: 28px;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 4.5rem);
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -1.5px;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #ffffff 0%, #93c5fd 60%, #60a5fa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 1.15rem;
+            color: var(--muted-light);
+            max-width: 580px;
+            margin: 0 auto 44px;
+        }
+
+        /* ─── Download Button ─────────────────────────────────────── */
+        .download-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 70px;
+        }
+
+        .btn-download {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--blue);
+            color: white;
+            text-decoration: none;
+            padding: 16px 40px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            transition: background 0.25s, transform 0.25s, box-shadow 0.25s;
+            box-shadow: 0 0 0 0 var(--blue-glow),
+                        0 4px 20px rgba(13, 110, 253, 0.4);
+        }
+
+        .btn-download:hover {
+            background: var(--blue-hover);
+            transform: translateY(-3px);
+            box-shadow: 0 0 30px var(--blue-glow),
+                        0 8px 30px rgba(13, 110, 253, 0.5);
+        }
+
+        .btn-download svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        /* Pulse ring animation */
+        @keyframes pulse-ring {
+            0%   { box-shadow: 0 0 0 0   rgba(13,110,253,0.5), 0 4px 20px rgba(13,110,253,0.4); }
+            70%  { box-shadow: 0 0 0 16px rgba(13,110,253,0),   0 4px 20px rgba(13,110,253,0.4); }
+            100% { box-shadow: 0 0 0 0   rgba(13,110,253,0),   0 4px 20px rgba(13,110,253,0.4); }
+        }
+
+        .btn-download.loaded { animation: pulse-ring 2s ease-out 1; }
+
+        .version-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+
+        .version-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--muted);
+            display: inline-block;
+        }
+
+        .version-dot.online { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+
+        /* ─── App Preview Placeholder ─────────────────────────────── */
+        .preview-wrap {
+            max-width: 1100px;
+            margin: 0 auto 100px;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .preview-frame {
+            background: var(--bg-card);
+            border: 1px solid var(--border-bright);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 40px 80px rgba(0,0,0,0.6),
+                        0 0 0 1px rgba(255,255,255,0.03);
+        }
+
+        /* Fake window chrome */
+        .frame-chrome {
+            background: #0d1525;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .chrome-dot {
+            width: 12px; height: 12px;
+            border-radius: 50%;
+        }
+
+        .chrome-dot:nth-child(1) { background: #ff5f57; }
+        .chrome-dot:nth-child(2) { background: #febc2e; }
+        .chrome-dot:nth-child(3) { background: #28c840; }
+
+        .frame-content {
+            height: 420px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            font-size: 1rem;
+            flex-direction: column;
+            gap: 16px;
+            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-card-2) 100%);
+        }
+
+        .frame-content .play-btn {
+            width: 64px; height: 64px;
+            border-radius: 50%;
+            background: rgba(13,110,253,0.2);
+            border: 2px solid var(--blue);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.2s;
+        }
+
+        .frame-content .play-btn:hover {
+            background: rgba(13,110,253,0.4);
+            transform: scale(1.08);
+        }
+
+        .play-btn svg { width: 24px; height: 24px; fill: var(--blue); margin-left: 4px; }
+
+        /* ─── Stats Strip ─────────────────────────────────────────── */
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+            flex-wrap: wrap;
+            max-width: 900px;
+            margin: 0 auto 100px;
+            padding: 0 24px;
+            z-index: 1;
+            position: relative;
+        }
+
+        .stat-item { text-align: center; }
+
+        .stat-num {
+            font-size: 2.4rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #fff, #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
+
+        /* ─── Section Heading ─────────────────────────────────────── */
+        .section-head {
+            text-align: center;
+            max-width: 600px;
+            margin: 0 auto 56px;
+        }
+
+        .section-head h2 {
+            font-size: clamp(1.8rem, 4vw, 2.8rem);
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 12px;
+        }
+
+        .section-head p { color: var(--muted-light); font-size: 1rem; }
+
+        /* ─── Features Grid ───────────────────────────────────────── */
+        .features-section {
+            max-width: 1200px;
+            margin: 0 auto 110px;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+            gap: 24px;
+        }
+
+        .feat-card {
+            background: var(--bg-card);
+            padding: 32px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--card-accent, var(--blue)), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .feat-card:hover {
+            border-color: var(--border-bright);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .feat-card:hover::before { opacity: 1; }
+
+        .feat-icon {
+            font-size: 2rem;
+            margin-bottom: 18px;
+            display: block;
+        }
+
+        .feat-card h3 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--text);
+        }
+
+        .feat-card p { color: var(--muted-light); font-size: 0.95rem; line-height: 1.65; }
+
+        /* Accent colors per card */
+        .feat-card:nth-child(1) { --card-accent: #0ea5e9; }
+        .feat-card:nth-child(2) { --card-accent: #a78bfa; }
+        .feat-card:nth-child(3) { --card-accent: #34d399; }
+        .feat-card:nth-child(4) { --card-accent: #fb923c; }
+        .feat-card:nth-child(5) { --card-accent: #f472b6; }
+        .feat-card:nth-child(6) { --card-accent: #60a5fa; }
+
+        /* ─── Tech Stack Callout ──────────────────────────────────── */
+        .tech-callout {
+            max-width: 900px;
+            margin: 0 auto 110px;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .tech-box {
+            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-card-2) 100%);
+            border: 1px solid var(--border-bright);
+            border-radius: 20px;
+            padding: 48px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            align-items: center;
+        }
+
+        .tech-box h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: -0.5px;
+            margin-bottom: 14px;
+        }
+
+        .tech-box p { color: var(--muted-light); font-size: 0.95rem; }
+
+        .tech-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .pill {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--border-bright);
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            color: var(--muted-light);
+            font-weight: 500;
+        }
+
+        /* ─── CTA Section ─────────────────────────────────────────── */
+        .cta-section {
+            text-align: center;
+            max-width: 700px;
+            margin: 0 auto 100px;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .cta-section h2 {
+            font-size: clamp(1.8rem, 4vw, 2.8rem);
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 14px;
+        }
+
+        .cta-section p { color: var(--muted-light); margin-bottom: 32px; }
+
+        /* ─── Footer ──────────────────────────────────────────────── */
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 32px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+            color: var(--muted);
+            font-size: 0.85rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        footer a {
+            color: var(--muted-light);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        footer a:hover { color: var(--text); }
+
+        .footer-links { display: flex; gap: 24px; }
+
+        /* ─── Loading skeleton ────────────────────────────────────── */
+        @keyframes shimmer {
+            0%   { background-position: -400px 0; }
+            100% { background-position:  400px 0; }
+        }
+
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-card-2) 50%, var(--bg-card) 75%);
+            background-size: 800px 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 6px;
+            display: inline-block;
+        }
+
+        /* ─── Responsive ──────────────────────────────────────────── */
+        @media (max-width: 768px) {
+            nav { padding: 14px 20px; }
+            .nav-links { display: none; }
+            .tech-box { grid-template-columns: 1fr; padding: 32px 24px; }
+            .stats { gap: 32px; }
+            footer { justify-content: center; text-align: center; }
+            .footer-links { flex-wrap: wrap; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ─── Navigation ───────────────────────────────────────────────── -->
+<nav>
+    <span class="nav-logo">▶ Videl</span>
+    <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#tech">Technology</a></li>
+        <li><a href="https://github.com/darknessth22/media-utilities" target="_blank">GitHub</a></li>
+        <li><a href="#download" class="nav-cta">Download</a></li>
+    </ul>
+</nav>
+
+<!-- ─── Hero ─────────────────────────────────────────────────────── -->
+<section class="hero" id="download">
+    <div class="hero-badge">Free & Open Source · Windows 64-bit</div>
+
+    <h1>The All-in-One<br>Media Workstation</h1>
+
+    <p>Download videos, isolate studio-quality vocals with Demucs v4, batch process PDFs, trim video frame-perfect — all offline, all private.</p>
+
+    <div class="download-wrap">
+        <a href="https://github.com/darknessth22/media-utilities/releases"
+           id="download-btn"
+           class="btn-download">
+            <!-- Windows logo SVG -->
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-13.051-1.851"/>
+            </svg>
+            Download for Windows
+        </a>
+        <div class="version-badge">
+            <span class="version-dot" id="status-dot"></span>
+            <span id="version-label" class="skeleton" style="min-width:220px;height:14px;">&nbsp;</span>
+        </div>
+    </div>
+
+    <!-- App preview / promo video -->
+    <div class="preview-wrap" style="margin-top:0">
+        <div class="preview-frame">
+            <div class="frame-chrome">
+                <div class="chrome-dot"></div>
+                <div class="chrome-dot"></div>
+                <div class="chrome-dot"></div>
+            </div>
+            <div class="frame-content">
+                <div class="play-btn" title="Promo video placeholder">
+                    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+                <p style="font-size:0.9rem">Drop your promo video or screenshot here</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ─── Stats ─────────────────────────────────────────────────────── -->
+<div class="stats">
+    <div class="stat-item">
+        <div class="stat-num">100%</div>
+        <div class="stat-label">Offline Processing</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-num">6+</div>
+        <div class="stat-label">Integrated Tools</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-num">EN/AR</div>
+        <div class="stat-label">Bilingual UI</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-num">0</div>
+        <div class="stat-label">Cloud Uploads</div>
+    </div>
+</div>
+
+<!-- ─── Features ──────────────────────────────────────────────────── -->
+<section class="features-section" id="features">
+    <div class="section-head">
+        <h2>Everything in one place</h2>
+        <p>A complete media production toolkit that runs entirely on your machine.</p>
+    </div>
+
+    <div class="features-grid">
+        <div class="feat-card">
+            <span class="feat-icon">🎙️</span>
+            <h3>Studio AI Vocal Isolation</h3>
+            <p>Powered by Demucs v4 (HTDemucs). Separate vocals, drums, bass, and other stems with hybrid CPU/GPU rendering — no cloud API needed.</p>
+        </div>
+        <div class="feat-card">
+            <span class="feat-icon">📥</span>
+            <h3>Universal Video Downloader</h3>
+            <p>Pull video and audio from any major platform. Choose resolution, format, and subtitle language. Batch download entire playlists.</p>
+        </div>
+        <div class="feat-card">
+            <span class="feat-icon">✂️</span>
+            <h3>Frame-Perfect Video Editing</h3>
+            <p>Cut, trim, merge, and re-encode clips with EBU R128 loudness normalization. Lossless stream copy where possible for speed.</p>
+        </div>
+        <div class="feat-card">
+            <span class="feat-icon">📄</span>
+            <h3>Complete PDF Toolkit</h3>
+            <p>Merge, split, compress, rotate, unlock, watermark, and convert PDFs. Full batch processing support with drag-and-drop queues.</p>
+        </div>
+        <div class="feat-card">
+            <span class="feat-icon">🔒</span>
+            <h3>Privacy by Design</h3>
+            <p>All processing is local. No telemetry, no cloud sync. Strip EXIF/XMP metadata from images and documents on demand.</p>
+        </div>
+        <div class="feat-card">
+            <span class="feat-icon">🌐</span>
+            <h3>Bilingual Interface (EN/AR)</h3>
+            <p>Full English and Arabic UI with automatic RTL layout switching. Designed for MENA-region professionals from the ground up.</p>
+        </div>
+    </div>
+</section>
+
+<!-- ─── Tech Callout ───────────────────────────────────────────────── -->
+<section class="tech-callout" id="tech">
+    <div class="tech-box">
+        <div>
+            <h2>Built on proven open-source foundations</h2>
+            <p>Videl wraps battle-tested libraries in a polished PySide6 desktop shell — no Electron, no browser overhead. Pure native performance.</p>
+        </div>
+        <div class="tech-pills">
+            <span class="pill">Python 3.11+</span>
+            <span class="pill">PySide6 / Qt</span>
+            <span class="pill">Demucs v4</span>
+            <span class="pill">FFmpeg</span>
+            <span class="pill">yt-dlp</span>
+            <span class="pill">PyMuPDF</span>
+            <span class="pill">PyTorch</span>
+            <span class="pill">CUDA / CPU</span>
+        </div>
+    </div>
+</section>
+
+<!-- ─── Final CTA ───────────────────────────────────────────────────── -->
+<section class="cta-section">
+    <h2>Ready to take control of your media?</h2>
+    <p>Free download. No account. No subscription. No cloud.</p>
+    <a href="https://github.com/darknessth22/media-utilities/releases"
+       id="download-btn-2"
+       class="btn-download">
+        <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor">
+            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+        </svg>
+        Download Videl Free
+    </a>
+</section>
+
+<!-- ─── Footer ──────────────────────────────────────────────────────── -->
+<footer>
+    <span>© 2025 Videl. All rights reserved.</span>
+    <div class="footer-links">
+        <a href="https://github.com/darknessth22/media-utilities" target="_blank">GitHub</a>
+        <a href="https://github.com/darknessth22/media-utilities/releases" target="_blank">Releases</a>
+        <a href="https://github.com/darknessth22/media-utilities/issues" target="_blank">Report a Bug</a>
+    </div>
+</footer>
+
+<!-- ─── Self-Updating GitHub API Fetch ──────────────────────────────── -->
+<script>
+    /**
+     * CONFIGURE THIS: replace with your actual GitHub repo path.
+     * Format: 'username/repo-name'
+     * Example: 'fares-mostafa/videl'
+     */
+    const REPO = 'darknessth22/media-utilities';
+
+    const API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
+
+    const btnPrimary   = document.getElementById('download-btn');
+    const btnSecondary = document.getElementById('download-btn-2');
+    const versionLabel = document.getElementById('version-label');
+    const statusDot    = document.getElementById('status-dot');
+
+    function setButtons(href) {
+        btnPrimary.href   = href;
+        btnSecondary.href = href;
+        btnPrimary.classList.add('loaded');
+    }
+
+    function setVersion(text, online = true) {
+        versionLabel.classList.remove('skeleton');
+        versionLabel.style.minWidth = '';
+        versionLabel.style.height   = '';
+        versionLabel.textContent    = text;
+        statusDot.className = online ? 'version-dot online' : 'version-dot';
+    }
+
+    fetch(API_URL)
+        .then(res => {
+            if (!res.ok) throw new Error(`GitHub API: ${res.status}`);
+            return res.json();
+        })
+        .then(release => {
+            // Prefer .exe, fall back to first asset, fall back to releases page
+            const exeAsset = release.assets.find(a => a.name.endsWith('.exe'))
+                          || release.assets[0];
+
+            if (exeAsset) {
+                setButtons(exeAsset.browser_download_url);
+                const mb = (exeAsset.size / 1048576).toFixed(1);
+                setVersion(`Version ${release.tag_name} · Windows 64-bit · ${mb} MB`);
+            } else {
+                // Release exists but no binary yet (e.g. CI still running)
+                setButtons(`https://github.com/${REPO}/releases`);
+                setVersion(`${release.tag_name} — see Releases page`, false);
+            }
+        })
+        .catch(err => {
+            console.warn('Release fetch failed:', err.message);
+            setButtons(`https://github.com/${REPO}/releases`);
+            setVersion('View all releases on GitHub →', false);
+        });
+</script>
+
+</body>
+</html>
