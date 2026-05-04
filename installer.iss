@@ -43,8 +43,6 @@ Name: "{group}\Browser Extension Folder"; Filename: "{app}\browser_extension"; I
 ; don't see a low-res / blurry icon left over from a previous install.
 Filename: "{sys}\ie4uinit.exe"; Parameters: "-ClearIconCache"; Flags: runhidden skipifdoesntexist runasoriginaluser
 Filename: "{sys}\ie4uinit.exe"; Parameters: "-show"; Flags: runhidden skipifdoesntexist runasoriginaluser
-Filename: "{cmd}"; Parameters: "/C taskkill /F /IM explorer.exe & del /A /Q ""%LOCALAPPDATA%\Microsoft\Windows\Explorer\iconcache*"" & del /A /Q ""%LOCALAPPDATA%\Microsoft\Windows\Explorer\thumbcache*"""; Flags: runhidden runasoriginaluser
-Filename: "explorer.exe"; Flags: nowait runasoriginaluser
 Filename: "{app}\Videl.exe"; Description: "{cm:LaunchProgram,Videl}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
