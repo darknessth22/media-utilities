@@ -175,10 +175,12 @@ def reconcile_on_launch() -> ReconcileResult:
             try:
                 _, manifest_path, _ = _manifest_for(cid, state.variant)
                 if not os.path.isfile(manifest_path) or state.manifest_sha256 != _manifest_sha256(manifest_path):
-                    uninstall(cid)
+                    # Manifest hash changed (often a benign whitespace/line-ending
+                    # diff between builds). Flag for reinstall but DO NOT wipe —
+                    # otherwise every upgrade forces users to re-download multi-GB
+                    # AI packages. Reinstall path overwrites in place.
                     result.needs_reinstall.append(cid)
             except Exception:
-                uninstall(cid)
                 result.needs_reinstall.append(cid)
     return result
 
