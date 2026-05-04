@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
 from core.settings import SettingsManager, UserSettings
 from core.i18n import I18n, tr
 from core.tray import SystemTrayIcon
+from core.extension_bridge import ExtensionBridge
 from gui.dnd_handler import DndHandler
 from gui.tabs.download_section import DownloadSection
 from gui.tabs.convert_section import ConvertSection
@@ -50,7 +51,7 @@ from gui.tabs.merge_section import MergeSection
 from gui.tabs.spatial_section import SpatialSection
 from gui.tabs.history_section import HistorySection
 from gui.tabs.mux_section import MuxSection
-from gui.tabs.tutorial_section import TutorialSection
+from gui.tabs.tutorial_section import TutorialSection, open_help_for_section, get_tutorial_entry
 from gui.tabs.scrub_section import ScrubSection
 from gui.tabs.chunk_section import ChunkSection
 from gui.tabs.watermark_section import WatermarkSection
@@ -58,7 +59,9 @@ from gui.tabs.frame_grabber_section import FrameGrabberSection
 from gui.tabs.palette_section import PaletteSection
 from gui.tabs.bg_eraser_section import BgEraserSection
 from gui.tabs.vocal_isolator_section import VocalIsolatorSection
+from gui.tabs.upscaler_section import UpscalerSection
 from gui.tabs.pdf_toolkit_section import PdfToolkitSection
+from gui.tabs.jumpcut_section import JumpcutSection
 from gui.tabs.bug_reporter import BugReporterSection
 from gui.pages.home_page import HomePage, ToolsPage
 
@@ -256,11 +259,25 @@ _SECTIONS_META = [
         "action_key": "action_isolate_vocals",
     },
     {
+        "id": "upscaler",
+        "label_key": "section_upscaler",
+        "icon": "upscaler.svg",
+        "tab_keys": ["tab_upscaler"],
+        "action_key": "action_upscale",
+    },
+    {
         "id": "pdf_toolkit",
         "label_key": "section_pdf_toolkit",
         "icon": "document.svg",
         "tab_keys": ["tab_pdf_toolkit"],
         "action_key": "action_apply",
+    },
+    {
+        "id": "jumpcut",
+        "label_key": "section_jumpcut",
+        "icon": "jumpcut.svg",
+        "tab_keys": ["tab_jumpcut"],
+        "action_key": "action_jumpcut",
     },
     {
         "id": "history",
@@ -765,6 +782,54 @@ class SettingsSection(QScrollArea):
         timeout_row.addWidget(self._timeout_spin)
         layout.addLayout(timeout_row)
 
+        # Browser extension bridge controls.
+        ext_row = QHBoxLayout()
+        self._lbl_ext_bridge = QLabel(tr("settings_label_ext_bridge"))
+        ext_row.addWidget(self._lbl_ext_bridge)
+        ext_row.addStretch()
+        self._ext_bridge_check = QCheckBox()
+        self._ext_bridge_check.setChecked(
+            getattr(self._settings, "extension_bridge_enabled", True)
+        )
+        self._ext_bridge_check.stateChanged.connect(self._on_ext_bridge_changed)
+        ext_row.addWidget(self._ext_bridge_check)
+        layout.addLayout(ext_row)
+        self._hint_ext_bridge = QLabel(tr("settings_hint_ext_bridge"))
+        self._hint_ext_bridge.setObjectName("TextMuted")
+        self._hint_ext_bridge.setWordWrap(True)
+        self._hint_ext_bridge.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._hint_ext_bridge)
+
+        port_row = QHBoxLayout()
+        self._lbl_ext_port = QLabel(tr("settings_label_ext_port"))
+        port_row.addWidget(self._lbl_ext_port)
+        port_row.addStretch()
+        self._ext_port_spin = QSpinBox()
+        self._ext_port_spin.setRange(1024, 65535)
+        self._ext_port_spin.setValue(
+            getattr(self._settings, "extension_bridge_port", 17654)
+        )
+        self._ext_port_spin.setFixedWidth(96)
+        self._ext_port_spin.valueChanged.connect(self._on_ext_port_changed)
+        port_row.addWidget(self._ext_port_spin)
+        layout.addLayout(port_row)
+
+        install_row = QHBoxLayout()
+        self._lbl_ext_install = QLabel(tr("settings_label_ext_install"))
+        install_row.addWidget(self._lbl_ext_install)
+        install_row.addStretch()
+        self._ext_install_btn = QPushButton(tr("settings_btn_ext_install"))
+        self._ext_install_btn.setObjectName("BrowseBtn")
+        self._ext_install_btn.setFixedWidth(160)
+        self._ext_install_btn.clicked.connect(self._on_install_extension)
+        install_row.addWidget(self._ext_install_btn)
+        layout.addLayout(install_row)
+        self._hint_ext_install = QLabel(tr("settings_hint_ext_install"))
+        self._hint_ext_install.setObjectName("TextMuted")
+        self._hint_ext_install.setWordWrap(True)
+        self._hint_ext_install.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._hint_ext_install)
+
         return card
 
     def _build_paths_card(self) -> QFrame:
@@ -1020,6 +1085,12 @@ class SettingsSection(QScrollArea):
             self._hint_startup.setText(tr("settings_hint_start_with_windows"))
         self._hdr_advanced.setText(tr("settings_header_advanced"))
         self._lbl_timeout.setText(tr("settings_label_intercept_timeout"))
+        self._lbl_ext_bridge.setText(tr("settings_label_ext_bridge"))
+        self._hint_ext_bridge.setText(tr("settings_hint_ext_bridge"))
+        self._lbl_ext_port.setText(tr("settings_label_ext_port"))
+        self._lbl_ext_install.setText(tr("settings_label_ext_install"))
+        self._ext_install_btn.setText(tr("settings_btn_ext_install"))
+        self._hint_ext_install.setText(tr("settings_hint_ext_install"))
 
         # File paths
         self._hdr_paths.setText(tr("settings_header_file_paths"))
@@ -1145,6 +1216,55 @@ class SettingsSection(QScrollArea):
         self._settings.intercept_timeout = value
         self._save()
 
+    def _on_ext_bridge_changed(self, _state: int) -> None:
+        self._settings.extension_bridge_enabled = self._ext_bridge_check.isChecked()
+        self._save()
+
+    def _on_ext_port_changed(self, value: int) -> None:
+        self._settings.extension_bridge_port = value
+        self._save()
+
+    def _on_install_extension(self) -> None:
+        """Open the bundled extension folder and show install instructions."""
+        import sys as _sys
+        import subprocess
+        from core.paths import browser_extension_dir
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtWidgets import QMessageBox
+
+        folder = browser_extension_dir()
+        if not os.path.isdir(folder):
+            QMessageBox.warning(
+                self,
+                tr("ext_install_dialog_title"),
+                tr("ext_install_missing_folder").format(path=folder),
+            )
+            return
+
+        # Reveal the folder in the file manager.
+        if _sys.platform == "win32":
+            try:
+                subprocess.Popen(["explorer", folder])
+            except OSError:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
+        elif _sys.platform == "darwin":
+            try:
+                subprocess.Popen(["open", folder])
+            except OSError:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
+        else:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
+
+        # Show a dialog with the per-browser URLs and step list. We can't
+        # reliably auto-open chrome://extensions because the OS shell handler
+        # routes through the default browser, which may not be Chrome/Edge.
+        QMessageBox.information(
+            self,
+            tr("ext_install_dialog_title"),
+            tr("ext_install_dialog_body").format(path=folder),
+        )
+
     def _browse_cookies_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, tr("dialog_select_cookies"), os.path.expanduser("~"),
@@ -1184,6 +1304,7 @@ class SettingsSection(QScrollArea):
         self._settings = settings
         widgets = [self._theme_combo, self._quit_check, self._folder_input,
                    self._codec_combo, self._timeout_spin,
+                   self._ext_bridge_check, self._ext_port_spin,
                    self._cookies_combo, self._cookies_file_input,
                    self._spotify_id_input, self._spotify_secret_input,
                    self._template_input]
@@ -1201,6 +1322,12 @@ class SettingsSection(QScrollArea):
             {"original": 0, "h264": 1, "hevc": 2, "vp9": 3}.get(settings.default_codec, 0)
         )
         self._timeout_spin.setValue(settings.intercept_timeout)
+        self._ext_bridge_check.setChecked(
+            getattr(settings, "extension_bridge_enabled", True)
+        )
+        self._ext_port_spin.setValue(
+            getattr(settings, "extension_bridge_port", 17654)
+        )
         self._spotify_id_input.setText(settings.spotify_client_id)
         self._spotify_secret_input.setText(settings.spotify_client_secret)
         _browser_map = {
@@ -1218,6 +1345,7 @@ class SettingsSection(QScrollArea):
 
         widgets = [self._theme_combo, self._quit_check, self._folder_input,
                    self._codec_combo, self._timeout_spin,
+                   self._ext_bridge_check, self._ext_port_spin,
                    self._cookies_combo, self._cookies_file_input,
                    self._spotify_id_input, self._spotify_secret_input,
                    self._template_input]
@@ -1493,6 +1621,18 @@ class MainWindow(QMainWindow):
         # Always keep the How to Use icon glowing so it's easy to find
         self._help_nav_btn.start_glow()
 
+        # Browser extension bridge — local HTTP server on 127.0.0.1.
+        # Receives video URLs from the Videl browser extension and routes
+        # them into the Downloader tab.
+        self._extension_bridge = ExtensionBridge(
+            port=getattr(self.settings, "extension_bridge_port", 17654),
+            parent=self,
+        )
+        self._extension_bridge.url_received.connect(self._on_extension_url)
+        if getattr(self.settings, "extension_bridge_enabled", True):
+            if not self._extension_bridge.start():
+                self.update_status(tr("ext_bridge_port_busy"), is_error=True)
+
         # Start on Home page
         self._go_home()
 
@@ -1713,6 +1853,10 @@ class MainWindow(QMainWindow):
             self._section_tab_bar.setCurrentIndex(max(0, current_tab))
             self._section_tab_bar.blockSignals(False)
 
+        # Help button tooltip
+        if hasattr(self, "_help_btn"):
+            self._help_btn.setToolTip(tr("help_btn_tooltip"))
+
         # Primary action button
         action_label = _section(self._current_section).get("action_label") if self._current_section < len(_SECTIONS_META) else None
         if action_label and self._action_btn_container.isVisible():
@@ -1747,7 +1891,9 @@ class MainWindow(QMainWindow):
             self._palette_section,
             self._bg_eraser_section,
             self._vocal_isolator_section,
+            self._upscaler_section,
             self._pdf_toolkit_section,
+            self._jumpcut_section,
             self._history_section,
             self._tutorial_section,
         ):
@@ -1774,13 +1920,42 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Section tab strip (flat, underline-style)
+        # Section tab strip (flat, underline-style) + per-section help button
         self._section_tab_bar = QTabBar()
         self._section_tab_bar.setObjectName("SectionTabBar")
         self._section_tab_bar.setExpanding(False)
         self._section_tab_bar.setDrawBase(False)
         self._section_tab_bar.currentChanged.connect(self._on_section_tab_changed)
-        layout.addWidget(self._section_tab_bar)
+
+        header_row = QWidget()
+        self._section_header_row = header_row
+        header_row.setObjectName("SectionHeaderRow")
+        header_h = QHBoxLayout(header_row)
+        header_h.setContentsMargins(0, 0, 8, 0)
+        header_h.setSpacing(0)
+        header_h.addWidget(self._section_tab_bar, 1)
+
+        self._help_btn = QPushButton("?")
+        self._help_btn.setObjectName("SectionHelpBtn")
+        self._help_btn.setFixedSize(26, 26)
+        self._help_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._help_btn.setToolTip(tr("help_btn_tooltip"))
+        self._help_btn.setStyleSheet(
+            "QPushButton#SectionHelpBtn {"
+            "  border: 1px solid #3B82F6;"
+            "  border-radius: 13px;"
+            "  color: #3B82F6;"
+            "  font-weight: bold;"
+            "  background: transparent;"
+            "}"
+            "QPushButton#SectionHelpBtn:hover {"
+            "  background: rgba(59,130,246,0.12);"
+            "}"
+        )
+        self._help_btn.clicked.connect(self._on_help_btn_clicked)
+        header_h.addWidget(self._help_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        layout.addWidget(header_row)
 
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
@@ -1810,7 +1985,9 @@ class MainWindow(QMainWindow):
         self._palette_section = PaletteSection(self.settings)
         self._bg_eraser_section = BgEraserSection(self.settings)
         self._vocal_isolator_section = VocalIsolatorSection(self.settings)
+        self._upscaler_section = UpscalerSection(self.settings)
         self._pdf_toolkit_section = PdfToolkitSection(self.settings)
+        self._jumpcut_section = JumpcutSection(self.settings)
         self._history_section = HistorySection()
         self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
@@ -1834,11 +2011,13 @@ class MainWindow(QMainWindow):
             self._palette_section,          # index 13 — hex palette
             self._bg_eraser_section,        # index 14 — bg eraser
             self._vocal_isolator_section,   # index 15 — vocal isolator
-            self._pdf_toolkit_section,      # index 16 — pdf toolkit
-            self._history_section,          # index 17 — history
-            self._settings_section_widget,  # index 18 — settings
-            self._tutorial_section,         # index 19 — how to use
-            self._bug_reporter_section,     # index 20 — bug reporter
+            self._upscaler_section,         # index 16 — ai upscaler
+            self._pdf_toolkit_section,      # index 17 — pdf toolkit
+            self._jumpcut_section,          # index 18 — jump-cutter
+            self._history_section,          # index 19 — history
+            self._settings_section_widget,  # index 20 — settings
+            self._tutorial_section,         # index 21 — how to use
+            self._bug_reporter_section,     # index 22 — bug reporter
         ]
 
         # Connect status signals from all operation sections.
@@ -1860,7 +2039,9 @@ class MainWindow(QMainWindow):
             self._palette_section,        # index 13
             self._bg_eraser_section,      # index 14
             self._vocal_isolator_section, # index 15
-            self._pdf_toolkit_section,    # index 16
+            self._upscaler_section,       # index 16
+            self._pdf_toolkit_section,    # index 17
+            self._jumpcut_section,        # index 18
         )
         for section in _op_sections:
             section.status_message.connect(self._on_status_message)
@@ -1880,14 +2061,15 @@ class MainWindow(QMainWindow):
         for widget in self._section_widgets:
             self._content_stack.addWidget(widget)
 
-        # Home and Tools pages (indices 21 and 22 in the stack)
+        # Home and Tools pages — appended after section widgets; use
+        # _content_stack.indexOf() to navigate, never hardcoded indices.
         self._home_page = HomePage(
             navigate_cb=self._navigate_from_card,
             show_tools_cb=self._go_tools,
         )
         self._tools_page = ToolsPage(navigate_cb=self._navigate_from_card)
-        self._content_stack.addWidget(self._home_page)   # index 21
-        self._content_stack.addWidget(self._tools_page)  # index 22
+        self._content_stack.addWidget(self._home_page)
+        self._content_stack.addWidget(self._tools_page)
 
         # Separator above primary action button
         sep2 = QFrame()
@@ -1921,16 +2103,16 @@ class MainWindow(QMainWindow):
         self._current_section = index
 
         # Refresh history whenever the history section is activated
-        if index == 15:
+        if index == _section_index("history"):
             self._history_section.refresh()
 
-        # Update sidebar: settings (16), help (17), bug reporter (18) highlight their buttons;
+        # Update sidebar: settings/help/bug reporter highlight their buttons;
         # all other tool sections show no sidebar button active.
-        if index == 16:
+        if index == _section_index("settings"):
             self._set_sidebar_active(self._settings_nav_btn)
-        elif index == 17:
+        elif index == _section_index("tutorial"):
             self._set_sidebar_active(self._help_nav_btn)
-        elif index == 18:
+        elif index == _section_index("bug_reporter"):
             self._set_sidebar_active(self._bug_reporter_nav_btn)
         else:
             self._set_sidebar_active(None)
@@ -1938,8 +2120,8 @@ class MainWindow(QMainWindow):
         # Switch content
         self._content_stack.setCurrentIndex(index)
 
-        # Show tab bar for tool sections
-        self._section_tab_bar.setVisible(True)
+        # Show header (tab bar + help) for tool sections
+        self._section_header_row.setVisible(True)
 
         # Rebuild the section tab bar for this section
         sec = _section(index)
@@ -1950,6 +2132,11 @@ class MainWindow(QMainWindow):
             self._section_tab_bar.addTab(tab_label)
         self._section_tab_bar.blockSignals(False)
 
+        # Help button: visible only when an entry exists, and not for the tutorial section itself
+        section_id = sec["id"]
+        has_help = section_id != "tutorial" and get_tutorial_entry(section_id) is not None
+        self._help_btn.setVisible(has_help)
+
         # Show/hide primary action button
         action_label = sec.get("action_label")
         if action_label:
@@ -1959,18 +2146,25 @@ class MainWindow(QMainWindow):
         else:
             self._action_btn_container.setVisible(False)
 
+    def _on_help_btn_clicked(self) -> None:
+        """Open the inline help dialog for the current section."""
+        if self._current_section >= len(_SECTIONS_META):
+            return
+        section_id = _SECTIONS_META[self._current_section]["id"]
+        open_help_for_section(section_id, parent=self)
+
     def _go_home(self) -> None:
         """Switch to the Home Dashboard page."""
         self._set_sidebar_active(self._home_nav_btn)
-        self._content_stack.setCurrentIndex(21)
-        self._section_tab_bar.setVisible(False)
+        self._content_stack.setCurrentIndex(self._content_stack.indexOf(self._home_page))
+        self._section_header_row.setVisible(False)
         self._action_btn_container.setVisible(False)
 
     def _go_tools(self) -> None:
         """Switch to the Tools Grid page."""
         self._set_sidebar_active(self._tools_nav_btn)
-        self._content_stack.setCurrentIndex(22)
-        self._section_tab_bar.setVisible(False)
+        self._content_stack.setCurrentIndex(self._content_stack.indexOf(self._tools_page))
+        self._section_header_row.setVisible(False)
         self._action_btn_container.setVisible(False)
 
     def _navigate_from_card(self, section_index: int) -> None:
@@ -2161,6 +2355,74 @@ class MainWindow(QMainWindow):
             self._navigate_to(0)
             self._download_section.paste_url(text)
 
+    def _on_extension_url(self, chosen: str, page: str, src: str, title: str) -> None:
+        """Handle a URL pushed from the browser extension.
+
+        Brings the window to front, navigates to the Downloader tab, populates
+        the URL field. Tries page URL first (covers all yt-dlp extractors);
+        a real direct media `src` is kept as fallback in the status hint.
+        """
+        was_hidden = not self.isVisible()
+        if was_hidden:
+            self.show()
+            self._tray.hide()
+        self.setWindowState(
+            (self.windowState() & ~Qt.WindowState.WindowMinimized) | Qt.WindowState.WindowActive
+        )
+        self._navigate_to(_section_index("download"))
+        self._download_section.paste_url(chosen)
+        if src and src != chosen:
+            self.update_status(tr("ext_url_received_with_src"))
+        else:
+            self.update_status(tr("ext_url_received"))
+        self._force_foreground()
+
+    def _force_foreground(self) -> None:
+        """Force the window to the foreground.
+
+        Windows blocks SetForegroundWindow from background processes
+        (foreground-lock). Workaround: briefly toggle WindowStaysOnTopHint
+        which the OS treats as legitimate. Falls back to plain raise on
+        non-Windows platforms.
+        """
+        import sys as _sys
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        if _sys.platform != "win32":
+            return
+        # Toggle topmost: forces Z-order to top regardless of foreground lock.
+        try:
+            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+            self.show()
+            self.raise_()
+            self.activateWindow()
+        finally:
+            QTimer.singleShot(150, lambda: (
+                self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, False),
+                self.show(),
+                self.raise_(),
+                self.activateWindow(),
+            ))
+        # Belt-and-braces: also use Win32 to flash + bring to top.
+        try:
+            import ctypes
+            from ctypes import wintypes
+            hwnd = int(self.winId())
+            user32 = ctypes.windll.user32
+            HWND_TOPMOST = -1
+            HWND_NOTOPMOST = -2
+            SWP_NOMOVE = 0x0002
+            SWP_NOSIZE = 0x0001
+            SWP_SHOWWINDOW = 0x0040
+            user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+            user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
+                                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW)
+            user32.SetForegroundWindow(hwnd)
+        except Exception:
+            pass
+
     # ── T018 / T020: Tray helpers ─────────────────────────────────────────────
 
     def _restore_from_tray(self) -> None:
@@ -2254,6 +2516,10 @@ class MainWindow(QMainWindow):
         """
         SettingsManager.save(self.settings)
         if self.settings.quit_on_close:
+            try:
+                self._extension_bridge.stop()
+            except Exception:
+                pass
             self._tray.hide()
             event.accept()
             # setQuitOnLastWindowClosed is False (tray support), so we must

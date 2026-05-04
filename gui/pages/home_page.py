@@ -38,7 +38,9 @@ _TOOL_COLOR: dict[str, str] = {
     "palette":       "#F43F5E",  # rose-500
     "bg_eraser":        "#10B981",  # emerald-500
     "vocal_isolator":   "#A855F7",  # purple-500
+    "upscaler":         "#0EA5E9",  # sky-500
     "pdf_toolkit":      "#EF4444",  # red-500
+    "jumpcut":          "#F59E0B",  # amber-500
     "history":          "#6B7280",  # gray
 }
 
@@ -60,8 +62,10 @@ _ALL_TOOLS_META: list[tuple[str, str, str, str, int]] = [
     ("palette",      "palette.svg",    "tool_palette_name",      "tool_palette_desc",     13),
     ("bg_eraser",       "bg_eraser.svg",       "tool_bg_eraser_name",       "tool_bg_eraser_desc",      14),
     ("vocal_isolator",  "vocal_isolator.svg",  "tool_vocal_isolator_name",  "tool_vocal_isolator_desc", 15),
-    ("pdf_toolkit",     "document.svg",        "tool_pdf_toolkit_name",     "tool_pdf_toolkit_desc",    16),
-    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        17),
+    ("upscaler",        "upscaler.svg",        "tool_upscaler_name",        "tool_upscaler_desc",       16),
+    ("pdf_toolkit",     "document.svg",        "tool_pdf_toolkit_name",     "tool_pdf_toolkit_desc",    17),
+    ("jumpcut",         "jumpcut.svg",         "tool_jumpcut_name",         "tool_jumpcut_desc",        18),
+    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        19),
 ]
 
 _QUICK_TOOLS_META: list[tuple[str, str, str, str, int]] = [

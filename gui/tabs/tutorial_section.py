@@ -6,7 +6,7 @@ from core.i18n import I18n, tr
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QScrollArea, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QFrame,
+    QLabel, QFrame, QDialog, QPushButton,
 )
 
 _TUTORIAL_DATA_EN = [
@@ -14,124 +14,73 @@ _TUTORIAL_DATA_EN = [
         "emoji": "⬇",
         "title": "Media Download",
         "description": (
-            "Download video, audio, or selected playlist items from YouTube, TikTok, Instagram, "
-            "Facebook, Twitter, LinkedIn, Spotify, and generic URLs. "
-            "Choose output format, quality, and — for playlists — exactly which videos to grab."
+            "Download videos, audio, or playlist items from YouTube, TikTok, Instagram, "
+            "Facebook, Twitter, LinkedIn, Spotify, and more."
         ),
         "steps": [
-            "Paste a URL into the SOURCE URL field — or press Ctrl+V anywhere on the window "
-            "(when no text box is focused) to auto-paste and jump to this section.",
-            "Single video: optionally click Check Formats to pick a resolution. "
-            "Select Video or Audio only.",
-            "Video: under 'Audio format in video' choose Original (keep source audio), AAC, MP3, "
-            "or OPUS — the audio track is re-muxed into that codec after download. "
-            "Audio only: pick the output format (MP3, FLAC, OGG, OPUS, M4A).",
-            "YouTube playlist: a PLAYLIST card appears — click Load Playlist to fetch the full "
-            "video list (title + duration) in seconds using fast metadata-only lookup.",
-            "Check the videos you want (all are pre-checked). Use Select All / Deselect All "
-            "to adjust quickly.",
-            "Optionally click Check Formats to load resolutions from the first video — "
-            "the selected height is applied consistently to every checked item.",
-            "Click Download Selected — one queue job is created per checked video.",
-            "Each job shows its own progress bar, speed, ETA, and a cancel (✕) button. "
-            "Jobs run one at a time automatically.",
-            "Completed files are saved to the folder set in the OUTPUT FOLDER card.",
-            "PRESETS — use the Preset bar at the top to save your current type, format, quality, "
-            "and output folder as a named preset. Load it next time in one click.",
+            "Paste a URL into the source field. Ctrl+V works anywhere on the window.",
+            "Pick Video or Audio.",
+            "Choose format and quality.",
+            "For a playlist: click Load Playlist, then check the videos you want.",
+            "Click Download. Files save to the output folder.",
         ],
         "tips": [
-            "Spotify links are matched to YouTube automatically — no API keys needed.",
-            "Instagram and TikTok require a cookies file. Go to Settings → Cookies, "
-            "install 'Get cookies.txt LOCALLY' in your browser, export from the site while "
-            "logged in, then select the file in settings.",
-            "Playlist quality is matched by resolution (e.g. ≤1080p), not by format ID — "
-            "so it works correctly even when individual videos have different format tables.",
-            "The queue badge in the title bar shows the active download count.",
-            "You can queue more downloads while previous ones are still running.",
+            "Spotify links auto-match to YouTube — no API key needed.",
+            "Instagram and TikTok need a cookies file. Set it up in Settings → Cookies.",
+            "Save your settings as a Preset to reuse them in one click.",
         ],
     },
     {
         "emoji": "⇄",
         "title": "Convert Media",
         "description": (
-            "Convert images between JPG, PNG, WEBP, BMP, GIF, and HEIC. "
-            "Also convert video and audio files between codecs via FFmpeg. "
-            "Process a single file or an entire batch at once."
+            "Convert images, videos, and audio between formats. One file or a whole batch."
         ),
         "steps": [
-            "Switch between CONVERT and BATCH CONVERT sub-tabs at the top.",
-            "Single: click Browse, choose output format, click Convert.",
-            "Batch: add multiple files, set target format, click Convert.",
-            "Output lands in the same folder as the source by default.",
-            "PRESETS — the Preset bar at the top of each tab lets you save your chosen format "
-            "and output folder as a named profile. Select a preset and click Load to restore it.",
-            "OUTPUT NAMING — the filename of converted files follows the template set in "
-            "Settings → Output Naming Template. Default: {name}_converted. "
-            "You can use {name}, {ext}, {date}, or {datetime} as placeholders.",
+            "Open the Convert or Batch Convert tab.",
+            "Click Browse and pick your file(s).",
+            "Choose the target format.",
+            "Click Convert.",
         ],
         "tips": [
-            "Drag and drop files onto the window to auto-load them into the right tab.",
-            "Batch Convert is faster than converting files one by one.",
-            "Change the naming template in Settings to skip the '_converted' suffix "
-            "or add a datestamp — e.g. {name}_{date}.{ext}.",
+            "Drag files onto the window to load them instantly.",
+            "Batch Convert is faster than converting files one at a time.",
+            "Customize output filenames in Settings → Output Naming.",
         ],
     },
     {
         "emoji": "✂",
         "title": "Trim Media",
         "description": (
-            "Cut, delete segments from, or insert a clip into video and audio files. "
-            "Three sub-tabs handle different editing operations: Trim, Ripple Delete, and Insert Clip. "
-            "A built-in preview player with fullscreen mode helps you find exact timestamps before processing."
+            "Cut, delete, or insert segments in videos and audio."
         ),
         "steps": [
-            "Click Browse to load a video or audio file into the SOURCE FILE card. "
-            "The preview player loads it automatically.",
-            "Use the scrubber and ▶ / ⏸ button to navigate the video. "
-            "Click ⛶ to open a fullscreen preview — scrub to any point and use the "
-            "Set Start / Set End / Set Insert Point buttons to write timestamps directly into the inputs.",
-            "TRIM TAB — keep a segment: set Start Time and End Time (HH:MM:SS), "
-            "then click the action button. Output: <filename>_trimmed.<ext>.",
-            "RIPPLE DELETE TAB — remove one or more segments and join the rest seamlessly. "
-            "Each row has a From and To time. Click + Add Segment to add more rows. "
-            "The coloured timeline bar above the rows shows all delete zones as red bands. "
-            "Use Set start / Set end per row, or scrub in fullscreen and the buttons there "
-            "write to the last row automatically. Output: <filename>_trimmed.<ext>.",
-            "INSERT CLIP TAB — embed a second video inside the source at any point. "
-            "Browse the Clip to insert, enter Insert at (timestamp in the source), "
-            "then click the action button. "
-            "The clip is re-encoded to match the source video's resolution, frame rate, and audio sample rate — "
-            "no compatibility issues regardless of the clip's original format. "
-            "Output: <filename>_inserted.<ext>.",
-            "Optionally set an OUTPUT FOLDER below the sub-tabs; defaults to the source file's directory.",
+            "Click Browse to load a file. The preview loads automatically.",
+            "Use the preview to find timestamps. Click ⛶ for fullscreen.",
+            "Trim — keep one segment between Start and End.",
+            "Ripple Delete — remove segments and join the rest. Add as many as you need.",
+            "Insert Clip — place another video at any point inside the source.",
+            "Click the action button to render.",
         ],
         "tips": [
-            "Ripple Delete uses stream copy (no re-encoding) so it finishes in seconds even on large files. "
-            "Cuts snap to the nearest keyframe — typically within 0.5 s.",
-            "Insert Clip re-encodes only the inserted clip, not the main video. "
-            "A 5-second clip inserted into a 2-hour video takes roughly the same time "
-            "as encoding those 5 seconds, not 2 hours.",
-            "You can add as many delete segments as you want in Ripple Delete — "
-            "they are sorted and processed in a single FFmpeg pass.",
-            "The fullscreen preview is context-aware: in the Trim tab it shows Set Start / Set End; "
-            "in Ripple Delete it writes to the last segment row; "
-            "in Insert Clip it shows Set Insert Point.",
+            "Ripple Delete finishes in seconds — no re-encoding.",
+            "Insert Clip only re-encodes the inserted clip, not the whole video.",
+            "In fullscreen, the Set buttons write straight into the active row.",
         ],
     },
     {
         "emoji": "📄",
         "title": "Document Convert",
         "description": (
-            "Convert between PDF and DOCX, merge images into a PDF, "
-            "or extract PDF pages as images."
+            "Convert between PDF and DOCX, build PDFs from images, or extract PDF pages as images."
         ),
         "steps": [
-            "Select the operation from the dropdown (PDF→DOCX, DOCX→PDF, Images→PDF, PDF→Images).",
-            "Click Browse to select the source file(s).",
-            "Click Convert — output appears in the same directory.",
+            "Pick the operation: PDF→DOCX, DOCX→PDF, Images→PDF, or PDF→Images.",
+            "Click Browse and select your file(s).",
+            "Click Convert.",
         ],
         "tips": [
-            "DOCX → PDF on Linux requires LibreOffice installed.",
+            "DOCX → PDF on Linux needs LibreOffice installed.",
             "Images → PDF accepts JPG, PNG, WEBP, and BMP.",
         ],
     },
@@ -139,297 +88,259 @@ _TUTORIAL_DATA_EN = [
         "emoji": "🎞",
         "title": "GIF Creator",
         "description": (
-            "Convert any segment of a video into a high-quality animated GIF "
-            "using FFmpeg's two-pass palette method for accurate colours."
+            "Turn any video segment into a high-quality animated GIF."
         ),
         "steps": [
-            "Click Browse and select a video file.",
-            "Set Start Time (seconds) to choose where the GIF begins.",
-            "Set Duration (seconds) — how long the GIF plays.",
-            "Adjust Width (px) to scale the output; height is calculated automatically.",
-            "Set FPS — 10–15 is standard for GIFs, 24+ for smoother motion.",
-            "Click Create GIF. Output is saved next to the source video by default.",
+            "Click Browse and pick a video.",
+            "Set Start Time and Duration in seconds.",
+            "Set Width — height auto-calculates.",
+            "Set FPS (10–15 is standard, 24+ for smoother motion).",
+            "Click Create GIF.",
         ],
         "tips": [
-            "Keep duration short (under 10 s) for a reasonable file size.",
-            "Lower FPS and smaller width reduce file size significantly.",
-            "Output file is named <original>_name.gif in the output folder.",
+            "Keep duration under 10 seconds for a manageable file size.",
+            "Lower FPS and smaller width = smaller file.",
         ],
     },
     {
         "emoji": "🗜",
         "title": "Compress Media",
         "description": (
-            "Reduce file size for images and videos. "
-            "Browse any file — the app auto-detects the type and shows the relevant options."
+            "Shrink images and videos. The app detects the file type automatically."
         ),
         "steps": [
-            "Click Browse and select an image (JPG, PNG, WEBP, BMP) or video file.",
-            "Image: set Quality (1–100) and optional Max Dimension to downscale large images.",
-            "Video: set CRF (18–51) — higher value = smaller file, lower quality. "
-            "Also pick an encoding Preset — slower presets produce smaller files.",
-            "Optionally set an output folder, then click Compress.",
-            "The status bar shows the file name and how much smaller the output is.",
+            "Click Browse and pick a file.",
+            "Image — set Quality (1–100). Optional: Max Dimension to downscale.",
+            "Video — set CRF (lower = better quality, larger file). Pick a Preset.",
+            "Click Compress.",
         ],
         "tips": [
-            "Image quality 80–90 is usually indistinguishable from the original.",
-            "Video CRF 28 is a good default; go lower (e.g. 23) to preserve more quality.",
-            "Compressed files are saved with a '_compressed' suffix.",
+            "Image quality 80–90 looks identical to the original.",
+            "Video CRF 28 is a balanced default; use 23 for higher quality.",
         ],
     },
     {
         "emoji": "✂",
         "title": "Transform Media",
         "description": (
-            "Resize, crop, rotate, or flip video and image files. "
-            "All changes preview live before rendering — no guesswork needed. "
-            "Uses FFmpeg so quality loss is minimal."
+            "Resize, crop, rotate, or flip videos and images. Live preview before rendering."
         ),
         "steps": [
-            "Click Browse and select a video or image file. A preview frame loads automatically.",
-            "Choose the operation using the sub-tabs at the top: RESIZE, CROP, or ROTATE / FLIP.",
-            "RESIZE — pick a preset resolution (4K, 1080p, TikTok, etc.) or type a custom "
-            "Width × Height. The preview shows letterboxing in real time. "
-            "Enable Lock AR to keep the aspect ratio locked while you edit.",
-            "CROP — choose an aspect ratio preset (16:9, 9:16, 1:1…) to auto-fill dimensions, "
-            "or enter Width, Height, X offset, and Y offset manually. "
-            "The preview updates to show the exact cropped region.",
-            "ROTATE / FLIP — click any button (90° CW, 90° CCW, 180°, Flip H, Flip V) "
-            "to add it to the operation chain. Each click compounds — "
-            "clicking 90° CW twice previews 180°. The chain label below the buttons "
-            "shows every step. Click Reset to start over.",
-            "Set an output folder if needed, then click Apply to render.",
+            "Click Browse and pick a video or image.",
+            "Pick a sub-tab: Resize, Crop, or Rotate / Flip.",
+            "Resize — choose a preset (4K, 1080p, TikTok…) or type Width × Height.",
+            "Crop — pick an aspect ratio preset, or type Width, Height, X, Y manually.",
+            "Rotate / Flip — click any button to add to the chain. Reset clears it.",
+            "Click Apply.",
         ],
         "tips": [
-            "Crop coordinates are in the source video's pixel space — "
-            "e.g. X=320, Y=180, W=1280, H=720 centres a 720p crop inside a 1080p frame. "
-            "Crop values that exceed the source dimensions are clamped automatically.",
-            "Rotate/Flip chains are applied in order by FFmpeg — "
-            "the order shown in the chain label is the order of processing.",
-            "Output files are named with a suffix describing the operation "
-            "(_resized, _cropped, _transformed).",
-            "Lock AR in Resize only constrains future manual edits — "
-            "selecting a preset always overrides both fields.",
+            "Crop coordinates are in source pixels. Out-of-range values clamp automatically.",
+            "Lock AR only constrains manual edits — presets override both fields.",
+            "Output suffix shows the operation: _resized, _cropped, _transformed.",
         ],
     },
     {
         "emoji": "♫",
         "title": "Audio Mux",
         "description": (
-            "Three audio operations on video files, all lossless on the video track. "
-            "Switch between sub-tabs at the top: Mute Video, Replace Audio, Add Audio."
+            "Three audio operations on video files. Video stream stays untouched."
         ),
         "steps": [
-            "MUTE VIDEO — strips the audio track completely. "
-            "Browse a video file, optionally set an output folder, click Apply. "
-            "Output is saved as <filename>_muted.<ext>.",
-            "REPLACE AUDIO — swaps the entire audio track with a different audio file. "
-            "Browse the video, then browse the new audio file (MP3, WAV, AAC, FLAC, OGG, M4A, OPUS). "
-            "Output stops at whichever stream ends first — extra audio beyond the video length is discarded. "
-            "Output is saved as <filename>_remuxed.<ext>.",
-            "ADD AUDIO — mixes an audio file on top of the video's existing audio. "
-            "Browse the video, then browse the audio file to mix in. "
-            "Use the volume slider (0–200%) to set the level of the added audio. "
-            "The video's original audio is preserved underneath. "
-            "Output is saved as <filename>_mixed.<ext>.",
+            "Pick a sub-tab: Mute Video, Replace Audio, or Add Audio.",
+            "Mute Video — strips the audio track entirely.",
+            "Replace Audio — swaps the audio with a new file (MP3, WAV, AAC, FLAC, OGG, M4A, OPUS).",
+            "Add Audio — mixes a new track on top of the original. Slider sets volume (0–200%).",
+            "Click Apply.",
         ],
         "tips": [
-            "The video stream is always copied without re-encoding — fast and lossless.",
-            "Replace Audio and Add Audio encode the final audio track to AAC 192 kbps.",
-            "If your added audio is longer than the video, the excess is silently discarded.",
+            "Video stream is copied losslessly — fast.",
+            "Final audio encodes to AAC 192 kbps.",
+            "Audio longer than the video is trimmed to match.",
         ],
     },
     {
         "emoji": "⊞",
         "title": "Merge Videos",
         "description": (
-            "Join multiple video files into one in the order you specify. "
-            "Works with any combination of formats, resolutions, and frame rates."
+            "Join multiple videos into one in the order you set."
         ),
         "steps": [
-            "Click Add Files… and select two or more video files.",
-            "Drag rows in the list or use the ▲ / ▼ buttons to set the playback order.",
-            "Enter an output filename (defaults to merged.mp4) and optionally an output folder.",
-            "Click Merge. The combined file appears in the output folder.",
+            "Click Add Files… and pick two or more videos.",
+            "Reorder rows by drag or the ▲ / ▼ buttons.",
+            "Set the output filename (defaults to merged.mp4).",
+            "Click Merge.",
         ],
         "tips": [
-            "If all videos share the same codec and resolution, merging is near-instant with no quality loss.",
-            "If videos differ in resolution or codec, the app re-encodes automatically to match the first video's properties.",
-            "Output file size will be close to the sum of the input file sizes.",
+            "Same codec + resolution = near-instant merge with no quality loss.",
+            "Mismatched videos auto-re-encode to match the first file.",
         ],
     },
     {
         "emoji": "🔏",
         "title": "Watermark",
         "description": (
-            "Stamp a logo image or text onto any video or image file. "
-            "Batch mode lets you process an entire folder at once. "
-            "Videos are re-encoded at near-lossless quality; images are processed instantly."
+            "Stamp a logo or text onto videos and images. Single file or whole folder."
         ),
         "steps": [
-            "Click Add Files… or Add Folder… to queue videos and/or images.",
-            "Choose watermark type: Logo / image overlay or Text watermark.",
-            "Logo mode — browse to a PNG (transparency recommended), then set Position, "
-            "Scale (% of frame width), and Opacity.",
-            "Text mode — type your watermark text, then set Position, Font Size, "
-            "Font Color, and Opacity.",
-            "Under VIDEO ENCODE SETTINGS set Quality (CRF — lower = better), "
-            "Preset speed, and Hardware Acceleration. "
-            "GPU options (NVIDIA / AMD / Intel) encode 5–10× faster than CPU.",
-            "Optionally set an Output Folder — leave blank to save next to each source file.",
+            "Click Add Files… or Add Folder… to queue items.",
+            "Pick watermark type: Logo or Text.",
+            "Logo — browse a PNG. Set Position, Scale, and Opacity.",
+            "Text — type your text. Set Position, Font Size, Color, and Opacity.",
+            "For video output: set Quality (CRF), Preset, and Hardware Acceleration.",
             "Click Apply Watermark (or Ctrl+Enter).",
-            "Output files are saved as <original_name>_watermarked.<ext>.",
         ],
         "tips": [
-            "PNG logos with transparent backgrounds give the cleanest result.",
-            "Encode settings only apply to videos — images are processed without re-encoding.",
-            "Lower CRF (e.g. 18) = near-lossless quality. Higher CRF (e.g. 28) = smaller file.",
+            "PNG logos with transparent background give the cleanest result.",
+            "GPU acceleration (NVIDIA / AMD / Intel) is 5–10× faster than CPU.",
+            "Encode settings only apply to video — images stamp without re-encoding.",
         ],
     },
     {
         "emoji": "📸",
         "title": "Frame Grabber",
         "description": (
-            "Export one video frame as a high-resolution PNG or 16-bit TIFF. "
-            "A built-in preview lets you scrub to the exact moment before extracting."
+            "Export one video frame as a high-resolution PNG or 16-bit TIFF."
         ),
         "steps": [
-            "Click Browse and select a supported video file.",
-            "When Qt Multimedia is available, a preview player loads — scrub the timeline "
-            "and click Use this frame to copy the current time into the timestamp field. "
-            "You can also type the time directly as HH:MM:SS or HH:MM:SS.mmm.",
-            "If multimedia is unavailable, a notice is shown — you can still extract by entering the timestamp manually.",
-            "Under output format, choose PNG (standard) or 16-bit TIFF for maximum tonal precision when available.",
-            "Optionally set an output folder; leave blank to save next to the video.",
-            "Click Grab Frame in the title bar or press Ctrl+Enter. The still is written to disk and summarized in the status area.",
+            "Click Browse and pick a video.",
+            "Scrub the preview to the moment you want, then click Use this frame.",
+            "Or type the timestamp directly (HH:MM:SS or HH:MM:SS.mmm).",
+            "Pick output format: PNG or 16-bit TIFF.",
+            "Click Grab Frame (or Ctrl+Enter).",
         ],
         "tips": [
-            "TIFF mode suits workflows that need higher bit depth than 8-bit PNG.",
-            "Extraction uses FFmpeg — frame-accurate timing depends on the container and codec.",
+            "Use TIFF when you need higher bit depth than PNG.",
+            "Frame timing accuracy depends on the source codec.",
         ],
     },
     {
         "emoji": "🎨",
         "title": "Hex Palette",
         "description": (
-            "Two tools under one section: Extract Palette builds a ranked colour palette "
-            "from any image or video (optionally from a single frame), and Color Wheel is an interactive picker."
+            "Extract a colour palette from any image or video, or pick colours from a wheel."
         ),
         "steps": [
-            "Switch the section sub-tabs: Extract Palette and Color Wheel.",
-            "Extract Palette — browse an image or video. A thumbnail preview appears for images; "
-            "for videos, a player opens — scrub, then Use this frame (analysis uses only that frame) "
-            "or Whole video to sample across the entire file.",
-            "Set how many colours to extract (2–128), then click Extract in the title bar or press Ctrl+Enter.",
-            "Swatches appear with hex codes — click any swatch to copy that hex to the clipboard. "
-            "Copy all puts every code on the clipboard at once.",
-            "Color Wheel — drag on the wheel or type a #RRGGBB value; use Copy hex, or press Ctrl+Enter to copy the current hex.",
+            "Switch sub-tabs: Extract Palette or Color Wheel.",
+            "Extract Palette — browse an image or video.",
+            "For video: scrub and pick Use this frame, or sample the Whole video.",
+            "Set how many colours (2–128), then click Extract.",
+            "Click any swatch to copy its hex. Copy all = whole palette to clipboard.",
+            "Color Wheel — drag on the wheel or type a #RRGGBB code, then Copy hex.",
         ],
         "tips": [
-            "Analysis uses FFmpeg palette generation — best for dominant colours in the frame or clip.",
-            "Hex codes require Pillow; if swatches are empty, install Pillow (see the on-screen note).",
+            "Analysis uses FFmpeg — best for dominant colours.",
+            "If swatches stay empty, install Pillow (see the on-screen note).",
         ],
     },
     {
         "emoji": "🎤",
         "title": "Vocal Isolator",
         "description": (
-            "Separate any song or video into two stems — Vocals and Accompaniment (background music) — "
-            "using Meta's HTDemucs v4 AI model. Fully offline after the first model download. "
-            "Automatically routes to GPU (NVIDIA/CUDA) for fast processing, or falls back to CPU."
+            "Split any song or video into Vocals + Accompaniment using AI. Offline after first install."
         ),
         "steps": [
-            "Click Browse and select an audio or video file "
-            "(MP3, WAV, FLAC, AAC, M4A, OGG, MP4, MKV, AVI, MOV, WEBM).",
-            "Optionally set an Output Folder — defaults to the same directory as the source file.",
-            "Check the Processing Device badge: GPU (CUDA) runs in seconds, CPU may take 2–5 minutes.",
-            "Click Isolate Vocals (or press Ctrl+Enter). "
-            "A real-time progress bar shows the AI separation percentage.",
-            "When done, the result card shows the paths to vocals.wav and no_vocals.wav. "
-            "Click Open in Explorer to jump to the output folder.",
+            "First time: click Install Model in the banner. Confirm the size and target folder.",
+            "Wait for install — pip output streams in the log. Feature unlocks when done.",
+            "Click Browse and pick an audio or video file.",
+            "Check the Processing Device badge: GPU runs in seconds, CPU takes minutes.",
+            "Click Isolate Vocals (or Ctrl+Enter).",
+            "Result card shows vocals.wav and no_vocals.wav.",
         ],
         "tips": [
-            "The first run downloads the HTDemucs model (~300 MB) automatically — later runs are instant.",
-            "Install demucs before using this tab: pip install demucs",
-            "Install PyTorch with CUDA support for GPU acceleration: visit pytorch.org for the right command.",
-            "You can minimize Videl and use other tools while the AI processes in the background.",
-            "Output stems are always 44.1 kHz WAV files regardless of input format.",
+            "First run downloads the AI model (~300 MB). Later runs are offline.",
+            "Outputs are always 44.1 kHz WAV regardless of input format.",
+            "On NVIDIA GPUs, the CUDA build is selected automatically.",
+            "Supported NVIDIA GPUs (CUDA build): RTX 20/30/40/50 series, V100, A100, H100, and any card with compute capability 7.0 or higher (Volta, Turing, Ampere, Ada, Hopper, Blackwell).",
+            "Unsupported NVIDIA GPUs (will use CPU): Maxwell GTX 750 / 9xx series and Pascal GTX 10xx series. The CUDA option is disabled for these cards because the bundled CUDA 12.8 build does not include kernels for them.",
+            "Non-NVIDIA GPUs (AMD, Intel) always use CPU — CUDA is NVIDIA-only.",
         ],
     },
     {
         "emoji": "✨",
         "title": "BG Eraser",
         "description": (
-            "Remove the background from one photo using the rembg model — fully offline once model weights are available."
+            "Remove the background from a photo using AI. Offline after first install."
         ),
         "steps": [
-            "Click Browse and select an image (common raster formats are supported).",
-            "A small input preview loads automatically. "
-            "Optionally set a full output path, or leave it empty — the app suggests <name>_nobg.png beside the source.",
-            "Click Remove Background in the title bar or press Ctrl+Enter. Progress appears on the bar below.",
-            "When finished, the result preview shows the cut-out on a checkerboard; "
-            "Open in Explorer jumps to the saved PNG with transparency.",
+            "First time: click Install Model in the banner. Confirm size and target folder.",
+            "Wait for install. Feature unlocks when done.",
+            "Click Browse and pick an image.",
+            "Set an output path, or leave blank for <name>_nobg.png next to the source.",
+            "Click Remove Background (or Ctrl+Enter).",
         ],
         "tips": [
-            "The first run may download the AI model; later runs do not need the internet.",
-            "Works best on subjects with clear edges; complex hair or motion blur may need extra cleanup elsewhere.",
+            "First run may download the model. Later runs are offline.",
+            "Works best on subjects with clear edges.",
+            "Output is always PNG with transparency.",
+        ],
+    },
+    {
+        "emoji": "🔍",
+        "title": "AI Upscaler",
+        "description": (
+            "Upscale photos 2× or 4× with Real-ESRGAN. Rebuilds edge structure and micro-contrast — far cleaner than bicubic."
+        ),
+        "steps": [
+            "First time: click Install Model in the banner. Pick CPU (~400 MB) or CUDA (~3.7 GB).",
+            "Wait for install. Feature unlocks when done.",
+            "Click Browse and pick an image.",
+            "Pick scale (2× or 4×) and tile size.",
+            "Set output path or leave blank for <name>_upscaled_x4.<ext> next to the source.",
+            "Click Upscale Image (or Ctrl+Enter).",
+        ],
+        "tips": [
+            "First run downloads the x4plus weights (~64 MB). Later runs are offline.",
+            "Tile size controls VRAM use: 256 for 4–8 GB GPUs, 512 for 12 GB+. Smaller = slower but safer.",
+            "Use Off only for small images — large images at Off will crash on most GPUs.",
+            "On CPU, expect minutes per image. Use GPU for production work.",
+            "x2 mode internally runs the x4 model and downscales — quality is the same as x4 then resized.",
         ],
     },
     {
         "emoji": "🧹",
         "title": "Metadata Scrubber",
         "description": (
-            "Strip all metadata from video and audio files — GPS coordinates, camera model, "
-            "recording timestamps, EXIF tags, and chapter markers. "
-            "Uses stream copy (no re-encode) so it finishes in seconds."
+            "Strip GPS, camera info, timestamps, and other metadata from videos and audio."
         ),
         "steps": [
-            "Click Add Files… or Add Folder…, or drag and drop files onto the list.",
-            "Optionally set an Output Folder — defaults to each file's original directory.",
+            "Add files via the button or drag-and-drop.",
             "Click Scrub Metadata (or Ctrl+Enter).",
-            "Output files are saved as <original_name>_clean.<ext>.",
+            "Output saves as <name>_clean.<ext>.",
         ],
         "tips": [
             "No quality loss — files are remuxed without re-encoding.",
-            "Supported formats: MP4, MKV, AVI, MOV, WEBM, FLV, MP3, WAV, AAC, FLAC, OGG, M4A.",
-            "Useful before sharing files publicly to remove location and device metadata.",
+            "Useful before sharing files publicly.",
+            "Supports MP4, MKV, AVI, MOV, WEBM, FLV, MP3, WAV, AAC, FLAC, OGG, M4A.",
         ],
     },
     {
         "emoji": "✂",
         "title": "Auto-Chunker",
         "description": (
-            "Split a video or audio file into equal parts by duration or target file size. "
-            "Stream copy — no re-encode, no quality loss, near-instant splitting."
+            "Split a video or audio into equal parts by duration or target file size."
         ),
         "steps": [
-            "Click Browse and select a video or audio file.",
-            "Choose split mode:",
-            "By Duration — enter the segment length (minutes). "
-            "Every chunk will be exactly that long except the final segment.",
-            "By Size — enter the max MB per chunk (e.g. 25 for WhatsApp). "
-            "Duration per chunk is calculated automatically from the file's bitrate.",
-            "Optionally set an Output Folder.",
+            "Click Browse and pick a file.",
+            "Pick split mode: By Duration (minutes) or By Size (MB).",
+            "Enter the value.",
             "Click Split (or Ctrl+Enter).",
-            "Output parts are named <name>_part000.<ext>, <name>_part001.<ext>, …",
+            "Parts are named <name>_part000.<ext>, _part001, …",
         ],
         "tips": [
-            "Stream copy means large files split in seconds with no quality loss.",
-            "Size-based splitting is an estimate — actual chunk sizes may vary slightly "
-            "because cuts snap to the nearest keyframe.",
-            "Handy for upload limits: Discord (25 MB), WhatsApp (16 MB free / 2 GB Business), email.",
+            "Stream copy — large files split in seconds with no quality loss.",
+            "Size-based splits are approximate — cuts snap to keyframes.",
+            "Handy for upload limits (Discord 25 MB, WhatsApp 16 MB).",
         ],
     },
     {
         "emoji": "🕒",
         "title": "History",
         "description": (
-            "Browse a log of all past operations — downloads, conversions, trims, and "
-            "document conversions — with status, file name, and timestamp."
+            "See all past operations with status, file, and time."
         ),
         "steps": [
-            "Click History in the sidebar to open the log.",
-            "Rows are sorted newest first. Status shows Done, Failed, or Cancelled.",
+            "Click History in the sidebar.",
+            "Rows are sorted newest first.",
             "Click a row to see the full file path in the status bar.",
         ],
         "tips": [
@@ -439,127 +350,136 @@ _TUTORIAL_DATA_EN = [
     {
         "emoji": "⚙",
         "title": "Settings",
-        "description": "Configure appearance, output folder, default codec, hardware acceleration, naming templates, and more.",
+        "description": "Theme, output folder, naming, encoding, and more.",
         "steps": [
-            "Theme — choose Auto (follows system), Light, or Dark.",
-            "Output Folder — where downloaded and converted files are saved by default.",
-            "Default Codec — used when no codec is selected during conversion.",
-            "Quit on Close — when off, closing hides the window to the system tray.",
-            "Intercept Timeout — how long the browser intercept waits before giving up (10–300 s).",
-            "Output Naming Template — controls how converted files are named. "
-            "Use {name} (source stem), {ext} (target format), {date} (YYYYMMDD), or "
-            "{datetime} (YYYYMMDD_HHMMSS). Example: {name}_{date} → myvideo_20260101.mp4. "
-            "A live preview updates as you type.",
-            "Hardware Acceleration — found in Settings → File Paths & Encoding. "
-            "Selects the GPU decoder/encoder FFmpeg uses: None (CPU only, safest), "
-            "NVENC/NVDEC (NVIDIA), QSV (Intel), VideoToolbox (macOS), AMF (AMD). "
-            "Enable this if you have a supported GPU to speed up video conversions significantly. "
-            "If a conversion fails after enabling, switch back to None.",
+            "Theme — Auto, Light, or Dark.",
+            "Output Folder — default save location for downloads and conversions.",
+            "Default Codec — used when no codec is picked during conversion.",
+            "Quit on Close — off = window hides to the system tray on close.",
+            "Output Naming — pattern for converted files. Use {name}, {ext}, {date}, {datetime}.",
+            "Hardware Acceleration — GPU encoder for video. Pick None if encoding fails.",
         ],
         "tips": [
-            "Right-click the system tray icon to restore or quit from the taskbar.",
-            "Use the ⋯ menu in the title bar to switch themes without opening Settings.",
-            "Hardware acceleration only helps for video — image and audio conversions run on CPU regardless.",
+            "Right-click the tray icon to restore or quit from the taskbar.",
+            "The ⋯ menu in the title bar switches themes without opening Settings.",
+            "Hardware acceleration only helps video — images and audio always run on CPU.",
         ],
     },
     {
         "emoji": "★",
         "title": "Tips & Power Features",
-        "description": "Keyboard shortcuts, presets, naming templates, and other time-savers.",
+        "description": "Shortcuts, presets, and other time-savers.",
         "steps": [
-            "Drag and drop media files onto the window — routed to the right tab automatically.",
-            "Notification bell (top-right) tracks completed and failed operations.",
-            "Download queue icon shows active downloads — click for a live list.",
-            "Double-click the title bar to maximize or restore the window.",
-            "Resize grip is in the bottom-right corner of the status bar.",
-            "Right-click the status bar to copy a long error message to the clipboard.",
-            "PRESETS — the Download and Convert tabs each have a Preset bar. "
-            "Configure your settings once, click Save…, give it a name, and reload it instantly next time.",
-            "NAMING TEMPLATES — set a custom output filename pattern in Settings → "
-            "Output Naming Template. Supports {name}, {ext}, {date}, {datetime}.",
+            "Drag files onto the window — routed to the right tab automatically.",
+            "Notification bell tracks completed and failed operations.",
+            "Download queue icon shows active downloads.",
+            "Double-click the title bar to maximize.",
+            "Right-click the status bar to copy a long error message.",
+            "Save Presets in Download / Convert tabs to reuse settings in one click.",
+            "Customize output filenames in Settings → Output Naming.",
         ],
         "tips": [],
     },
     {
         "emoji": "⌨",
         "title": "Keyboard Shortcuts",
-        "description": "Keyboard bindings available anywhere in the app.",
+        "description": "Bindings available anywhere in the app.",
         "steps": [
-            "Ctrl + Enter — trigger the primary action for the current section "
-            "(Download, Convert, Trim, Compress, etc.).",
-            "Esc — cancel an in-progress operation (same as clicking the button while it shows 'Cancel').",
-            "Ctrl + V — when no text field is focused, pastes your clipboard URL directly into "
-            "the Download URL bar and jumps to the Download section.",
-            "Ctrl + H — go to the Home dashboard.",
-            "Ctrl + T — go to the Tools page.",
-            "Ctrl + 1 through 9 — jump to a tool section: "
-            "1 = Download, 2 = Convert, 3 = Trim, 4 = Document, 5 = GIF, "
-            "6 = Compress, 7 = Merge, 8 = Transform, 9 = History.",
-            "Ctrl + , — open Settings.",
-            "F1 — open the How to Use guide.",
-            "Ctrl + Q — quit Videl.",
+            "Ctrl + Enter — run the current section's action.",
+            "Esc — cancel an in-progress operation.",
+            "Ctrl + V — paste a URL into Download (when no text field is focused).",
+            "Ctrl + H — Home dashboard.",
+            "Ctrl + T — Tools page.",
+            "Ctrl + 1–9 — jump to a tool: 1 Download, 2 Convert, 3 Trim, 4 Document, 5 GIF, 6 Compress, 7 Merge, 8 Transform, 9 History.",
+            "Ctrl + , — Settings.",
+            "F1 — How to Use guide.",
+            "Ctrl + Q — quit.",
         ],
         "tips": [
-            "The ⌨ icon in the title bar shows this shortcuts reference at a glance.",
-            "Ctrl+V only intercepts when a text input doesn't have focus — "
-            "normal paste in text fields always works as expected.",
-            "All navigation shortcuts work regardless of which section is currently active.",
+            "The ⌨ icon in the title bar shows this list at a glance.",
+            "Ctrl+V only intercepts when no text field has focus.",
+            "Navigation shortcuts work from any section.",
         ],
     },
     {
         "emoji": "📄",
         "title": "PDF Toolkit",
         "description": (
-            "Four PDF superpowers in one place: crush file sizes, stitch documents together, "
-            "slice out individual pages, and pull every image out of a PDF as a JPEG. "
-            "Powered by PyMuPDF — no external tools required."
+            "Compress, merge, split, and extract images from PDFs."
         ),
         "steps": [
-            "Go to PDF Toolkit in the left sidebar (or press Ctrl+Enter while on this section).",
-            "Pick an operation at the top: Compress, Merge, Split, or Extract Images.",
-            "Compress — browse a PDF, choose a quality preset (Screen 72 dpi / Web 150 dpi / Print 300 dpi), "
-            "set an optional output folder, then click Apply. "
-            "Output is saved as <name>_compressed.pdf.",
-            "Merge — add two or more PDFs to the list (drag rows to reorder), "
-            "set the output file path, then click Apply.",
-            "Split — browse a PDF and choose All Pages to export each page as its own file, "
-            "or Custom Range to extract specific pages (e.g. 1-3, 5, 7-9).",
-            "Extract Images — browse a PDF, choose Embedded Images to pull raw image assets, "
-            "or Pages as JPEG to render every page at the chosen DPI. "
-            "All outputs are saved as JPEG files.",
+            "Pick an operation: Compress, Merge, Split, or Extract Images.",
+            "Compress — pick a preset (Screen 72 / Web 150 / Print 300 dpi). Click Apply.",
+            "Merge — add 2+ PDFs. Drag rows to reorder. Set output path. Click Apply.",
+            "Split — All Pages, or Custom Range (e.g. 1-3, 5, 7-9).",
+            "Extract Images — Embedded Images, or Pages as JPEG (set DPI).",
         ],
         "tips": [
-            "Compress works by re-rendering pages at a lower DPI — best for image-heavy PDFs; "
-            "text-only PDFs see smaller gains.",
-            "Merge respects the order of the file list — drag rows before running.",
-            "Custom Range accepts comma-separated pages and ranges: e.g. '1, 3-5, 8'.",
-            "Pages as JPEG at 150 dpi gives a good balance of quality and file size for sharing.",
+            "Compress shines on image-heavy PDFs; text-only see smaller gains.",
+            "Custom Range accepts comma-separated pages and ranges: '1, 3-5, 8'.",
+            "Pages as JPEG at 150 dpi balances quality and size.",
+        ],
+    },
+    {
+        "emoji": "✂️",
+        "title": "Jump-Cutter (Auto-Silence Removal)",
+        "description": (
+            "Detect silent gaps in audio or video and re-encode the file keeping only the loud parts."
+        ),
+        "steps": [
+            "Pick an audio or video file in Jump-Cutter.",
+            "Set Silence sensitivity (-20 dB = strict, -40 dB = aggressive).",
+            "Set Minimum silence duration — gaps shorter than this are kept.",
+            "Optional: Edge padding leaves a margin of silence around each cut so speech does not clip.",
+            "Click Cut Silences. Output is saved as <name>_jumpcut.<ext>.",
+        ],
+        "tips": [
+            "-30 dB and 0.5 s are sane defaults for a podcast or talking-head video.",
+            "Increase padding (e.g. 100 ms) if cuts feel abrupt or chop syllables.",
+            "Re-encodes with H.264 / AAC for video, native codec for audio.",
         ],
     },
     {
         "emoji": "🐞",
         "title": "Bug Reporter",
         "description": (
-            "Found something wrong with Videl? Use the built-in Bug Reporter to send a "
-            "detailed report directly to the developer. No data is sent automatically — "
-            "you control exactly what goes in the report."
+            "Send a detailed bug report to the developer. You control what's included."
         ),
         "steps": [
-            "Click Report a Bug in the left sidebar to open the Bug Reporter page.",
-            "Choose a Bug Type: UI Problem, Feature Problem, Crash / Error, Performance, or Other.",
-            "Enter a short Bug Title that summarises the issue.",
-            "In the Description field, explain what happened, what you expected to happen, "
-            "and how to reproduce the issue.",
-            "Optionally click Choose Image to attach a screenshot that shows the problem.",
-            "Optionally enter your email address so the developer can follow up with you.",
-            "Click Send Report — your default email client opens with everything pre-filled.",
-            "If you selected a screenshot, attach the image file to the email before clicking Send.",
+            "Open Report a Bug from the sidebar.",
+            "Pick a Bug Type.",
+            "Enter a short Title and detailed Description.",
+            "Optional: attach a screenshot.",
+            "Optional: enter your email so the developer can reply.",
+            "Click Send Report — your default email client opens, pre-filled.",
+            "If you picked a screenshot, attach it to the email before sending.",
         ],
         "tips": [
-            "The more detail you provide in the description, the faster the issue can be fixed.",
-            "A screenshot is often the single most helpful piece of information — "
-            "include one whenever possible.",
-            "Your email is optional, but providing it lets the developer ask follow-up questions.",
+            "More detail = faster fix.",
+            "Screenshots are usually the most useful piece of info.",
+            "Email is optional but lets the developer ask follow-up questions.",
+        ],
+    },
+    {
+        "emoji": "🌐",
+        "title": "Browser Extension",
+        "description": (
+            "One-click downloads from any website. The Videl browser extension overlays "
+            "a small button on every video on the web — click it and Videl pops up with "
+            "the URL already filled in."
+        ),
+        "steps": [
+            "Make sure Videl is running.",
+            "Open Settings → Browser extension → 'Open extension folder'. Videl reveals the folder in File Explorer.",
+            "In Chrome/Edge: open chrome://extensions, toggle Developer mode ON, click 'Load unpacked', and select the folder.",
+            "Visit any page with a video. A 'Videl' button appears on the player.",
+            "Click it. Videl jumps to the front with the URL pre-loaded in the Downloader tab.",
+            "Pick quality, hit Download.",
+        ],
+        "tips": [
+            "Videl listens on 127.0.0.1:17654 — local only, never exposed to the network.",
+            "The extension prefers the page URL over the raw <video> source so yt-dlp's site extractors handle YouTube/TikTok/Twitter properly.",
+            "Tiny videos (avatars, ad pixels under 160×90) are skipped on purpose.",
         ],
     },
 ]
@@ -569,97 +489,73 @@ _TUTORIAL_DATA_AR = [
         "emoji": "⬇",
         "title": "تحميل الوسائط",
         "description": (
-            "تحميل الفيديو أو الصوت أو عناصر محددة من قوائم التشغيل من يوتيوب وتيك توك وإنستغرام "
-            "وفيسبوك وتويتر ولينكد إن وسبوتيفاي وروابط عامة. "
-            "اختر تنسيق الإخراج والجودة — وللقوائم: حدد الفيديوهات التي تريدها بدقة."
+            "تحميل الفيديو والصوت وعناصر قوائم التشغيل من يوتيوب وتيك توك وإنستغرام "
+            "وفيسبوك وتويتر ولينكد إن وسبوتيفاي وغيرها."
         ),
         "steps": [
-            "الصق رابطاً في حقل رابط المصدر — أو اضغط Ctrl+V في أي مكان بالنافذة "
-            "(عندما لا يكون أي حقل نص مركّزاً) للصق تلقائياً والانتقال إلى هذا القسم.",
-            "فيديو فردي: انقر 'فحص الصيغ' اختيارياً لاختيار الدقة. حدد فيديو أو صوت فقط.",
-            "فيديو: تحت 'صيغة الصوت في الفيديو' اختر Original أو AAC أو MP3 أو OPUS. "
-            "صوت فقط: اختر التنسيق (MP3، FLAC، OGG، OPUS، M4A).",
-            "قوائم يوتيوب: تظهر بطاقة PLAYLIST — انقر 'تحميل قائمة التشغيل' لجلب القائمة الكاملة.",
-            "حدد الفيديوهات المطلوبة (جميعها محددة مسبقاً). استخدم 'تحديد الكل / إلغاء التحديد'.",
-            "انقر 'فحص الصيغ' اختيارياً لتحميل الدقات من أول فيديو — يُطبَّق الاختيار على الكل.",
-            "انقر 'تنزيل المحدد' — يُنشأ مهمة في الطابور لكل فيديو محدد.",
-            "تعرض كل مهمة شريط تقدمها والسرعة والوقت المتبقي وزر إلغاء (✕). تعمل المهام واحدة تلو الأخرى.",
-            "تُحفظ الملفات في المجلد المحدد في بطاقة مجلد الإخراج.",
-            "الإعدادات المسبقة — استخدم شريط الإعداد المسبق للحفظ بنقرة واحدة في المرة القادمة.",
+            "الصق رابطاً في حقل المصدر. Ctrl+V يعمل في أي مكان بالنافذة.",
+            "اختر فيديو أو صوت.",
+            "حدد التنسيق والجودة.",
+            "لقائمة تشغيل: انقر 'تحميل قائمة التشغيل' ثم حدد الفيديوهات.",
+            "انقر 'تنزيل'. تُحفظ الملفات في مجلد الإخراج.",
         ],
         "tips": [
-            "تُطابَق روابط سبوتيفاي تلقائياً مع يوتيوب — لا حاجة لمفاتيح API.",
-            "إنستغرام وتيك توك يتطلبان ملف cookies. اذهب إلى الإعدادات ← Cookies.",
-            "تتطابق جودة القائمة حسب الدقة لا معرف التنسيق — يعمل بشكل صحيح حتى لو اختلفت الصيغ.",
-            "شارة الطابور في شريط العنوان تظهر عدد التنزيلات النشطة.",
-            "يمكنك إضافة تنزيلات أثناء تشغيل المهام السابقة.",
+            "روابط سبوتيفاي تُطابَق تلقائياً مع يوتيوب — بدون مفاتيح API.",
+            "إنستغرام وتيك توك يحتاجان ملف cookies. اضبطه من الإعدادات ← Cookies.",
+            "احفظ إعداداتك كقالب لاستخدامها بنقرة واحدة.",
         ],
     },
     {
         "emoji": "⇄",
         "title": "تحويل الوسائط",
         "description": (
-            "تحويل الصور بين JPG وPNG وWEBP وBMP وGIF وHEIC. "
-            "وتحويل ملفات الفيديو والصوت بين الترميزات المختلفة عبر FFmpeg. "
-            "معالجة ملف واحد أو دفعة كاملة دفعة واحدة."
+            "تحويل الصور والفيديو والصوت بين الصيغ. ملف واحد أو دفعة كاملة."
         ),
         "steps": [
-            "تبديل بين تبويبي 'تحويل' و'تحويل جماعي' أعلى الصفحة.",
-            "ملف فردي: انقر 'تصفح'، اختر تنسيق الإخراج، انقر 'تحويل'.",
-            "دفعي: أضف ملفات متعددة، حدد التنسيق المستهدف، انقر 'تحويل'.",
-            "يُحفظ الإخراج في نفس مجلد المصدر افتراضياً.",
-            "الإعدادات المسبقة — يتيح شريط الإعداد المسبق حفظ التنسيق ومجلد الإخراج كملف تعريف.",
-            "تسمية الإخراج — يتبع اسم الملف النموذج المحدد في الإعدادات. الافتراضي: {name}_converted.",
+            "افتح تبويب 'تحويل' أو 'تحويل جماعي'.",
+            "انقر 'تصفح' واختر الملفات.",
+            "اختر الصيغة المستهدفة.",
+            "انقر 'تحويل'.",
         ],
         "tips": [
-            "اسحب الملفات وأفلتها على النافذة لتحميلها تلقائياً في التبويب الصحيح.",
+            "اسحب الملفات على النافذة لتحميلها فوراً.",
             "التحويل الجماعي أسرع من تحويل الملفات واحداً تلو الآخر.",
-            "غيّر نموذج التسمية في الإعدادات لإضافة تاريخ أو تغيير اللاحقة.",
+            "خصّص اسم الإخراج من الإعدادات ← تسمية الإخراج.",
         ],
     },
     {
         "emoji": "✂",
         "title": "قص الوسائط",
         "description": (
-            "قص أو حذف مقاطع أو إدراج مقطع في ملفات الفيديو والصوت. "
-            "ثلاثة تبويبات فرعية: قص، وحذف متتابع، وإدراج مقطع. "
-            "مشغل معاينة مدمج مع وضع ملء الشاشة للعثور على الطوابع الزمنية الدقيقة."
+            "قص أو حذف أو إدراج مقاطع في الفيديو والصوت."
         ),
         "steps": [
-            "انقر 'تصفح' لتحميل ملف فيديو أو صوت. يتحمل المشغل تلقائياً.",
-            "استخدم شريط التمرير وزر ▶/⏸ للتنقل. انقر ⛶ لمعاينة ملء الشاشة — "
-            "تمرير إلى أي نقطة واستخدام أزرار 'تعيين البداية/النهاية/نقطة الإدراج'.",
-            "تبويب القص — احتفظ بمقطع: حدد وقت البداية والنهاية (HH:MM:SS) ثم انقر الزر. "
-            "الإخراج: <اسم_الملف>_trimmed.<الامتداد>.",
-            "تبويب الحذف المتتابع — احذف مقاطع ودمج الباقي. كل صف له وقت من/إلى. "
-            "الشريط الزمني الملوّن يعرض مناطق الحذف باللون الأحمر. "
-            "الإخراج: <اسم_الملف>_trimmed.<الامتداد>.",
-            "تبويب إدراج مقطع — ضمّن فيديو ثانٍ داخل المصدر في أي نقطة. "
-            "يُعاد ترميز المقطع ليطابق دقة المصدر ومعدل الإطارات ومعدل الصوت. "
-            "الإخراج: <اسم_الملف>_inserted.<الامتداد>.",
-            "اختيارياً حدد مجلد الإخراج؛ الافتراضي مجلد الملف المصدر.",
+            "انقر 'تصفح' لتحميل ملف. تُحمَّل المعاينة تلقائياً.",
+            "استخدم المعاينة لإيجاد الطوابع الزمنية. انقر ⛶ لملء الشاشة.",
+            "قص — احتفظ بمقطع بين البداية والنهاية.",
+            "حذف متتابع — احذف مقاطع ودمج الباقي. أضف ما تشاء من المقاطع.",
+            "إدراج مقطع — ضع فيديو آخر في أي نقطة من المصدر.",
+            "انقر زر التنفيذ.",
         ],
         "tips": [
-            "الحذف المتتابع يستخدم نسخ المجرى (بدون إعادة ترميز) فيكتمل في ثوانٍ.",
-            "إدراج مقطع يعيد ترميز المقطع المُدرج فقط، لا الفيديو الرئيسي.",
-            "يمكنك إضافة أي عدد من مقاطع الحذف — تُرتَّب ومعالجتها في مرور FFmpeg واحد.",
-            "المعاينة بملء الشاشة تدرك السياق: في القص تعرض البداية/النهاية؛ في الحذف تكتب في آخر صف.",
+            "الحذف المتتابع يكتمل في ثوانٍ — بلا إعادة ترميز.",
+            "إدراج مقطع يعيد ترميز المُدرج فقط، لا الفيديو كله.",
+            "في ملء الشاشة، أزرار 'تعيين' تكتب في الصف النشط مباشرةً.",
         ],
     },
     {
         "emoji": "📄",
         "title": "تحويل المستندات",
         "description": (
-            "تحويل بين PDF وDOCX، ودمج صور في PDF، "
-            "أو استخراج صفحات PDF كصور."
+            "حوّل بين PDF وDOCX، أنشئ PDF من صور، أو استخرج صفحات PDF كصور."
         ),
         "steps": [
-            "حدد العملية من القائمة المنسدلة (PDF→DOCX، DOCX→PDF، صور→PDF، PDF→صور).",
-            "انقر 'تصفح' لاختيار الملف المصدر.",
-            "انقر 'تحويل' — يظهر الإخراج في نفس المجلد.",
+            "اختر العملية: PDF→DOCX، DOCX→PDF، صور→PDF، أو PDF→صور.",
+            "انقر 'تصفح' واختر الملفات.",
+            "انقر 'تحويل'.",
         ],
         "tips": [
-            "DOCX→PDF على لينكس يتطلب تثبيت LibreOffice.",
+            "DOCX→PDF على لينكس يحتاج تثبيت LibreOffice.",
             "صور→PDF يقبل JPG وPNG وWEBP وBMP.",
         ],
     },
@@ -667,278 +563,260 @@ _TUTORIAL_DATA_AR = [
         "emoji": "🎞",
         "title": "إنشاء GIF",
         "description": (
-            "تحويل أي مقطع من فيديو إلى صورة GIF متحركة عالية الجودة "
-            "باستخدام طريقة اللوحة ثنائية المرور في FFmpeg للألوان الدقيقة."
+            "حوّل أي مقطع فيديو إلى GIF متحرك عالي الجودة."
         ),
         "steps": [
             "انقر 'تصفح' واختر ملف فيديو.",
-            "حدد وقت البداية (ثواني) لاختيار بداية الـGIF.",
-            "حدد المدة (ثواني) — كم يطول تشغيل الـGIF.",
-            "اضبط العرض (بكسل) لتحجيم الإخراج؛ يُحسب الارتفاع تلقائياً.",
-            "حدد FPS — 10-15 معيار للـGIF، 24+ لحركة أكثر سلاسة.",
-            "انقر 'إنشاء GIF'. يُحفظ الإخراج بجانب الفيديو المصدر افتراضياً.",
+            "حدد وقت البداية والمدة بالثواني.",
+            "اضبط العرض — يُحسب الارتفاع تلقائياً.",
+            "اضبط FPS (10-15 معياري، 24+ لحركة أنعم).",
+            "انقر 'إنشاء GIF'.",
         ],
         "tips": [
-            "أبق المدة قصيرة (أقل من 10 ث) للحصول على حجم ملف معقول.",
-            "تقليل FPS والعرض يقلل حجم الملف بشكل ملحوظ.",
-            "يُسمى ملف الإخراج <الأصلي>_name.gif في مجلد الإخراج.",
+            "احتفظ بالمدة أقل من 10 ثوانٍ للحصول على حجم ملف معقول.",
+            "FPS أقل وعرض أصغر = ملف أصغر.",
         ],
     },
     {
         "emoji": "🗜",
         "title": "ضغط الوسائط",
         "description": (
-            "تقليل حجم الملف للصور والفيديوهات. "
-            "استعرض أي ملف — يكشف التطبيق تلقائياً النوع ويعرض الخيارات المناسبة."
+            "قلّص حجم الصور والفيديوهات. التطبيق يكتشف نوع الملف تلقائياً."
         ),
         "steps": [
-            "انقر 'تصفح' واختر صورة (JPG، PNG، WEBP، BMP) أو ملف فيديو.",
-            "صورة: اضبط الجودة (1-100) والحد الأقصى للأبعاد اختيارياً.",
-            "فيديو: اضبط CRF (18-51) — قيمة أعلى = ملف أصغر، جودة أقل. "
-            "واختر إعداد التشفير المسبق — الأبطأ ينتج ملفاً أصغر.",
-            "اختيارياً حدد مجلد إخراج، ثم انقر 'ضغط'.",
-            "يعرض شريط الحالة اسم الملف ومقدار التقليص.",
+            "انقر 'تصفح' واختر ملفاً.",
+            "صورة — اضبط الجودة (1-100). اختياري: الحد الأقصى للأبعاد للتصغير.",
+            "فيديو — اضبط CRF (أقل = جودة أعلى، حجم أكبر). اختر إعداداً مسبقاً.",
+            "انقر 'ضغط'.",
         ],
         "tips": [
-            "جودة الصورة 80-90 عادةً لا يمكن تمييزها عن الأصل.",
-            "CRF 28 للفيديو افتراضي جيد؛ انخفض (مثل 23) للحفاظ على جودة أعلى.",
-            "تُحفظ الملفات المضغوطة بلاحقة '_compressed'.",
+            "جودة الصورة 80-90 لا تُميَّز عن الأصل.",
+            "CRF 28 افتراضي متوازن للفيديو؛ استخدم 23 لجودة أعلى.",
         ],
     },
     {
         "emoji": "✂",
         "title": "تحويل مكاني",
         "description": (
-            "تغيير حجم أو اقتصاص أو دوران أو قلب ملفات الفيديو والصور. "
-            "جميع التغييرات تُعرض مباشرةً قبل التقديم — لا تخمين. "
-            "يستخدم FFmpeg لضمان أدنى فقدان للجودة."
+            "تغيير حجم أو اقتصاص أو دوران أو قلب الفيديو والصور. معاينة حية قبل التنفيذ."
         ),
         "steps": [
-            "انقر 'تصفح' واختر فيديو أو صورة. تحمّل إطار المعاينة تلقائياً.",
-            "اختر العملية عبر التبويبات الفرعية: تغيير الحجم، اقتصاص، دوران/قلب.",
-            "تغيير الحجم — اختر دقة مسبقة (4K، 1080p، تيك توك...) أو اكتب عرضاً×ارتفاعاً. "
-            "تُفعّل 'قفل النسبة' للحفاظ على نسبة العرض إلى الارتفاع.",
-            "اقتصاص — اختر نسبة مسبقة (16:9، 9:16، 1:1...) أو أدخل الأبعاد والإزاحة يدوياً.",
-            "دوران/قلب — انقر أي زر (90° يمين، 90° يسار، 180°، قلب أفقي، قلب عمودي) "
-            "لإضافته لسلسلة العمليات. انقر 'إعادة تعيين' للبدء من جديد.",
-            "حدد مجلد إخراج إن لزم، ثم انقر 'تطبيق' للتقديم.",
+            "انقر 'تصفح' واختر فيديو أو صورة.",
+            "اختر تبويباً فرعياً: تغيير الحجم، اقتصاص، أو دوران/قلب.",
+            "تغيير الحجم — اختر إعداداً مسبقاً (4K، 1080p، تيك توك...) أو اكتب عرضاً×ارتفاعاً.",
+            "اقتصاص — اختر نسبة مسبقة، أو أدخل العرض والارتفاع وX وY يدوياً.",
+            "دوران/قلب — انقر أي زر لإضافته للسلسلة. 'إعادة تعيين' يمسحها.",
+            "انقر 'تطبيق'.",
         ],
         "tips": [
-            "إحداثيات الاقتصاص بفضاء بكسل الفيديو المصدر.",
-            "سلاسل الدوران/القلب تُطبَّق بالترتيب من قبل FFmpeg.",
-            "تُسمى ملفات الإخراج بلاحقة تصف العملية (_resized، _cropped، _transformed).",
-            "قفل النسبة في تغيير الحجم يقيد التعديل اليدوي فقط — الإعداد المسبق يتجاوز الحقلين دائماً.",
+            "إحداثيات الاقتصاص بفضاء بكسل المصدر. القيم خارج النطاق تُقصّ تلقائياً.",
+            "قفل النسبة يقيّد التعديل اليدوي فقط — الإعدادات المسبقة تتجاوز الحقلين.",
+            "لاحقة الإخراج توضح العملية: _resized، _cropped، _transformed.",
         ],
     },
     {
         "emoji": "♫",
         "title": "مزج الصوت",
         "description": (
-            "ثلاث عمليات صوتية على ملفات الفيديو، جميعها بدون فقدان في مسار الفيديو. "
-            "التبديل بين التبويبات: كتم الفيديو، استبدال الصوت، إضافة صوت."
+            "ثلاث عمليات صوتية على الفيديو. مسار الفيديو يبقى كما هو."
         ),
         "steps": [
-            "كتم الفيديو — يحذف مسار الصوت كلياً. "
-            "استعرض ملف فيديو، اختيارياً حدد مجلد إخراج، انقر 'تطبيق'. "
-            "الإخراج: <اسم_الملف>_muted.<الامتداد>.",
-            "استبدال الصوت — يستبدل مسار الصوت بالكامل بملف صوتي مختلف. "
-            "استعرض الفيديو ثم ملف الصوت الجديد. يتوقف الإخراج عند انتهاء أقصر المجرين. "
-            "الإخراج: <اسم_الملف>_remuxed.<الامتداد>.",
-            "إضافة صوت — يمزج ملف صوتي فوق الصوت الموجود في الفيديو. "
-            "استخدم شريط مستوى الصوت (0-200%) لضبط مستوى الصوت المُضاف. "
-            "الإخراج: <اسم_الملف>_mixed.<الامتداد>.",
+            "اختر تبويباً: كتم الفيديو، استبدال الصوت، أو إضافة صوت.",
+            "كتم الفيديو — يحذف مسار الصوت كلياً.",
+            "استبدال الصوت — يستبدله بملف جديد (MP3، WAV، AAC، FLAC، OGG، M4A، OPUS).",
+            "إضافة صوت — يمزج مساراً جديداً فوق الأصلي. شريط الصوت يضبط المستوى (0-200%).",
+            "انقر 'تطبيق'.",
         ],
         "tips": [
-            "مسار الفيديو يُنسخ دائماً بدون إعادة ترميز — سريع وبدون فقدان.",
-            "استبدال الصوت وإضافة الصوت يرمّزان المسار الصوتي النهائي بـ AAC 192 kbps.",
-            "إذا كان الصوت المُضاف أطول من الفيديو، يُتجاهل الزائد تلقائياً.",
+            "مسار الفيديو يُنسخ بلا فقدان — سريع.",
+            "الصوت النهائي يُرمَّز بـ AAC 192 kbps.",
+            "الصوت الأطول من الفيديو يُقصّ ليطابق.",
         ],
     },
     {
         "emoji": "⊞",
         "title": "دمج الفيديوهات",
         "description": (
-            "دمج ملفات فيديو متعددة في ملف واحد بالترتيب الذي تحدده. "
-            "يعمل مع أي مزيج من التنسيقات والدقات ومعدلات الإطارات."
+            "ادمج عدة فيديوهات في ملف واحد بالترتيب الذي تختاره."
         ),
         "steps": [
             "انقر 'إضافة ملفات...' واختر فيديوهين أو أكثر.",
-            "اسحب الصفوف في القائمة أو استخدم زرَّي ▲/▼ لترتيب التشغيل.",
-            "أدخل اسم ملف الإخراج (الافتراضي merged.mp4) واختيارياً مجلد الإخراج.",
-            "انقر 'دمج'. يظهر الملف المجمّع في مجلد الإخراج.",
+            "أعد ترتيب الصفوف بالسحب أو زرَّي ▲/▼.",
+            "حدد اسم ملف الإخراج (الافتراضي merged.mp4).",
+            "انقر 'دمج'.",
         ],
         "tips": [
-            "إذا شاركت الفيديوهات نفس الترميز والدقة، يكون الدمج فورياً بدون فقدان.",
-            "إذا اختلفت الدقة أو الترميز، يعيد التطبيق الترميز تلقائياً لمطابقة أول فيديو.",
-            "حجم ملف الإخراج قريب من مجموع أحجام ملفات الإدخال.",
+            "نفس الترميز والدقة = دمج فوري بدون فقدان.",
+            "الفيديوهات المختلفة تُرمَّز تلقائياً لمطابقة أول ملف.",
         ],
     },
     {
         "emoji": "🔏",
         "title": "علامة مائية",
         "description": (
-            "طبع شعار أو نص على أي ملف فيديو أو صورة. "
-            "وضع الدفعات يسمح بمعالجة مجلد كامل دفعة واحدة. "
-            "تُعاد ترميز الفيديوهات بجودة شبه بلا فقدان؛ الصور معالجتها فورية."
+            "اطبع شعاراً أو نصاً على الفيديو والصور. ملف واحد أو مجلد كامل."
         ),
         "steps": [
-            "انقر 'إضافة ملفات...' أو 'إضافة مجلد...' لإضافة الفيديوهات والصور.",
-            "اختر نوع العلامة المائية: شعار/صورة أو نص.",
-            "وضع الشعار — استعرض ملف PNG (شفافية موصى بها)، اضبط الموضع والحجم والشفافية.",
-            "وضع النص — اكتب النص، اضبط الموضع وحجم الخط واللون والشفافية.",
-            "تحت 'إعدادات ترميز الفيديو' اضبط الجودة (CRF) والسرعة وتسريع العتاد. "
-            "خيارات GPU (NVIDIA/AMD/Intel) أسرع 5-10 أضعاف من المعالج.",
-            "اختيارياً حدد مجلد الإخراج — اتركه فارغاً للحفظ بجانب كل ملف مصدر.",
+            "انقر 'إضافة ملفات...' أو 'إضافة مجلد...' لإضافة العناصر.",
+            "اختر النوع: شعار أو نص.",
+            "شعار — استعرض ملف PNG. اضبط الموضع والحجم والشفافية.",
+            "نص — اكتب النص. اضبط الموضع وحجم الخط واللون والشفافية.",
+            "للفيديو: اضبط الجودة (CRF) والسرعة وتسريع العتاد.",
             "انقر 'علامة مائية' (أو Ctrl+Enter).",
-            "تُحفظ الملفات بلاحقة _watermarked.<الامتداد>.",
         ],
         "tips": [
-            "شعارات PNG بخلفية شفافة تعطي أفضل نتيجة.",
-            "إعدادات الترميز تنطبق على الفيديوهات فقط — الصور بدون إعادة ترميز.",
-            "CRF أقل (مثل 18) = جودة شبه بلا فقدان. CRF أعلى (مثل 28) = ملف أصغر.",
+            "PNG بخلفية شفافة يعطي أنظف نتيجة.",
+            "تسريع GPU (NVIDIA/AMD/Intel) أسرع 5-10 أضعاف من المعالج.",
+            "إعدادات الترميز للفيديو فقط — الصور تُطبع بلا إعادة ترميز.",
         ],
     },
     {
         "emoji": "📸",
         "title": "مستخرج الإطار",
         "description": (
-            "تصدير إطار واحد من الفيديو كصورة PNG عالية الدقة أو TIFF بعمق 16 بت. "
-            "معاينة مدمجة تمكّنك من التمرير إلى اللحظة الدقيقة قبل الاستخراج."
+            "صدّر إطاراً واحداً من الفيديو كـ PNG أو TIFF بـ16 بت."
         ),
         "steps": [
-            "انقر 'تصفح' واختر ملف فيديو مدعوماً.",
-            "عند توفر Qt Multimedia يُحمّل مشغل معاينة — مرّر على الخط الزمني "
-            "وانقر 'استخدم هذا الإطار' لنسخ الوقت الحالي إلى حقل الطابع الزمني. "
-            "يمكنك أيضاً كتابة الوقت مباشرةً بصيغة HH:MM:SS أو HH:MM:SS.mmm.",
-            "إذا لم تكن الوسائط متعددة الوسائط متوفرة، يظهر تنبيه — ما زال بإمكانك الاستخراج بإدخال الطابع يدوياً.",
-            "تحت تنسيق الإخراج اختر PNG (معياري) أو TIFF بـ16 بت لأقصى دقة تدرج لوني عند توفرها.",
-            "اختيارياً حدد مجلد الإخراج؛ اتركه فارغاً للحفظ بجانب الفيديو.",
-            "انقر 'التقاط إطار' في شريط العنوان أو اضغط Ctrl+Enter. تُكتب الصورة إلى القرص وتُعرض ملخص في منطقة الحالة.",
+            "انقر 'تصفح' واختر فيديو.",
+            "مرّر المعاينة للحظة المطلوبة، ثم انقر 'استخدم هذا الإطار'.",
+            "أو اكتب الطابع الزمني مباشرةً (HH:MM:SS أو HH:MM:SS.mmm).",
+            "اختر صيغة الإخراج: PNG أو TIFF بـ16 بت.",
+            "انقر 'التقاط إطار' (أو Ctrl+Enter).",
         ],
         "tips": [
-            "وضع TIFF مناسب لسير عمل يحتاج عمق بت أعلى من PNG بـ8 بت.",
-            "الاستخراج يعتمد على FFmpeg — دقة الإطار تعتمد على الحاوية والترميز.",
+            "استخدم TIFF عند الحاجة لعمق بت أعلى من PNG.",
+            "دقة توقيت الإطار تعتمد على ترميز المصدر.",
         ],
     },
     {
         "emoji": "🎨",
         "title": "لوحة الألوان السداسية",
         "description": (
-            "أداتان تحت قسم واحد: 'استخراج اللوحة' تبني لوحة ألوان مرتبة "
-            "من أي صورة أو فيديو (اختيارياً من إطار واحد)، و'عجلة الألوان' منتقي تفاعلي."
+            "استخرج لوحة ألوان من أي صورة أو فيديو، أو انتقِ ألواناً من العجلة."
         ),
         "steps": [
-            "بدّل بين التبويبات الفرعية للقسم: استخراج اللوحة وعجلة الألوان.",
-            "استخراج اللوحة — استعرض صورة أو فيديو. تظهر معاينة مصغرة للصور؛ "
-            "للفيديو يُفتح مشغل — مرّر ثم 'استخدم هذا الإطار' (يُحلّل هذا الإطار فقط) "
-            "أو 'الفيديو كاملاً' لأخذ عينات من الملف بأكمله.",
-            "حدد عدد الألوان المستخرجة (2–128)، ثم انقر 'استخراج' في شريط العنوان أو اضغط Ctrl+Enter.",
-            "تظهر عينات مع رموز hex — انقر أي عينة لنسخ hex إلى الحافظة. "
-            "'نسخ الكل' يضع كل الرموز في الحافظة دفعة واحدة.",
-            "عجلة الألوان — اسحب على العجلة أو اكتب قيمة #RRGGBB؛ استخدم 'نسخ hex' أو Ctrl+Enter لنسخ اللون الحالي.",
+            "بدّل بين التبويبات: استخراج اللوحة أو عجلة الألوان.",
+            "استخراج اللوحة — استعرض صورة أو فيديو.",
+            "للفيديو: مرّر واختر 'استخدم هذا الإطار'، أو 'الفيديو كاملاً'.",
+            "حدد عدد الألوان (2-128) وانقر 'استخراج'.",
+            "انقر أي عينة لنسخ hex. 'نسخ الكل' = اللوحة كاملة للحافظة.",
+            "عجلة الألوان — اسحب على العجلة أو اكتب #RRGGBB، ثم 'نسخ hex'.",
         ],
         "tips": [
-            "التحليل يستخدم توليد لوحة FFmpeg — مناسب للألوان السائدة في الإطار أو المقطع.",
-            "رموز hex تتطلب Pillow؛ إذا كانت العينات فارغة، ثبّت Pillow (انظر التنبيه على الشاشة).",
+            "التحليل يستخدم FFmpeg — مناسب للألوان السائدة.",
+            "إذا بقيت العينات فارغة، ثبّت Pillow (انظر التنبيه على الشاشة).",
         ],
     },
     {
         "emoji": "🎤",
         "title": "عازل الصوت",
         "description": (
-            "افصل أي أغنية أو فيديو إلى مسارين — الصوت البشري والموسيقى الخلفية — "
-            "باستخدام نموذج HTDemucs v4 من Meta. يعمل دون اتصال بعد تنزيل النموذج أول مرة. "
-            "يُوجَّه التشغيل تلقائياً إلى GPU (CUDA) للسرعة، أو يعود إلى CPU."
+            "افصل أي أغنية أو فيديو إلى الصوت البشري + الموسيقى باستخدام الذكاء الاصطناعي. يعمل دون اتصال بعد التثبيت الأول."
         ),
         "steps": [
-            "انقر 'تصفح' واختر ملف صوت أو فيديو (MP3، WAV، FLAC، AAC، M4A، OGG، MP4، MKV، AVI، MOV، WEBM).",
-            "اختيارياً حدد مجلد الإخراج — الافتراضي هو نفس مجلد الملف المصدر.",
-            "تحقق من شارة جهاز المعالجة: GPU (CUDA) ينتهي في ثوانٍ، CPU قد يستغرق 2–5 دقائق.",
-            "انقر 'عزل الصوت' (أو Ctrl+Enter). يعرض شريط التقدم نسبة الفصل الآني.",
-            "عند الانتهاء، تظهر بطاقة النتيجة بمسارَي vocals.wav و no_vocals.wav. "
-            "انقر 'فتح في المستكشف' للانتقال إلى مجلد الإخراج.",
+            "أول مرة: انقر 'تثبيت النموذج' في الشريط. أكّد الحجم ومجلد التثبيت.",
+            "انتظر اكتمال التثبيت — مخرجات pip تظهر في السجل. الميزة تُفعَّل عند الانتهاء.",
+            "انقر 'تصفح' واختر ملف صوت أو فيديو.",
+            "تحقق من شارة جهاز المعالجة: GPU ينتهي في ثوانٍ، CPU يستغرق دقائق.",
+            "انقر 'عزل الصوت' (أو Ctrl+Enter).",
+            "بطاقة النتيجة تعرض vocals.wav و no_vocals.wav.",
         ],
         "tips": [
-            "أول تشغيل يُنزّل نموذج HTDemucs (~300 ميغابايت) تلقائياً — التشغيلات التالية فورية.",
-            "ثبّت demucs قبل استخدام هذه الأداة: pip install demucs",
-            "ثبّت PyTorch مع دعم CUDA لتفعيل GPU: زر pytorch.org للحصول على أمر التثبيت الصحيح.",
-            "يمكنك تصغير Videl واستخدام أدوات أخرى بينما يعمل الذكاء الاصطناعي في الخلفية.",
-            "المسارات الناتجة دائماً ملفات WAV بتردد 44.1 kHz بصرف النظر عن صيغة المدخل.",
+            "أول تشغيل يُنزّل النموذج (~300 ميجابايت). التشغيلات التالية بدون إنترنت.",
+            "المخرجات دائماً WAV بتردد 44.1 kHz بصرف النظر عن المدخل.",
+            "على بطاقات NVIDIA يُختار إصدار CUDA تلقائياً.",
+            "بطاقات NVIDIA المدعومة (إصدار CUDA): سلاسل RTX 20/30/40/50 و V100 و A100 و H100 وأي بطاقة بقدرة حوسبة 7.0 أو أعلى (Volta و Turing و Ampere و Ada و Hopper و Blackwell).",
+            "بطاقات NVIDIA غير المدعومة (ستستخدم CPU): سلسلة Maxwell GTX 750 / 9xx و Pascal GTX 10xx. خيار CUDA مُعطَّل لهذه البطاقات لأن إصدار CUDA 12.8 المُضمَّن لا يحوي نواة لها.",
+            "بطاقات غير NVIDIA (AMD و Intel) تستخدم CPU دائماً — CUDA حصرياً لـ NVIDIA.",
         ],
     },
     {
         "emoji": "✨",
         "title": "ممحاة الخلفية",
         "description": (
-            "إزالة خلفية صورة واحدة باستخدام نموذج rembg — يعمل بالكامل دون اتصال بعد توفر أوزان النموذج."
+            "أزل خلفية الصورة باستخدام الذكاء الاصطناعي. يعمل دون اتصال بعد التثبيت الأول."
         ),
         "steps": [
-            "انقر 'تصفح' واختر صورة (صيغ نقطية شائعة مدعومة).",
-            "تُحمّل معاينة صغيرة للمدخل تلقائياً. "
-            "اختيارياً حدد مسار إخراج كاملاً، أو اتركه فارغاً — يقترح التطبيق <الاسم>_nobg.png بجانب المصدر.",
-            "انقر 'إزالة الخلفية' في شريط العنوان أو اضغط Ctrl+Enter. يظهر التقدم في الشريط أدناه.",
-            "عند الانتهاء تعرض معاينة النتيجة القص على خلفية شطرنج؛ "
-            "'فتح في المستكشف' ينتقل إلى ملف PNG المحفوظ بشفافية.",
+            "أول مرة: انقر 'تثبيت النموذج' في الشريط. أكّد الحجم ومجلد التثبيت.",
+            "انتظر التثبيت. الميزة تُفعَّل عند الانتهاء.",
+            "انقر 'تصفح' واختر صورة.",
+            "حدد مسار إخراج، أو اتركه فارغاً لـ <الاسم>_nobg.png بجانب المصدر.",
+            "انقر 'إزالة الخلفية' (أو Ctrl+Enter).",
         ],
         "tips": [
-            "قد يحمّل التشغيل الأول أوزان النموذج؛ التشغيل اللاحق لا يحتاج إنترنت.",
-            "أفضل النتائج مع أجسام ذات حواف واضحة؛ الشعر المعقّد أو الضبابية الحركية قد تحتاج لمساً إضافياً في أداة أخرى.",
+            "أول تشغيل قد يُنزّل النموذج. التشغيل اللاحق دون اتصال.",
+            "أفضل النتائج مع أجسام ذات حواف واضحة.",
+            "الإخراج دائماً PNG بشفافية.",
+        ],
+    },
+    {
+        "emoji": "🔍",
+        "title": "مُحسِّن الصور بالذكاء الاصطناعي",
+        "description": (
+            "كبّر الصور 2× أو 4× باستخدام Real-ESRGAN. يُعيد بناء الحواف والتباين الدقيق — أنظف بكثير من bicubic."
+        ),
+        "steps": [
+            "أول مرة: انقر 'تثبيت النموذج'. اختر CPU (~400 ميغابايت) أو CUDA (~3.7 جيجابايت).",
+            "انتظر التثبيت. الميزة تُفعَّل عند الانتهاء.",
+            "انقر 'تصفح' واختر صورة.",
+            "اختر معامل التكبير (2× أو 4×) وحجم البلاطة.",
+            "حدد مسار الإخراج أو اتركه فارغاً لـ <الاسم>_upscaled_x4.<الامتداد>.",
+            "انقر 'تكبير الصورة' (أو Ctrl+Enter).",
+        ],
+        "tips": [
+            "أول تشغيل يُنزّل أوزان x4plus (~64 ميغابايت). التشغيل اللاحق دون اتصال.",
+            "حجم البلاطة يتحكم في استهلاك ذاكرة الرسومات: 256 لبطاقات 4–8 جيجابايت، 512 لبطاقات 12+.",
+            "استخدم 'إيقاف' للصور الصغيرة فقط — الصور الكبيرة بدون تبليط ستُسبب انهياراً على معظم البطاقات.",
+            "على CPU توقّع دقائق لكل صورة. استخدم GPU للعمل الفعلي.",
+            "وضع 2× يُشغّل نموذج 4× داخلياً ثم يُصغّر — نفس جودة 4× معاد تحجيمها.",
         ],
     },
     {
         "emoji": "🧹",
         "title": "إزالة البيانات الوصفية",
         "description": (
-            "إزالة جميع البيانات الوصفية من ملفات الفيديو والصوت — إحداثيات GPS ونموذج الكاميرا "
-            "وطوابع التسجيل الزمنية وبيانات EXIF وعلامات الفصول. "
-            "يستخدم نسخ المجرى (بدون إعادة ترميز) فيكتمل في ثوانٍ."
+            "أزل بيانات GPS ومعلومات الكاميرا والطوابع الزمنية وغيرها من الفيديو والصوت."
         ),
         "steps": [
-            "انقر 'إضافة ملفات...' أو 'إضافة مجلد...'، أو اسحب وأفلت الملفات.",
-            "اختيارياً حدد مجلد الإخراج — الافتراضي مجلد كل ملف.",
+            "أضف الملفات بالزر أو بالسحب والإفلات.",
             "انقر 'تنظيف' (أو Ctrl+Enter).",
-            "تُحفظ الملفات بلاحقة _clean.<الامتداد>.",
+            "يُحفظ الإخراج بلاحقة _clean.<الامتداد>.",
         ],
         "tips": [
-            "لا فقدان في الجودة — إعادة تغليف بدون إعادة ترميز.",
-            "الصيغ المدعومة: MP4، MKV، AVI، MOV، WEBM، FLV، MP3، WAV، AAC، FLAC، OGG، M4A.",
-            "مفيد قبل مشاركة الملفات علنياً لإزالة بيانات الموقع والجهاز.",
+            "بلا فقدان في الجودة — إعادة تغليف بدون إعادة ترميز.",
+            "مفيد قبل مشاركة الملفات علنياً.",
+            "يدعم MP4، MKV، AVI، MOV، WEBM، FLV، MP3، WAV، AAC، FLAC، OGG، M4A.",
         ],
     },
     {
         "emoji": "✂",
         "title": "التقطيع التلقائي",
         "description": (
-            "تقسيم ملف فيديو أو صوت إلى أجزاء متساوية حسب المدة أو الحجم المستهدف. "
-            "نسخ المجرى — بدون إعادة ترميز، بدون فقدان جودة، تقسيم فوري تقريباً."
+            "قسّم ملف فيديو أو صوت إلى أجزاء متساوية حسب المدة أو الحجم."
         ),
         "steps": [
-            "انقر 'تصفح' واختر ملف فيديو أو صوت.",
-            "اختر وضع التقسيم:",
-            "حسب المدة — أدخل طول الجزء (دقائق). كل جزء بهذا الطول عدا الأخير.",
-            "حسب الحجم — أدخل الحد الأقصى بالميجابايت (مثل 25 لواتساب). "
-            "يُحسب طول الجزء تلقائياً من معدل بت الملف.",
-            "اختيارياً حدد مجلد الإخراج.",
+            "انقر 'تصفح' واختر ملفاً.",
+            "اختر الوضع: حسب المدة (دقائق) أو حسب الحجم (ميجابايت).",
+            "أدخل القيمة.",
             "انقر 'تقسيم' (أو Ctrl+Enter).",
-            "تُسمى الأجزاء <الاسم>_part000.<الامتداد>، _part001، ...",
+            "الأجزاء تُسمَّى <الاسم>_part000.<الامتداد>، _part001، ...",
         ],
         "tips": [
-            "نسخ المجرى يعني تقسيم ملفات كبيرة في ثوانٍ بدون فقدان جودة.",
-            "التقسيم حسب الحجم تقدير — قد تتفاوت الأجزاء قليلاً لأن القطع يلتقط في إطار رئيسي.",
-            "مفيد لحدود رفع: ديسكورد (25MB)، واتساب (16MB مجاني / 2GB أعمال)، البريد الإلكتروني.",
+            "نسخ المجرى — تقسيم الملفات الكبيرة في ثوانٍ بدون فقدان.",
+            "التقسيم بالحجم تقريبي — القطع يلتقط على إطارات رئيسية.",
+            "مفيد لحدود الرفع (ديسكورد 25MB، واتساب 16MB).",
         ],
     },
     {
         "emoji": "🕒",
         "title": "السجل",
         "description": (
-            "استعرض سجل جميع العمليات السابقة — تحميل وتحويل وقص "
-            "وتحويل مستندات — مع الحالة واسم الملف والطابع الزمني."
+            "اطّلع على كل العمليات السابقة مع الحالة والملف والوقت."
         ),
         "steps": [
-            "انقر 'السجل' في الشريط الجانبي لفتح السجل.",
-            "الصفوف مرتبة من الأحدث. الحالة تعرض: تم، فشل، أو ملغى.",
-            "انقر على صف لرؤية المسار الكامل للملف في شريط الحالة.",
+            "انقر 'السجل' في الشريط الجانبي.",
+            "الصفوف مرتبة من الأحدث.",
+            "انقر صفاً لرؤية المسار الكامل في شريط الحالة.",
         ],
         "tips": [
             "السجل يستمر بين إعادات تشغيل التطبيق.",
@@ -947,119 +825,314 @@ _TUTORIAL_DATA_AR = [
     {
         "emoji": "⚙",
         "title": "الإعدادات",
-        "description": "تهيئة المظهر ومجلد الإخراج والترميز الافتراضي وتسريع العتاد ونماذج التسمية والمزيد.",
+        "description": "السمة ومجلد الإخراج والتسمية والترميز والمزيد.",
         "steps": [
-            "السمة — اختر تلقائي (يتبع النظام) أو فاتح أو داكن.",
-            "مجلد الإخراج — حيث تُحفظ الملفات المحمّلة والمحوّلة افتراضياً.",
+            "السمة — تلقائي أو فاتح أو داكن.",
+            "مجلد الإخراج — الموقع الافتراضي للحفظ.",
             "الترميز الافتراضي — يُستخدم عندما لا يُحدد ترميز أثناء التحويل.",
-            "الإغلاق عند الضغط على X — عند إيقافه، الإغلاق يُخفي النافذة إلى شريط المهام.",
-            "مهلة الاعتراض — كم ينتظر اعتراض المتصفح قبل الاستسلام (10-300 ث).",
-            "نموذج تسمية الإخراج — يتحكم في كيفية تسمية الملفات المحوّلة. "
-            "استخدم {name} و{ext} و{date} و{datetime}. معاينة حية أثناء الكتابة.",
-            "تسريع العتاد — في الإعدادات ← مسارات الملفات والترميز. "
-            "يختار وحدة GPU لـFFmpeg: بدون (المعالج فقط)، NVENC/NVDEC (NVIDIA)، QSV (Intel)، AMF (AMD).",
+            "الإغلاق — عند إيقافه، الإغلاق يُخفي النافذة إلى شريط المهام.",
+            "تسمية الإخراج — نمط للملفات المحوّلة. استخدم {name} و{ext} و{date} و{datetime}.",
+            "تسريع العتاد — مرمّز GPU للفيديو. اختر 'بدون' إذا فشل الترميز.",
         ],
         "tips": [
             "انقر بزر الفأرة الأيمن على أيقونة شريط المهام للاستعادة أو الإغلاق.",
-            "استخدم قائمة ⋯ في شريط العنوان لتغيير السمات دون فتح الإعدادات.",
-            "تسريع العتاد يفيد الفيديو فقط — تحويل الصور والصوت يعمل على المعالج دائماً.",
+            "قائمة ⋯ في شريط العنوان تبدّل السمات دون فتح الإعدادات.",
+            "تسريع العتاد للفيديو فقط — الصور والصوت دائماً على المعالج.",
         ],
     },
     {
         "emoji": "★",
         "title": "نصائح وميزات متقدمة",
-        "description": "اختصارات لوحة المفاتيح والإعدادات المسبقة ونماذج التسمية وغيرها.",
+        "description": "اختصارات وقوالب وموفّرات وقت أخرى.",
         "steps": [
-            "اسحب وأفلت ملفات الوسائط على النافذة — تتوجه تلقائياً للتبويب الصحيح.",
-            "جرس الإشعارات (أعلى اليمين) يتتبع العمليات المكتملة والفاشلة.",
-            "أيقونة طابور التنزيل تعرض التنزيلات النشطة — انقر لقائمة حية.",
-            "انقر نقراً مزدوجاً على شريط العنوان للتكبير أو الاستعادة.",
-            "مقبض تغيير الحجم في الزاوية السفلية اليمنى من شريط الحالة.",
+            "اسحب الملفات على النافذة — تذهب تلقائياً للتبويب المناسب.",
+            "جرس الإشعارات يتتبع العمليات المكتملة والفاشلة.",
+            "أيقونة الطابور تعرض التنزيلات النشطة.",
+            "انقر نقراً مزدوجاً على شريط العنوان للتكبير.",
             "انقر بزر الفأرة الأيمن على شريط الحالة لنسخ رسالة خطأ طويلة.",
-            "الإعدادات المسبقة — تبويبا التحميل والتحويل لديهما شريط إعداد مسبق. "
-            "هيّئ مرة واحدة، انقر 'حفظ...'، أعطه اسماً، وأعد تحميله بنقرة واحدة.",
-            "نماذج التسمية — حدد نمطاً مخصصاً في الإعدادات ← نموذج تسمية الإخراج.",
+            "احفظ قوالب في تبويبَي التحميل والتحويل لإعادة استخدامها بنقرة.",
+            "خصّص أسماء الإخراج من الإعدادات ← تسمية الإخراج.",
         ],
         "tips": [],
     },
     {
         "emoji": "⌨",
         "title": "اختصارات لوحة المفاتيح",
-        "description": "ارتباطات لوحة المفاتيح المتاحة في أي مكان بالتطبيق.",
+        "description": "اختصارات متاحة في أي مكان بالتطبيق.",
         "steps": [
-            "Ctrl + Enter — تشغيل الإجراء الرئيسي للقسم الحالي (تحميل، تحويل، قص، ضغط...).",
-            "Esc — إلغاء عملية جارية (مثل النقر على الزر عندما يعرض 'إلغاء').",
-            "Ctrl + V — عندما لا يكون حقل نص مركّزاً، يلصق رابط الحافظة مباشرةً "
-            "في شريط عنوان التحميل وينتقل إلى قسم التحميل.",
-            "Ctrl + H — الانتقال إلى لوحة التحكم الرئيسية.",
-            "Ctrl + T — الانتقال إلى صفحة الأدوات.",
-            "Ctrl + 1 إلى 9 — الانتقال المباشر إلى قسم أداة: "
-            "1 = تحميل، 2 = تحويل، 3 = قص، 4 = مستندات، 5 = GIF، "
-            "6 = ضغط، 7 = دمج، 8 = تحويل مكاني، 9 = السجل.",
-            "Ctrl + , — فتح الإعدادات.",
-            "F1 — فتح دليل كيفية الاستخدام.",
-            "Ctrl + Q — إنهاء تطبيق فيدل.",
+            "Ctrl + Enter — تشغيل إجراء القسم الحالي.",
+            "Esc — إلغاء عملية جارية.",
+            "Ctrl + V — لصق رابط في التحميل (عندما لا يكون حقل نص مركّزاً).",
+            "Ctrl + H — الصفحة الرئيسية.",
+            "Ctrl + T — صفحة الأدوات.",
+            "Ctrl + 1-9 — الانتقال لأداة: 1 تحميل، 2 تحويل، 3 قص، 4 مستندات، 5 GIF، 6 ضغط، 7 دمج، 8 تحويل مكاني، 9 السجل.",
+            "Ctrl + , — الإعدادات.",
+            "F1 — دليل الاستخدام.",
+            "Ctrl + Q — إنهاء.",
         ],
         "tips": [
-            "أيقونة ⌨ في شريط العنوان تعرض هذا المرجع السريع.",
-            "Ctrl+V يعترض فقط عندما لا يكون حقل إدخال مركّزاً — اللصق العادي يعمل دائماً.",
-            "جميع اختصارات التنقل تعمل بغض النظر عن القسم النشط حالياً.",
+            "أيقونة ⌨ في شريط العنوان تعرض هذه القائمة.",
+            "Ctrl+V يعترض فقط عندما لا يكون حقل نص مركّزاً.",
+            "اختصارات التنقل تعمل من أي قسم.",
         ],
     },
     {
-        "emoji": "🐞",
+        "emoji": "📄",
         "title": "أدوات PDF",
         "description": (
-            "أربع أدوات PDF في مكان واحد: ضغط الملفات، دمج المستندات، "
-            "تقسيم الصفحات، واستخراج كل الصور بصيغة JPEG. "
-            "مدعومة بـ PyMuPDF — لا أدوات خارجية مطلوبة."
+            "اضغط ودمّج وقسّم واستخرج الصور من ملفات PDF."
         ),
         "steps": [
-            "انتقل إلى 'أدوات PDF' في الشريط الجانبي (أو اضغط Ctrl+Enter من هذا القسم).",
-            "اختر العملية من الأعلى: ضغط أو دمج أو تقسيم أو استخراج صور.",
-            "ضغط — اختر ملف PDF، حدد مستوى الجودة (شاشة 72 / ويب 150 / طباعة 300 نقطة)، "
-            "ثم انقر تطبيق. يُحفظ الناتج باسم <اسم_الملف>_compressed.pdf.",
-            "دمج — أضف ملفَين أو أكثر، أعد ترتيبهم بالسحب، حدد مسار الملف الناتج، ثم انقر تطبيق.",
-            "تقسيم — اختر ملف PDF وحدد 'جميع الصفحات' لتصدير كل صفحة على حدة، "
-            "أو 'نطاق مخصص' لاستخراج صفحات محددة (مثل: 1-3، 5، 7-9).",
-            "استخراج صور — اختر 'صور مضمّنة' لاستخراج الصور الأصلية، "
-            "أو 'صفحات بصيغة JPEG' لتحويل كل صفحة إلى صورة بالدقة المختارة.",
+            "اختر العملية: ضغط، دمج، تقسيم، أو استخراج صور.",
+            "ضغط — اختر إعداداً مسبقاً (شاشة 72 / ويب 150 / طباعة 300 نقطة). انقر 'تطبيق'.",
+            "دمج — أضف ملفَين أو أكثر. أعد ترتيبهم بالسحب. حدد مسار الإخراج. انقر 'تطبيق'.",
+            "تقسيم — جميع الصفحات أو نطاق مخصص (مثل 1-3، 5، 7-9).",
+            "استخراج صور — صور مضمّنة، أو صفحات بصيغة JPEG (حدد الدقة).",
         ],
         "tips": [
-            "الضغط يعيد رسم الصفحات بدقة أقل — أفضل للملفات الغنية بالصور.",
-            "الدمج يحترم ترتيب القائمة — اسحب الصفوف قبل التشغيل.",
-            "النطاق المخصص يقبل صفحات وفترات مفصولة بفواصل: مثل '1، 3-5، 8'.",
-            "دقة 150 نقطة لـ JPEG تُعطي توازناً جيداً بين الجودة وحجم الملف.",
+            "الضغط أفضل للملفات الغنية بالصور؛ الملفات النصية تستفيد أقل.",
+            "النطاق المخصص يقبل صفحات وفترات مفصولة بفواصل: '1، 3-5، 8'.",
+            "150 نقطة لـ JPEG توازن جيد بين الجودة والحجم.",
+        ],
+    },
+    {
+        "emoji": "✂️",
+        "title": "قاطع الصمت (إزالة تلقائية)",
+        "description": (
+            "اكتشف الفجوات الصامتة في الصوت أو الفيديو وأعد ترميز الملف مع الإبقاء على الأجزاء المسموعة فقط."
+        ),
+        "steps": [
+            "اختر ملف صوت أو فيديو في 'قاطع الصمت'.",
+            "حدّد حساسية الصمت (-20 ديسيبل = صارم، -40 ديسيبل = قوي).",
+            "حدّد أدنى مدة للصمت — الفجوات الأقصر يتم الإبقاء عليها.",
+            "اختياري: هامش الحواف يترك مسافة قبل وبعد كل قص حتى لا يُقطع الكلام.",
+            "انقر 'قص الصمت'. سيُحفظ الناتج باسم <name>_jumpcut.<ext>.",
+        ],
+        "tips": [
+            "-30 ديسيبل و0.5 ثانية إعدادات افتراضية جيدة للبودكاست أو فيديو الحديث المباشر.",
+            "زد الهامش (مثلاً 100 م.ث) إن بدت القصات قاسية أو تقطع المقاطع الصوتية.",
+            "تتم إعادة الترميز بـ H.264 / AAC للفيديو، وبالكوديك الأصلي للصوت.",
         ],
     },
     {
         "emoji": "🐞",
         "title": "مُبلِّغ الأخطاء",
         "description": (
-            "وجدت خطأً في فيدل؟ استخدم مُبلِّغ الأخطاء المدمج لإرسال تقرير تفصيلي مباشرةً "
-            "إلى المطوّر. لا يُرسَل أي بيانات تلقائياً — أنت من يتحكم في محتوى التقرير."
+            "أرسل تقرير خطأ تفصيلياً إلى المطوّر. أنت تتحكم بمحتواه."
         ),
         "steps": [
-            "انقر على 'الإبلاغ عن خطأ' في الشريط الجانبي الأيسر لفتح صفحة مُبلِّغ الأخطاء.",
-            "اختر نوع الخطأ: مشكلة واجهة، مشكلة ميزة، تعطل / خطأ، أداء، أو أخرى.",
-            "أدخل عنواناً قصيراً للخطأ يلخّص المشكلة.",
-            "في حقل الوصف، اشرح ما حدث، وما توقعته، وكيفية إعادة إنتاج المشكلة.",
-            "اختياراً: انقر 'اختر صورة' لإرفاق لقطة شاشة تُظهر المشكلة.",
-            "اختياراً: أدخل عنوان بريدك الإلكتروني حتى يتمكن المطوّر من التواصل معك.",
-            "انقر 'إرسال التقرير' — سيفتح تطبيق بريدك الافتراضي مع ملء كل شيء مسبقاً.",
-            "إذا اخترت لقطة شاشة، أرفق ملف الصورة بالبريد قبل النقر على إرسال.",
+            "افتح 'الإبلاغ عن خطأ' من الشريط الجانبي.",
+            "اختر نوع الخطأ.",
+            "أدخل عنواناً قصيراً ووصفاً تفصيلياً.",
+            "اختياري: أرفق لقطة شاشة.",
+            "اختياري: أدخل بريدك الإلكتروني للرد.",
+            "انقر 'إرسال التقرير' — يفتح بريدك الافتراضي ممتلئاً مسبقاً.",
+            "إن اخترت لقطة شاشة، أرفقها بالبريد قبل الإرسال.",
         ],
         "tips": [
-            "كلما أضفت تفاصيل أكثر في الوصف، كان حل المشكلة أسرع.",
-            "لقطة الشاشة غالباً هي المعلومة الأكثر فائدة — أرفقها كلما أمكن ذلك.",
-            "بريدك الإلكتروني اختياري، لكن تقديمه يُمكّن المطوّر من طرح أسئلة متابعة.",
+            "تفاصيل أكثر = حل أسرع.",
+            "لقطة الشاشة غالباً المعلومة الأكثر فائدة.",
+            "البريد اختياري لكن يتيح للمطوّر طرح أسئلة متابعة.",
+        ],
+    },
+    {
+        "emoji": "🌐",
+        "title": "إضافة المتصفح",
+        "description": (
+            "تحميل بنقرة واحدة من أي موقع. تضع إضافة Videl للمتصفح زراً صغيراً فوق كل "
+            "فيديو على الويب — اضغطه فيظهر Videl وقد تم ملء الرابط تلقائياً."
+        ),
+        "steps": [
+            "تأكد من تشغيل Videl.",
+            "افتح الإعدادات ← إضافة المتصفح ← 'فتح مجلد الإضافة'. سيظهر المجلد في مستكشف الملفات.",
+            "في Chrome/Edge: افتح chrome://extensions، فعّل وضع المطوّر، اضغط 'تحميل غير محزّم'، واختر المجلد.",
+            "افتح أي صفحة فيها فيديو. سيظهر زر 'Videl' فوق المشغّل.",
+            "اضغطه. سيقفز Videl إلى الواجهة والرابط جاهز في تبويب التحميل.",
+            "اختر الجودة واضغط تحميل.",
+        ],
+        "tips": [
+            "يستمع Videl على 127.0.0.1:17654 — محلي فقط، لا يُعرض على الشبكة.",
+            "تفضّل الإضافة رابط الصفحة على المصدر الخام لأن مستخرجات yt-dlp تتعامل مع يوتيوب وتيك توك وتويتر بشكل أفضل بهذه الطريقة.",
+            "يتم تجاهل مقاطع الفيديو الصغيرة (الصور الرمزية، إعلانات أصغر من 160×90) عمداً.",
         ],
     },
 ]
 
 
+# Map each tutorial entry index → MainWindow section id.
+# None = entry is general (no per-tool section), e.g. tips, shortcuts.
+_TUTORIAL_SECTION_IDS: list[str | None] = [
+    "download",        # 0  Media Download
+    "convert",         # 1  Convert Media
+    "trim",            # 2  Trim Media
+    "document",        # 3  Document Convert
+    "gif",             # 4  GIF Creator
+    "compress",        # 5  Compress Media
+    "spatial",         # 6  Transform Media
+    "mux",             # 7  Audio Mux
+    "merge",           # 8  Merge Videos
+    "watermark",       # 9  Watermark
+    "frame_grabber",   # 10 Frame Grabber
+    "palette",         # 11 Hex Palette
+    "vocal_isolator",  # 12 Vocal Isolator
+    "bg_eraser",       # 13 BG Eraser
+    "upscaler",        # 14 AI Upscaler
+    "scrub",           # 15 Metadata Scrubber
+    "chunk",           # 16 Auto-Chunker
+    "history",         # 17 History
+    "settings",        # 18 Settings
+    None,              # 19 Tips & Power Features
+    None,              # 20 Keyboard Shortcuts
+    "pdf_toolkit",     # 21 PDF Toolkit
+    "jumpcut",         # 22 Jump-Cutter
+    "bug_reporter",    # 23 Bug Reporter
+    None,              # 24 Browser Extension (cross-cutting, no own section)
+]
+
+
 def _get_tutorial_data() -> list:
     return _TUTORIAL_DATA_AR if I18n.instance().is_rtl else _TUTORIAL_DATA_EN
+
+
+def get_tutorial_entry(section_id: str) -> dict | None:
+    """Return the localized tutorial entry for a given section id, or None if no match."""
+    data = _get_tutorial_data()
+    for idx, sid in enumerate(_TUTORIAL_SECTION_IDS):
+        if sid == section_id and idx < len(data):
+            return data[idx]
+    return None
+
+
+def _build_entry_body(data: dict, parent: QWidget | None = None) -> QWidget:
+    """Render description + steps + tips for a single tutorial entry into a QWidget."""
+    container = QWidget(parent)
+    v = QVBoxLayout(container)
+    v.setContentsMargins(0, 0, 0, 0)
+    v.setSpacing(10)
+
+    desc = QLabel(data["description"])
+    desc.setWordWrap(True)
+    desc.setObjectName("TextSecondary")
+    v.addWidget(desc)
+
+    steps = data.get("steps", [])
+    if steps:
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setObjectName("Separator")
+        sep.setFixedHeight(1)
+        v.addWidget(sep)
+
+        hdr_lbl = QLabel(tr("tut_how_to_use_hdr"))
+        hdr_lbl.setStyleSheet(
+            "font-size: 10px; font-weight: bold; letter-spacing: 1px; color: #8B949E;"
+        )
+        v.addWidget(hdr_lbl)
+
+        is_rtl = I18n.instance().is_rtl
+        for i, step in enumerate(steps, 1):
+            row = QHBoxLayout()
+            row.setSpacing(10)
+            row.setContentsMargins(0, 0, 0, 0)
+            num = QLabel(f"{i}.")
+            num.setFixedWidth(18)
+            num.setStyleSheet("color: #3B82F6; font-weight: bold;")
+            num.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+            row.addWidget(num)
+            lbl = QLabel(step)
+            lbl.setWordWrap(True)
+            lbl.setObjectName("TextSecondary")
+            if is_rtl:
+                lbl.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+                if step and not ('؀' <= step[0] <= 'ۿ'):
+                    lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+            row.addWidget(lbl, 1)
+            v.addLayout(row)
+
+    tips = data.get("tips", [])
+    if tips:
+        tip_frame = QFrame()
+        tip_frame.setObjectName("TipBox")
+        tip_frame.setStyleSheet(
+            "QFrame#TipBox {"
+            "  background-color: rgba(59,130,246,0.07);"
+            "  border-left: 3px solid #3B82F6;"
+            "  border-radius: 4px;"
+            "}"
+        )
+        tip_v = QVBoxLayout(tip_frame)
+        tip_v.setContentsMargins(12, 8, 12, 8)
+        tip_v.setSpacing(4)
+        prefix = tr("tut_tip_prefix")
+        for tip in tips:
+            t = QLabel(f"{prefix}{tip}")
+            t.setWordWrap(True)
+            t.setObjectName("TextSecondary")
+            tip_v.addWidget(t)
+        v.addWidget(tip_frame)
+
+    return container
+
+
+class HelpDialog(QDialog):
+    """Modal popup showing one tutorial entry — used by per-tab help buttons."""
+
+    def __init__(self, entry: dict, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"{entry['emoji']}  {entry['title']}")
+        self.resize(640, 600)
+        self.setModal(True)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # Title bar inside the dialog
+        title_row = QFrame()
+        title_row.setObjectName("Card")
+        tr_lay = QHBoxLayout(title_row)
+        tr_lay.setContentsMargins(20, 14, 20, 14)
+        tr_lay.setSpacing(10)
+        emoji = QLabel(entry["emoji"])
+        emoji.setStyleSheet("font-size: 22px;")
+        emoji.setFixedWidth(32)
+        tr_lay.addWidget(emoji)
+        title = QLabel(entry["title"])
+        title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        tr_lay.addWidget(title)
+        tr_lay.addStretch()
+        close_btn = QPushButton("✕")
+        close_btn.setFlat(True)
+        close_btn.setFixedSize(28, 28)
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.clicked.connect(self.accept)
+        tr_lay.addWidget(close_btn)
+        outer.addWidget(title_row)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        body = _build_entry_body(data=entry)
+        body_wrap = QWidget()
+        wrap_v = QVBoxLayout(body_wrap)
+        wrap_v.setContentsMargins(20, 12, 20, 20)
+        wrap_v.addWidget(body)
+        wrap_v.addStretch(1)
+        scroll.setWidget(body_wrap)
+        outer.addWidget(scroll, 1)
+
+        if I18n.instance().is_rtl:
+            self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+
+
+def open_help_for_section(section_id: str, parent: QWidget | None = None) -> bool:
+    """Open the HelpDialog for a section id. Returns True if a matching entry exists."""
+    entry = get_tutorial_entry(section_id)
+    if entry is None:
+        return False
+    dlg = HelpDialog(entry, parent=parent)
+    dlg.exec()
+    return True
 
 
 class TutorialSection(QScrollArea):
@@ -1118,8 +1191,15 @@ class TutorialSection(QScrollArea):
         v.setContentsMargins(24, 18, 24, 18)
         v.setSpacing(10)
 
-        # Header
-        hdr = QHBoxLayout()
+        steps = data.get("steps", [])
+        tips = data.get("tips", [])
+        has_body = bool(steps or tips)
+
+        # Clickable header (emoji + title + chevron)
+        header_frame = QFrame()
+        header_frame.setObjectName("TutHeader")
+        hdr = QHBoxLayout(header_frame)
+        hdr.setContentsMargins(0, 0, 0, 0)
         hdr.setSpacing(10)
         emoji = QLabel(data["emoji"])
         emoji.setStyleSheet("font-size: 20px;")
@@ -1129,28 +1209,39 @@ class TutorialSection(QScrollArea):
         title.setStyleSheet("font-size: 14px; font-weight: bold;")
         hdr.addWidget(title)
         hdr.addStretch()
-        v.addLayout(hdr)
+        chevron = QLabel("▸") if has_body else QLabel("")
+        chevron.setStyleSheet("color: #8B949E; font-size: 12px;")
+        hdr.addWidget(chevron)
+        v.addWidget(header_frame)
 
-        # Description
+        # Description (always visible)
         desc = QLabel(data["description"])
         desc.setWordWrap(True)
         desc.setObjectName("TextSecondary")
         v.addWidget(desc)
 
+        if not has_body:
+            return card
+
+        # Collapsible body container
+        body = QWidget()
+        body_v = QVBoxLayout(body)
+        body_v.setContentsMargins(0, 0, 0, 0)
+        body_v.setSpacing(10)
+
         # Steps
-        steps = data.get("steps", [])
         if steps:
             sep = QFrame()
             sep.setFrameShape(QFrame.Shape.HLine)
             sep.setObjectName("Separator")
             sep.setFixedHeight(1)
-            v.addWidget(sep)
+            body_v.addWidget(sep)
 
             hdr_lbl = QLabel(tr("tut_how_to_use_hdr"))
             hdr_lbl.setStyleSheet(
                 "font-size: 10px; font-weight: bold; letter-spacing: 1px; color: #8B949E;"
             )
-            v.addWidget(hdr_lbl)
+            body_v.addWidget(hdr_lbl)
 
             is_rtl = I18n.instance().is_rtl
             for i, step in enumerate(steps, 1):
@@ -1170,10 +1261,9 @@ class TutorialSection(QScrollArea):
                     if step and not ('؀' <= step[0] <= 'ۿ'):
                         lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
                 row.addWidget(lbl, 1)
-                v.addLayout(row)
+                body_v.addLayout(row)
 
         # Tips
-        tips = data.get("tips", [])
         if tips:
             tip_frame = QFrame()
             tip_frame.setObjectName("TipBox")
@@ -1193,6 +1283,23 @@ class TutorialSection(QScrollArea):
                 t.setWordWrap(True)
                 t.setObjectName("TextSecondary")
                 tip_v.addWidget(t)
-            v.addWidget(tip_frame)
+            body_v.addWidget(tip_frame)
+
+        body.setVisible(False)
+        v.addWidget(body)
+
+        # Wire click toggle on header + description
+        header_frame.setCursor(Qt.CursorShape.PointingHandCursor)
+        desc.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        def _toggle(_event=None):
+            vis = not body.isVisible()
+            body.setVisible(vis)
+            chevron.setText("▾" if vis else "▸")
+
+        header_frame.mousePressEvent = _toggle
+        desc.mousePressEvent = _toggle
+
+        return card
 
         return card
