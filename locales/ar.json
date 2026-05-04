@@ -667,5 +667,9 @@
   "hint_jumpcut_intro": "يكتشف الفجوات الصامتة باستخدام FFmpeg silencedetect ثم يعيد ترميز الملف مع الإبقاء على الأجزاء المسموعة فقط.",
   "lbl_jumpcut_noise": "حساسية الصمت: {db} ديسيبل",
   "lbl_jumpcut_minsil": "أدنى مدة للصمت: {s:.1f} ث",
-  "lbl_jumpcut_padding": "هامش الحواف: {ms} م.ث"
+  "lbl_jumpcut_padding": "هامش الحواف: {ms} م.ث",
+  "update_title": "تحديث متوفر",
+  "update_body": "إصدار جديد من Videl متاح.\n\nالمثبَّت: v{current}\nالأحدث:   v{latest}",
+  "update_download": "تنزيل التحديث",
+  "update_skip": "تخطٍّ الآن"
 }

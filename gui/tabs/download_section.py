@@ -32,7 +32,9 @@ try:
     from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
     from PySide6.QtMultimediaWidgets import QVideoWidget
     _MULTIMEDIA_AVAILABLE = True
-except ImportError:
+except Exception as _mm_exc:  # ImportError or DLL load failure (OSError)
+    from utils.app_logger import get_logger
+    get_logger().warning("QtMultimedia unavailable in download_section: %s", _mm_exc)
     _MULTIMEDIA_AVAILABLE = False
 
 from core.i18n import tr

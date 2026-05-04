@@ -667,5 +667,9 @@
   "hint_jumpcut_intro": "Detects silent gaps with FFmpeg silencedetect, then re-encodes the file keeping only the loud parts.",
   "lbl_jumpcut_noise": "Silence sensitivity: {db} dB",
   "lbl_jumpcut_minsil": "Minimum silence duration: {s:.1f} s",
-  "lbl_jumpcut_padding": "Edge padding: {ms} ms"
+  "lbl_jumpcut_padding": "Edge padding: {ms} ms",
+  "update_title": "Update available",
+  "update_body": "A new version of Videl is available.\n\nInstalled: v{current}\nLatest:    v{latest}",
+  "update_download": "Download Update",
+  "update_skip": "Skip for Now"
 }

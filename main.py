@@ -112,6 +112,9 @@ def main() -> None:
         checker = _DepsChecker(win)
         checker.done.connect(lambda err: _on_deps_checked(err, win))
         checker.start()
+        # Silent Smart Updater — keep ref on window to prevent GC.
+        from core.updater import start_update_check
+        win._update_checker = start_update_check(win)
 
     splash.ready_to_start.connect(_on_ready)
 

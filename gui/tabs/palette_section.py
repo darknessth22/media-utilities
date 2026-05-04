@@ -28,7 +28,9 @@ try:
     from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
     from PySide6.QtMultimediaWidgets import QVideoWidget
     _MM = True
-except ImportError:
+except Exception as _mm_exc:  # ImportError or DLL load failure (OSError)
+    from utils.app_logger import get_logger
+    get_logger().warning("QtMultimedia unavailable in palette_section: %s", _mm_exc)
     _MM = False
 
 

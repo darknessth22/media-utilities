@@ -170,6 +170,7 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 | Hardware acceleration | GPU encoder/decoder for video compression — None, NVIDIA, AMD, Intel, VideoToolbox |
 | Cookies | File path or browser source for authenticated downloads |
 | Spotify credentials | Custom Client ID/Secret to avoid shared rate limits |
+| Smart Updater | Silent GitHub Releases check on launch; prompts for download when a newer tag exists (PyInstaller --onefile, full re-download) |
 
 ---
 

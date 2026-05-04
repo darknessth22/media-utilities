@@ -482,6 +482,23 @@ _TUTORIAL_DATA_EN = [
             "Tiny videos (avatars, ad pixels under 160×90) are skipped on purpose.",
         ],
     },
+    {
+        "emoji": "⬆",
+        "title": "Smart Updater",
+        "description": (
+            "Videl silently checks GitHub for newer releases on launch and "
+            "prompts you when one is available."
+        ),
+        "steps": [
+            "On startup a background thread pings the GitHub Releases API (3 s timeout).",
+            "If a newer version exists, a dark-mode dialog appears.",
+            "Click 'Download Update' to open the storefront in your browser, or 'Skip for Now'.",
+        ],
+        "tips": [
+            "No internet → check fails silently; the app still launches normally.",
+            "Because builds are PyInstaller --onefile, updates are full re-downloads (no binary patching).",
+        ],
+    },
 ]
 
 _TUTORIAL_DATA_AR = [
@@ -956,6 +973,23 @@ _TUTORIAL_DATA_AR = [
             "يتم تجاهل مقاطع الفيديو الصغيرة (الصور الرمزية، إعلانات أصغر من 160×90) عمداً.",
         ],
     },
+    {
+        "emoji": "⬆",
+        "title": "المحدِّث الذكي",
+        "description": (
+            "يتحقق Videl بصمت من GitHub عند كل تشغيل بحثاً عن إصدار أحدث "
+            "ويُنبّهك عند توفّره."
+        ),
+        "steps": [
+            "عند الإقلاع يفحص خيط في الخلفية واجهة GitHub Releases (مهلة 3 ثوانٍ).",
+            "عند توفّر إصدار أحدث يظهر مربّع حوار بنمط داكن.",
+            "اضغط 'تنزيل التحديث' لفتح المتجر في المتصفح، أو 'تخطٍّ الآن'.",
+        ],
+        "tips": [
+            "بدون اتصال بالإنترنت يفشل الفحص بصمت ويستمر التطبيق طبيعياً.",
+            "بما أن البناء --onefile عبر PyInstaller، التحديث تنزيل كامل (لا توجد رقع ثنائية).",
+        ],
+    },
 ]
 
 
@@ -987,6 +1021,7 @@ _TUTORIAL_SECTION_IDS: list[str | None] = [
     "jumpcut",         # 22 Jump-Cutter
     "bug_reporter",    # 23 Bug Reporter
     None,              # 24 Browser Extension (cross-cutting, no own section)
+    None,              # 25 Smart Updater (cross-cutting, no own section)
 ]
 
 
@@ -1082,6 +1117,12 @@ class HelpDialog(QDialog):
         self.setWindowTitle(f"{entry['emoji']}  {entry['title']}")
         self.resize(640, 600)
         self.setModal(True)
+        # Drop native title bar so the only header is the custom "Card" row
+        # below — previously users saw two stacked headers + two ✕ buttons.
+        self.setWindowFlags(
+            Qt.WindowType.Dialog
+            | Qt.WindowType.FramelessWindowHint
+        )
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -1108,6 +1149,11 @@ class HelpDialog(QDialog):
         close_btn.clicked.connect(self.accept)
         tr_lay.addWidget(close_btn)
         outer.addWidget(title_row)
+        # Allow click-drag on the custom title bar since the OS title bar is gone.
+        self._drag_offset = None
+        title_row.mousePressEvent = self._title_press  # type: ignore[assignment]
+        title_row.mouseMoveEvent = self._title_move    # type: ignore[assignment]
+        title_row.mouseReleaseEvent = self._title_release  # type: ignore[assignment]
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -1123,6 +1169,20 @@ class HelpDialog(QDialog):
 
         if I18n.instance().is_rtl:
             self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+
+    def _title_press(self, ev) -> None:
+        if ev.button() == Qt.MouseButton.LeftButton:
+            self._drag_offset = ev.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            ev.accept()
+
+    def _title_move(self, ev) -> None:
+        if self._drag_offset is not None and ev.buttons() & Qt.MouseButton.LeftButton:
+            self.move(ev.globalPosition().toPoint() - self._drag_offset)
+            ev.accept()
+
+    def _title_release(self, ev) -> None:
+        self._drag_offset = None
+        ev.accept()
 
 
 def open_help_for_section(section_id: str, parent: QWidget | None = None) -> bool:

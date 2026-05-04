@@ -2,7 +2,7 @@
 
 import os
 import sys
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_all
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_all, collect_dynamic_libs
 
 datas = []
 datas += collect_data_files('yt_dlp')
@@ -21,10 +21,18 @@ try:
     pyside6_datas = collect_data_files('PySide6', includes=[
         'plugins/platforms/*', 'plugins/styles/*',
         'plugins/imageformats/*', 'plugins/multimedia/*',
+        'plugins/mediaservice/*', 'plugins/audio/*',
     ])
     datas += pyside6_datas
+    # Native DLLs: Qt6Multimedia.dll, Qt6MultimediaWidgets.dll, FFmpeg backend
+    # DLLs (avcodec/avformat/avutil/swresample/swscale), and the multimedia
+    # plugin .dlls. collect_data_files does NOT grab these — without them the
+    # frozen exe cannot import QtMultimedia even though Python bindings are
+    # bundled. Must use collect_dynamic_libs.
+    pyside6_binaries = collect_dynamic_libs('PySide6')
+    pyside6_binaries += collect_dynamic_libs('shiboken6')
 except Exception as e:
-    print(f"Warning: PySide6 data collection failed: {e}")
+    print(f"Warning: PySide6 binary collection failed: {e}")
 
 try:
     datas += collect_data_files('playwright')
@@ -192,7 +200,9 @@ a = Analysis(
         'PySide6.QtQuick', 'PySide6.QtQuickWidgets', 'PySide6.QtQml',
         'PySide6.QtLocation', 'PySide6.QtBluetooth', 'PySide6.QtNfc',
         'PySide6.QtSerialPort', 'PySide6.QtSensors', 'PySide6.QtVirtualKeyboard',
-        'PySide6.QtNetwork', 'PySide6.QtOpenGL', 'PySide6.QtOpenGLWidgets',
+        # NB: PySide6.QtNetwork must NOT be excluded — QtMultimedia depends on it
+        # for stream loading; excluding it breaks video preview in the frozen build.
+        'PySide6.QtOpenGL', 'PySide6.QtOpenGLWidgets',
         'PySide6.QtPrintSupport', 'PySide6.QtTest', 'PySide6.QtXml',
         'PySide6.QtStateMachine', 'PySide6.QtConcurrent',
         'PySide6.QtPositioning', 'PySide6.QtRemoteObjects',
@@ -225,7 +235,17 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=['vcruntime140.dll', 'msvcp140.dll'],
+    upx_exclude=[
+        'vcruntime140.dll', 'msvcp140.dll',
+        # UPX-packed Qt DLLs silently break plugin loading (multimedia
+        # backend, image formats). Keep all Qt6* + the FFmpeg backend
+        # DLLs uncompressed.
+        'Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll', 'Qt6Svg.dll',
+        'Qt6Multimedia.dll', 'Qt6MultimediaWidgets.dll',
+        'Qt6Network.dll', 'Qt6OpenGL.dll', 'Qt6Qml.dll',
+        'avcodec-*.dll', 'avformat-*.dll', 'avutil-*.dll',
+        'swresample-*.dll', 'swscale-*.dll',
+    ],
     runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
@@ -243,6 +263,13 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    upx_exclude=['vcruntime140.dll', 'msvcp140.dll'],
+    upx_exclude=[
+        'vcruntime140.dll', 'msvcp140.dll',
+        'Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll', 'Qt6Svg.dll',
+        'Qt6Multimedia.dll', 'Qt6MultimediaWidgets.dll',
+        'Qt6Network.dll', 'Qt6OpenGL.dll', 'Qt6Qml.dll',
+        'avcodec-*.dll', 'avformat-*.dll', 'avutil-*.dll',
+        'swresample-*.dll', 'swscale-*.dll',
+    ],
     name='Videl',
 )
