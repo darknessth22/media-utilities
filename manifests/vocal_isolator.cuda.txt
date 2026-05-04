@@ -1,0 +1,12 @@
+# Vocal isolator (demucs) — CUDA 12.8 torch wheels (Blackwell sm_120 support).
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.7.0+cu128
+torchaudio==2.7.0+cu128
+demucs==4.0.1
+numpy==1.26.4
+einops==0.8.0
+julius==0.2.7
+lameenc==1.7.0
+openunmix==1.3.0
+pyyaml==6.0.2
+tqdm==4.66.5

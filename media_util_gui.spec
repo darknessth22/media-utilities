@@ -2,66 +2,80 @@
 
 import os
 import sys
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_all
 
-# Collect data files for various packages
 datas = []
 datas += collect_data_files('yt_dlp')
+
+# Collect pip fully — datas, binaries, and submodules — so pip._vendor's
+# custom path finder works inside the frozen exe.
+_pip_datas, _pip_binaries, _pip_hidden = collect_all('pip')
+datas += _pip_datas
 datas += collect_data_files('pillow_heif')
 datas += collect_data_files('fitz')
 
 # rembg and demucs are NOT bundled — installed on-demand by the user via in-app button.
-# Their packages land in ai_packages/ next to the exe at runtime.
 
-# Collect only PySide6 plugin data files (platforms, styles, imageformats)
 pyside6_binaries = []
 try:
-    pyside6_datas = collect_data_files('PySide6', includes=['plugins/platforms/*', 'plugins/styles/*', 'plugins/imageformats/*', 'plugins/multimedia/*'])
+    pyside6_datas = collect_data_files('PySide6', includes=[
+        'plugins/platforms/*', 'plugins/styles/*',
+        'plugins/imageformats/*', 'plugins/multimedia/*',
+    ])
     datas += pyside6_datas
 except Exception as e:
     print(f"Warning: PySide6 data collection failed: {e}")
 
-# Try to collect spotdl data files for Spotify support
 try:
-    datas += collect_data_files('spotdl')
+    datas += collect_data_files('playwright')
 except Exception:
-    print("Warning: spotdl data files not found - Spotify support may not work in executable")
+    print("Warning: playwright data files not found")
 
-# Add application assets
-assets_dir = os.path.join(os.path.dirname(os.path.abspath('.')), 'assets')
 if os.path.isdir('assets'):
     datas.append(('assets', 'assets'))
 
-# Locale JSON files (i18n); loaded via resource_path / sys._MEIPASS at runtime
 if os.path.isdir('locales'):
     datas.append(('locales', 'locales'))
 
-# Add FFmpeg and FFprobe executables if they exist in the bin directory (setup by build_executable.py)
+# Browser extension — shipped alongside the installed app so users can
+# load it unpacked into their browser (Chrome/Edge: Load unpacked).
+if os.path.isdir('browser_extension'):
+    datas.append(('browser_extension', 'browser_extension'))
+
+# Bundled embeddable Python runtime + AI manifests — required for on-demand install.
+if os.path.isdir('runtime'):
+    datas.append(('runtime', 'runtime'))
+if os.path.isdir('manifests'):
+    datas.append(('manifests', 'manifests'))
+
 if os.path.exists('bin/ffmpeg.exe'):
     datas.append(('bin/ffmpeg.exe', '.'))
 if os.path.exists('bin/ffprobe.exe'):
     datas.append(('bin/ffprobe.exe', '.'))
 
-# Fallback for current directory if bin/ doesn't exist yet
 if not os.path.exists('bin/ffmpeg.exe'):
     if os.path.exists('ffmpeg.exe'):
         datas.append(('ffmpeg.exe', '.'))
     if os.path.exists('ffprobe.exe'):
         datas.append(('ffprobe.exe', '.'))
 
-# Add spotdl executable if it exists (for Spotify support)
 if os.path.exists('spotdl.exe'):
     datas.append(('spotdl.exe', '.'))
 elif os.path.exists('Scripts/spotdl.exe'):
     datas.append(('Scripts/spotdl.exe', '.'))
 
-# Hidden imports for packages that might not be detected automatically
 hiddenimports = []
-hiddenimports += collect_submodules('yt_dlp')
+
+# yt-dlp: lazy-loads extractors internally — no submodule collection needed
+hiddenimports += ['yt_dlp']
+
+# pip: runs in-process to install AI packages — full collect via collect_all above
+hiddenimports += _pip_hidden
+
 hiddenimports += collect_submodules('pillow_heif')
 
-# pip must be bundled so the frozen exe can install AI packages at runtime.
-hiddenimports += ['pip', 'pip._internal', 'pip._internal.cli.main']
+# playwright: imported directly by interceptor
+hiddenimports += collect_submodules('playwright')
 
 # PySide6 multimedia modules for video trimmer
 hiddenimports += [
@@ -71,20 +85,13 @@ hiddenimports += [
     'PySide6.QtSvgWidgets',
 ]
 
-# Try to collect spotdl submodules for Spotify support
-try:
-    hiddenimports += collect_submodules('spotdl')
-except Exception:
-    print("Warning: spotdl submodules not found - adding basic spotdl imports")
-    hiddenimports += ['spotdl', 'spotdl.download', 'spotdl.utils']
-
 hiddenimports += [
     'fitz',
     'pypdf',
     'docx',
     'docx.shared',
     'docx.enum',
-    'docx.enum.text',   # WD_ALIGN_PARAGRAPH used in document.py
+    'docx.enum.text',
     'openpyxl',
     'pptx',
     'pptx.util',
@@ -94,8 +101,8 @@ hiddenimports += [
     'io',
     'xml.etree.ElementTree',
     'tempfile',
-    'contextlib',       # Used in document.py _temp_png context manager
-    'urllib.request',   # May be needed for spotdl
+    'contextlib',
+    'urllib.request',
     'docx2pdf',
     'win32com',
     'win32com.client',
@@ -106,23 +113,73 @@ hiddenimports += [
     'winreg',
 ]
 
+# Stdlib modules used by on-demand AI components (rembg / onnxruntime / demucs /
+# torch) loaded from %LOCALAPPDATA%\Videl\ai_packages. Nothing in the frozen app
+# imports these directly, so PyInstaller would otherwise drop them.
+hiddenimports += [
+    'timeit',
+    'pdb',
+    'cProfile',
+    'pstats',
+    'pkg_resources',
+    'pkgutil',
+    'unittest',
+    'unittest.mock',
+    'multiprocessing',
+    'multiprocessing.pool',
+    'multiprocessing.shared_memory',
+    'concurrent.futures',
+    'concurrent.futures.process',
+    'concurrent.futures.thread',
+    'lzma',
+    'bz2',
+    'tarfile',
+    'zipfile',
+    'gzip',
+    'csv',
+    'sqlite3',
+    'email',
+    'email.mime',
+    'email.mime.text',
+    'http.client',
+    'http.cookiejar',
+    'urllib.error',
+    'urllib.parse',
+    'urllib.response',
+    'xml.etree',
+    'xml.etree.ElementTree',
+    'importlib.metadata',
+    'importlib.resources',
+    'logging.config',
+    'logging.handlers',
+    'difflib',
+    'doctest',
+    'dis',
+    'platform',
+    'getpass',
+    'shlex',
+    'pprint',
+]
+
 block_cipher = None
 
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=pyside6_binaries,
+    binaries=pyside6_binaries + _pip_binaries,
     datas=datas,
     hiddenimports=hiddenimports + [
         'openpyxl.cell._writer',
-        'openpyxl.worksheet._writer'
+        'openpyxl.worksheet._writer',
     ],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=['runtime_hook_pip.py'],
     excludes=[
         'tkinter', 'ttkbootstrap', 'darkdetect', '_tkinter',
-        # PySide6 unused modules
+        # spotdl — runs as spotdl.exe subprocess, never imported
+        'spotdl',
+        # Unused PySide6 modules
         'PySide6.QtWebEngine', 'PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets',
         'PySide6.Qt3DCore', 'PySide6.Qt3DRender', 'PySide6.Qt3DInput',
         'PySide6.QtCharts', 'PySide6.QtDataVisualization',
@@ -130,13 +187,20 @@ a = Analysis(
         'PySide6.QtQuick', 'PySide6.QtQuickWidgets', 'PySide6.QtQml',
         'PySide6.QtLocation', 'PySide6.QtBluetooth', 'PySide6.QtNfc',
         'PySide6.QtSerialPort', 'PySide6.QtSensors', 'PySide6.QtVirtualKeyboard',
-        # Heavy ML frameworks — torch is used by Vocal Isolator (demucs); keep if bundling that feature
+        'PySide6.QtNetwork', 'PySide6.QtOpenGL', 'PySide6.QtOpenGLWidgets',
+        'PySide6.QtPrintSupport', 'PySide6.QtTest', 'PySide6.QtXml',
+        'PySide6.QtStateMachine', 'PySide6.QtConcurrent',
+        'PySide6.QtPositioning', 'PySide6.QtRemoteObjects',
+        'PySide6.QtScxml', 'PySide6.QtWebSockets', 'PySide6.QtWebChannel',
+        # Heavy ML frameworks
         'tensorflow', 'tensorboard', 'keras',
         'numpy.distutils',
         'matplotlib', 'pandas',
         'IPython', 'ipykernel', 'ipywidgets', 'notebook', 'jupyter',
         'cv2', 'torchvision', 'torchaudio',
         'triton', 'cupy',
+        # AI runtime deps — installed on-demand into %LOCALAPPDATA%\Videl\ai_packages.
+        'torch', 'rembg', 'demucs', 'numba', 'onnxruntime', 'scipy', 'sklearn',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -156,12 +220,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[
-        'vcruntime140.dll', 'msvcp140.dll', 'qwindows.dll', 'qstyles.dll',
-        'Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll', 'Qt6Multimedia.dll',
-        'Qt6MultimediaWidgets.dll', 'Qt6Network.dll', 'Qt6Svg.dll',
-        'Qt6SvgWidgets.dll', 'shiboken6.abi3.dll', 'pyside6.abi3.dll'
-    ],
+    upx_exclude=['vcruntime140.dll', 'msvcp140.dll'],
     runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
@@ -179,11 +238,6 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    upx_exclude=[
-        'vcruntime140.dll', 'msvcp140.dll', 'qwindows.dll', 'qstyles.dll',
-        'Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll', 'Qt6Multimedia.dll',
-        'Qt6MultimediaWidgets.dll', 'Qt6Network.dll', 'Qt6Svg.dll',
-        'Qt6SvgWidgets.dll', 'shiboken6.abi3.dll', 'pyside6.abi3.dll'
-    ],
+    upx_exclude=['vcruntime140.dll', 'msvcp140.dll'],
     name='Videl',
 )

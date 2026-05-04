@@ -85,3 +85,7 @@ size-budget.json
 
 # Legacy files
 gui.html
+.build_venv/
+
+# Bundled Python runtime (build output, never checked in)
+runtime/

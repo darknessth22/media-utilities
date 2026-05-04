@@ -17,7 +17,9 @@ from core.i18n import tr
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 from gui.worker import Worker
-from utils.model_manager import is_demucs_installed, install_demucs
+from utils import model_manager
+from utils.install_errors import classify as classify_install_error
+from utils.model_manager import InsufficientDiskError
 
 
 def _card() -> QFrame:
@@ -54,7 +56,9 @@ class VocalIsolatorSection(QScrollArea):
         self._settings = settings
         self._worker: Worker | None = None
         self._last_output_dir: str | None = None
-        self._install_worker: Worker | None = None
+        self._install_proc = None
+        self._install_tail: list[str] = []
+        self._component_id = "vocal_isolator"
 
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -113,11 +117,61 @@ class VocalIsolatorSection(QScrollArea):
         self._install_desc.setStyleSheet("font-size: 12px;")
         layout.addWidget(self._install_desc)
 
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
         self._install_btn = QPushButton(tr("btn_install_model"))
         self._install_btn.setObjectName("PrimaryBtn")
         self._install_btn.setFixedWidth(160)
-        self._install_btn.clicked.connect(self._start_install)
-        layout.addWidget(self._install_btn)
+        self._install_btn.clicked.connect(self._show_pre_install_panel)
+        btn_row.addWidget(self._install_btn)
+
+        self._retry_btn = QPushButton(tr("install_retry_button"))
+        self._retry_btn.setObjectName("PrimaryBtn")
+        self._retry_btn.setFixedWidth(140)
+        self._retry_btn.clicked.connect(self._retry_install)
+        self._retry_btn.setVisible(False)
+        btn_row.addWidget(self._retry_btn)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+        self._preinstall_panel = QFrame()
+        self._preinstall_panel.setObjectName("Card")
+        self._preinstall_panel.setStyleSheet(
+            "QFrame#Card { border: 1px solid rgba(59,130,246,0.4);"
+            " background: rgba(59,130,246,0.06); border-radius: 8px; }"
+        )
+        pi_layout = QVBoxLayout(self._preinstall_panel)
+        pi_layout.setContentsMargins(14, 10, 14, 10)
+        pi_layout.setSpacing(6)
+        self._variant_label = QLabel(tr("install_variant_choose"))
+        self._variant_label.setStyleSheet("font-size: 12px; font-weight: bold;")
+        pi_layout.addWidget(self._variant_label)
+        self._variant_group = QButtonGroup(self)
+        self._variant_radios: list[QRadioButton] = []
+        self._variant_radio_box = QVBoxLayout()
+        self._variant_radio_box.setSpacing(2)
+        pi_layout.addLayout(self._variant_radio_box)
+        self._target_label = QLabel("")
+        self._target_label.setObjectName("TextMuted")
+        self._target_label.setWordWrap(True)
+        self._target_label.setStyleSheet("font-size: 11px;")
+        pi_layout.addWidget(self._target_label)
+        pi_btn_row = QHBoxLayout()
+        pi_btn_row.setSpacing(8)
+        self._confirm_btn = QPushButton(tr("install_confirm_button"))
+        self._confirm_btn.setObjectName("PrimaryBtn")
+        self._confirm_btn.setFixedWidth(120)
+        self._confirm_btn.clicked.connect(self._confirm_install)
+        self._cancel_btn = QPushButton(tr("install_cancel_button"))
+        self._cancel_btn.setObjectName("BrowseBtn")
+        self._cancel_btn.setFixedWidth(100)
+        self._cancel_btn.clicked.connect(self._cancel_pre_install)
+        pi_btn_row.addWidget(self._confirm_btn)
+        pi_btn_row.addWidget(self._cancel_btn)
+        pi_btn_row.addStretch()
+        pi_layout.addLayout(pi_btn_row)
+        self._preinstall_panel.setVisible(False)
+        layout.addWidget(self._preinstall_panel)
 
         self._install_status = QLabel("")
         self._install_status.setObjectName("TextMuted")
@@ -136,44 +190,171 @@ class VocalIsolatorSection(QScrollArea):
         return card
 
     def _refresh_install_state(self) -> None:
-        installed = is_demucs_installed()
+        installed = model_manager.is_installed(self._component_id)
         self._install_banner.setVisible(not installed)
         self._tools_container.setVisible(installed)
 
+    def _show_pre_install_panel(self) -> None:
+        try:
+            variants = model_manager.available_variants(self._component_id)
+            recommended = model_manager.detected_variant(self._component_id)
+            target_dir = model_manager.pre_install_info(self._component_id).target_dir
+        except Exception as exc:
+            self._render_install_error(
+                tr("install_error_generic").format(error=str(exc))
+            )
+            return
+
+        for rb in self._variant_radios:
+            self._variant_group.removeButton(rb)
+            rb.setParent(None)
+            rb.deleteLater()
+        self._variant_radios = []
+
+        for variant, size_mb in variants:
+            base = (tr("install_variant_cuda") if variant == "cuda"
+                    else tr("install_variant_cpu"))
+            text = tr("install_variant_option").format(label=base, size_mb=size_mb)
+            supported, reason_key = model_manager.variant_compatibility(
+                self._component_id, variant
+            )
+            if not supported:
+                text += "  " + tr("install_variant_unavailable")
+            elif variant == recommended and len(variants) > 1:
+                text += "  " + tr("install_variant_recommended")
+            rb = QRadioButton(text)
+            rb.setStyleSheet("font-size: 12px;")
+            rb.setProperty("variant", variant)
+            if not supported:
+                rb.setEnabled(False)
+                if reason_key:
+                    rb.setToolTip(tr(reason_key))
+            elif variant == recommended:
+                rb.setChecked(True)
+            self._variant_group.addButton(rb)
+            self._variant_radio_box.addWidget(rb)
+            self._variant_radios.append(rb)
+
+        # If recommended was unavailable, fall back to first enabled radio.
+        if not any(rb.isChecked() for rb in self._variant_radios):
+            for rb in self._variant_radios:
+                if rb.isEnabled():
+                    rb.setChecked(True)
+                    break
+
+        self._variant_label.setVisible(len(variants) > 1)
+        self._target_label.setText(
+            tr("install_target_label").format(target=target_dir)
+        )
+        self._install_btn.setVisible(False)
+        self._preinstall_panel.setVisible(True)
+
+    def _selected_variant(self) -> str:
+        for rb in self._variant_radios:
+            if rb.isChecked():
+                return rb.property("variant") or "cpu"
+        return "cpu"
+
+    def _cancel_pre_install(self) -> None:
+        self._preinstall_panel.setVisible(False)
+        self._install_btn.setVisible(True)
+        self._install_btn.setEnabled(True)
+
+    def _confirm_install(self) -> None:
+        self._chosen_variant = self._selected_variant()
+        self._preinstall_panel.setVisible(False)
+        self._install_btn.setVisible(True)
+        self._start_install()
+
     def _start_install(self) -> None:
         self._install_btn.setEnabled(False)
+        self._retry_btn.setVisible(False)
+        self._install_status.setStyleSheet("font-size: 12px; color: #3B82F6;")
         self._install_status.setText(tr("lbl_model_installing"))
         self._install_status.setVisible(True)
         self._install_log.setVisible(True)
         self._install_log.clear()
+        self._install_tail = []
 
-        def _log_cb(line: str) -> None:
-            if self._install_worker:
-                self._install_worker.signals.progress.emit(0, 100, line)
+        variant = getattr(self, "_chosen_variant", None)
+        try:
+            self._install_proc = model_manager.start_install(
+                self._component_id, on_line=self._on_install_line, variant=variant,
+            )
+        except InsufficientDiskError:
+            info = model_manager.pre_install_info(self._component_id, variant)
+            self._render_install_error(
+                tr("install_error_disk").format(
+                    required_mb=int(info.approx_size_mb * 1.5),
+                    target=info.target_dir,
+                )
+            )
+            return
+        except Exception as exc:
+            self._render_install_error(
+                tr("install_error_generic").format(error=str(exc))
+            )
+            return
 
-        self._install_worker = Worker(install_demucs, _log_cb)
-        self._install_worker.signals.progress.connect(self._on_install_log)
-        self._install_worker.signals.result.connect(self._on_install_done)
-        self._install_worker.signals.error.connect(self._on_install_error)
-        self._install_worker.start()
+        self._install_proc.finished.connect(self._on_install_finished)
 
-    def _on_install_log(self, _v: int, _t: int, line: str) -> None:
-        if line:
-            self._install_log.append(line)
+    def _on_install_line(self, line: str) -> None:
+        import re as _re
+        # Detect pip's progress-bar refresh lines (e.g. "  35%|███| 1.2/3.5 GB ...")
+        # and surface them as a live status label instead of flooding the log.
+        if _re.match(r"^\s*\d+%\|", line) or _re.search(r"\d+\.\d+\s*[KMG]?B/", line):
+            self._install_status.setStyleSheet("font-size: 12px; color: #3B82F6;")
+            self._install_status.setText(line)
+            return
+        self._install_log.append(line)
+        self._install_tail.append(line)
+        if len(self._install_tail) > 200:
+            self._install_tail = self._install_tail[-200:]
 
-    def _on_install_done(self, _result) -> None:
-        self._install_worker = None
-        self._install_status.setStyleSheet("font-size: 12px; color: #22C55E;")
-        self._install_status.setText(tr("lbl_model_install_done"))
-        self._install_btn.setEnabled(True)
-        self._refresh_install_state()
+    def _on_install_finished(self, exit_code: int, _status) -> None:
+        proc = self._install_proc
+        self._install_proc = None
+        tail = "\n".join(self._install_tail)
+        if proc is not None:
+            try:
+                tail += bytes(proc.readAllStandardOutput()).decode(
+                    "utf-8", errors="replace"
+                )
+            except Exception:
+                pass
+        model_manager.finalize_install(self._component_id, exit_code, tail)
 
-    def _on_install_error(self, err_tuple: tuple) -> None:
-        self._install_worker = None
-        _, msg, _ = err_tuple
+        if exit_code == 0:
+            self._install_status.setStyleSheet("font-size: 12px; color: #22C55E;")
+            self._install_status.setText(tr("lbl_model_install_done"))
+            self._install_btn.setEnabled(True)
+            import importlib
+            importlib.invalidate_caches()
+            model_manager.ensure_ai_packages_on_path()
+            self._refresh_install_state()
+            # Re-probe device — initial probe ran before files existed.
+            self._detect_device_async()
+            return
+
+        state = model_manager.read_state(self._component_id)
+        info = model_manager.pre_install_info(self._component_id, state.variant)
+        msg = classify_install_error(
+            state.last_error or tail,
+            target=info.target_dir,
+            required_mb=int(info.approx_size_mb * 1.5),
+        )
+        self._render_install_error(msg)
+
+    def _render_install_error(self, msg: str) -> None:
         self._install_status.setStyleSheet("font-size: 12px; color: #EF4444;")
-        self._install_status.setText(tr("lbl_model_install_failed").format(error=msg))
-        self._install_btn.setEnabled(True)
+        self._install_status.setText(msg)
+        self._install_status.setVisible(True)
+        self._install_btn.setEnabled(False)
+        self._retry_btn.setVisible(True)
+
+    def _retry_install(self) -> None:
+        model_manager.uninstall(self._component_id)
+        self._start_install()
 
     # ── Source card ───────────────────────────────────────────────────────────
 
@@ -291,6 +472,21 @@ class VocalIsolatorSection(QScrollArea):
         self._device_lbl.setStyleSheet("font-size: 12px;")
         layout.addWidget(self._device_lbl)
 
+        # Device override radios — populated after detect/install state known.
+        self._device_group = QButtonGroup(self)
+        self._device_radio_row = QHBoxLayout()
+        self._device_radio_row.setSpacing(12)
+        self._device_rb_auto = QRadioButton("Auto")
+        self._device_rb_cpu = QRadioButton("CPU")
+        self._device_rb_cuda = QRadioButton("GPU (CUDA)")
+        for rb in (self._device_rb_auto, self._device_rb_cpu, self._device_rb_cuda):
+            rb.setStyleSheet("font-size: 12px;")
+            self._device_group.addButton(rb)
+            self._device_radio_row.addWidget(rb)
+        self._device_radio_row.addStretch()
+        self._device_rb_auto.setChecked(True)
+        layout.addLayout(self._device_radio_row)
+
         self._warn_lbl = QLabel(f"⚠ {tr('warn_vocal_cpu_time')}")
         self._warn_lbl.setObjectName("TextMuted")
         self._warn_lbl.setWordWrap(True)
@@ -308,24 +504,54 @@ class VocalIsolatorSection(QScrollArea):
         """Run torch device detection in a Worker so it never blocks the UI."""
         def _do_detect():
             try:
-                from core.vocal_isolator import detect_device
-                return detect_device()
-            except Exception:
-                return "cpu"
+                from core.vocal_isolator import detect_device, last_detect_debug
+                dev = detect_device()
+                return (dev, last_detect_debug())
+            except Exception as exc:
+                return ("cpu", f"detect_device raised: {exc}")
 
         w = Worker(_do_detect)
         w.signals.result.connect(self._on_device_detected)
         w.start()
         self._device_worker = w
 
-    def _on_device_detected(self, device: str) -> None:
+    def _on_device_detected(self, payload) -> None:
+        if isinstance(payload, tuple):
+            device, debug = payload
+        else:
+            device, debug = payload, ""
         device_label = "GPU (CUDA)" if device == "cuda" else "CPU"
         color = "#3B82F6" if device == "cuda" else "#F59E0B"
         self._device_lbl.setText(
             f"⚡ {tr('lbl_vocal_device')}: <b style='color:{color};'>{device_label}</b>"
         )
+        if debug:
+            self._device_lbl.setToolTip(debug)
         self._warn_lbl.setVisible(device == "cpu")
+        # If the user installed the CUDA variant but we still report CPU, surface
+        # the probe diagnostic inline so it's not silently swallowed.
+        if device == "cpu" and debug:
+            try:
+                from utils import model_manager as _mm
+                if _mm.read_state("vocal_isolator").variant == "cuda":
+                    self._warn_lbl.setText(f"⚠ CUDA variant installed but probe → CPU.\n{debug}")
+                    self._warn_lbl.setVisible(True)
+            except Exception:
+                pass
         self._detected_device = device
+        # CUDA radio enabled only when the installed variant is "cuda" AND probe
+        # found a usable kernel — otherwise selecting it would just crash.
+        cuda_usable = device == "cuda"
+        try:
+            from utils import model_manager as _mm
+            cuda_installed = _mm.read_state("vocal_isolator").variant == "cuda"
+        except Exception:
+            cuda_installed = False
+        self._device_rb_cuda.setEnabled(cuda_usable and cuda_installed)
+        if not (cuda_usable and cuda_installed):
+            self._device_rb_cuda.setToolTip(
+                "CUDA variant not installed or your GPU is not supported by the bundled torch build."
+            )
 
     # ── Progress card ─────────────────────────────────────────────────────────
 
@@ -390,6 +616,10 @@ class VocalIsolatorSection(QScrollArea):
         self._install_title.setText(f"⚠  {tr('lbl_model_not_installed')}")
         self._install_desc.setText(tr("lbl_model_demucs_desc"))
         self._install_btn.setText(tr("btn_install_model"))
+        self._retry_btn.setText(tr("install_retry_button"))
+        self._confirm_btn.setText(tr("install_confirm_button"))
+        self._cancel_btn.setText(tr("install_cancel_button"))
+        self._variant_label.setText(tr("install_variant_choose"))
         self._hdr_src.setText(tr("hdr_source_file"))
         self._hint_src.setText(tr("hint_vocal_source_formats"))
         self._input_edit.setPlaceholderText(tr("ph_vid_aud"))
@@ -492,6 +722,13 @@ class VocalIsolatorSection(QScrollArea):
             return bool(self._worker and self._worker.is_cancelled)
 
         from core.vocal_isolator import separate_vocals
+        device_override: str | None
+        if self._device_rb_cpu.isChecked():
+            device_override = "cpu"
+        elif self._device_rb_cuda.isChecked():
+            device_override = "cuda"
+        else:
+            device_override = None  # auto-detect
         self._worker = Worker(
             separate_vocals,
             input_path,
@@ -500,6 +737,7 @@ class VocalIsolatorSection(QScrollArea):
             preset,
             _progress_cb,
             _cancelled_cb,
+            device_override,
         )
         self._worker.signals.progress.connect(self._on_progress)
         self._worker.signals.result.connect(self._on_result)

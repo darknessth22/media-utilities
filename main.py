@@ -35,8 +35,19 @@ def _qt_message_handler(mode, _context, message):
 
 qInstallMessageHandler(_qt_message_handler)
 
-from utils.model_manager import ensure_ai_packages_on_path
-ensure_ai_packages_on_path()
+from utils import model_manager
+_RECONCILE_RESULT = model_manager.reconcile_on_launch()
+model_manager.ensure_ai_packages_on_path()
+
+# Single-instance mutex — installer uses this name to detect a running instance.
+# If the mutex already exists, another Videl is running: bail out before any UI
+# (incl. splash) is created so a second instance cannot spawn a duplicate splash.
+if sys.platform == "win32" and getattr(sys, "frozen", False):
+    import ctypes
+    _ERROR_ALREADY_EXISTS = 183
+    _mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "VidelAppMutex")
+    if ctypes.windll.kernel32.GetLastError() == _ERROR_ALREADY_EXISTS:
+        sys.exit(0)
 
 from core.settings import SettingsManager
 from core.version import VERSION
@@ -97,6 +108,7 @@ def main() -> None:
         splash.close()
         win = MainWindow(settings, theme_manager)
         win.show()
+        _apply_reconcile(win, _RECONCILE_RESULT)
         checker = _DepsChecker(win)
         checker.done.connect(lambda err: _on_deps_checked(err, win))
         checker.start()
@@ -114,6 +126,51 @@ def main() -> None:
 
 
     sys.exit(app.exec())
+
+
+def _apply_reconcile(window: MainWindow, result) -> None:
+    """Surface rolled-back / needs-reinstall results from launch reconcile."""
+    from core.i18n import tr
+
+    for cid in result.rolled_back:
+        window.update_status(tr("install_interrupted_toast"), is_error=True)
+        break  # one-shot toast, not per id
+
+    if not result.needs_reinstall:
+        return
+
+    window.update_status(tr("install_needs_reinstall_toast"))
+
+    def _kick_off(component_id: str) -> None:
+        try:
+            proc = model_manager.start_install(
+                component_id,
+                on_line=lambda line: window.update_status(
+                    tr("install_progress").format(line=line[:120])
+                ),
+            )
+        except Exception as exc:  # missing runtime / disk / etc.
+            window.update_status(
+                tr("install_error_generic").format(error=str(exc)), is_error=True
+            )
+            return
+
+        def _on_finished(exit_code: int, _status) -> None:
+            tail = bytes(proc.readAllStandardOutput()).decode("utf-8", errors="replace")
+            model_manager.finalize_install(component_id, exit_code, tail)
+            if exit_code == 0:
+                model_manager.ensure_ai_packages_on_path()
+                window.update_status(tr("install_done"))
+            else:
+                window.update_status(
+                    tr("install_error_generic").format(error=f"exit {exit_code}"),
+                    is_error=True,
+                )
+
+        proc.finished.connect(_on_finished)
+
+    for cid in result.needs_reinstall:
+        _kick_off(cid)
 
 
 def _on_deps_checked(error: str, window: MainWindow) -> None:

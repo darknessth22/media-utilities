@@ -23,26 +23,84 @@ PRESETS: dict[str, tuple[str, list[str]]] = {
 _PROGRESS_RE = re.compile(r"(\d+)%")
 
 
-def detect_device() -> str:
-    try:
-        import torch  # type: ignore
-        return "cuda" if torch.cuda.is_available() else "cpu"
-    except ImportError:
-        return "cpu"
+def _ai_dir() -> str:
+    """Return %LOCALAPPDATA%\\Videl\\ai_packages\\vocal_isolator (where demucs lives)."""
+    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    return os.path.join(base, "Videl", "ai_packages", "vocal_isolator")
 
 
 def _python_exe() -> str:
-    """Return a usable Python executable (handles frozen PyInstaller exe)."""
-    if getattr(sys, "frozen", False):
-        for candidate in ("python", "python3"):
-            try:
-                r = subprocess.run([candidate, "--version"], capture_output=True, timeout=5)
-                if r.returncode == 0:
-                    return candidate
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                continue
-        raise RuntimeError("Python not found on PATH. Install Python and ensure it is on PATH.")
-    return sys.executable
+    """Return the bundled embeddable Python (where AI components are installed against).
+
+    Falls back to the running interpreter in dev mode.
+    """
+    try:
+        from utils.bundled_runtime import bundled_python_path
+        return bundled_python_path()
+    except Exception:
+        return sys.executable
+
+
+_LAST_DETECT_DEBUG: str = ""
+
+
+def last_detect_debug() -> str:
+    """Diagnostic output from the most recent detect_device() call."""
+    return _LAST_DETECT_DEBUG
+
+
+def detect_device() -> str:
+    """Probe torch via the bundled Python — avoids ABI mismatches with the frozen app.
+
+    Embeddable Python ignores PYTHONPATH (isolated via python312._pth), so we
+    inject the ai_packages dir through a `-c` bootstrap that mutates sys.path.
+    Captures stderr/stdout into `last_detect_debug()` for diagnostics.
+    """
+    global _LAST_DETECT_DEBUG
+    py = _python_exe()
+    ai = _ai_dir()
+    if not os.path.isdir(ai):
+        _LAST_DETECT_DEBUG = f"ai_dir missing: {ai}"
+        return "cpu"
+    code = (
+        "import sys, traceback\n"
+        f"sys.path.insert(0, r'{ai}')\n"
+        "try:\n"
+        "    import torch\n"
+        "    avail = torch.cuda.is_available()\n"
+        "    info = (f'torch={torch.__version__} cuda_built={torch.version.cuda} '\n"
+        "            f'is_available={avail} device_count={torch.cuda.device_count()}')\n"
+        "    kernel_ok = False\n"
+        "    if avail:\n"
+        "        try:\n"
+        "            cap = torch.cuda.get_device_capability(0)\n"
+        "            info += f' name={torch.cuda.get_device_name(0)} cap=sm_{cap[0]}{cap[1]}'\n"
+        "            # Touch a real kernel to catch 'no kernel image' (sm mismatch).\n"
+        "            x = torch.zeros(1, device='cuda')\n"
+        "            (x + 1).cpu()\n"
+        "            kernel_ok = True\n"
+        "        except Exception as e:\n"
+        "            info += f' kernel_probe_failed={type(e).__name__}: {e}'\n"
+        "    sys.stdout.write('cuda' if kernel_ok else 'cpu')\n"
+        "    sys.stderr.write(info)\n"
+        "except Exception:\n"
+        "    sys.stdout.write('cpu')\n"
+        "    sys.stderr.write(traceback.format_exc())\n"
+    )
+    try:
+        creationflags = 0x08000000 if sys.platform == "win32" else 0  # CREATE_NO_WINDOW
+        r = subprocess.run(
+            [py, "-c", code],
+            capture_output=True, text=True, timeout=30,
+            creationflags=creationflags,
+        )
+        out = (r.stdout or "").strip()
+        _LAST_DETECT_DEBUG = (r.stderr or "").strip() or f"exit={r.returncode} stdout={out!r}"
+        if out in ("cpu", "cuda"):
+            return out
+    except Exception as exc:
+        _LAST_DETECT_DEBUG = f"subprocess error: {exc}"
+    return "cpu"
 
 
 def separate_vocals(
@@ -52,19 +110,18 @@ def separate_vocals(
     preset: str = "balanced",
     progress_cb: Callable[[int], None] | None = None,
     cancelled_cb: Callable[[], bool] | None = None,
+    device: str | None = None,
 ) -> dict:
     """Run HTDemucs 2-stem separation.
 
     fmt: 'wav' | 'mp3' | 'flac'
     preset: 'fast' | 'balanced' | 'quality'
+    device: 'cpu' | 'cuda' | None (auto via detect_device)
     Returns dict: success, vocals_path, accompaniment_path, device, output_dir.
     """
-    device = detect_device()
-
-    try:
-        python = _python_exe()
-    except RuntimeError as exc:
-        return {"success": False, "error": str(exc)}
+    if device not in ("cpu", "cuda"):
+        device = detect_device()
+    python = _python_exe()
 
     model, extra_flags = PRESETS.get(preset, PRESETS["balanced"])
 
@@ -81,13 +138,11 @@ def separate_vocals(
         fmt = "flac"
 
     env = os.environ.copy()
-    if getattr(sys, "frozen", False):
-        ai_dir = os.path.join(os.path.dirname(sys.executable), "ai_packages")
-        existing = env.get("PYTHONPATH", "")
-        env["PYTHONPATH"] = f"{ai_dir}{os.pathsep}{existing}" if existing else ai_dir
+    ai_dir = _ai_dir()
 
-    cmd = [
-        python, "-m", "demucs",
+    # Embeddable Python ignores PYTHONPATH; bootstrap sys.path via -c then run
+    # demucs as __main__ via runpy so its argparse sees the expected argv[0].
+    demucs_args = [
         "--two-stems", "vocals",
         "-n", model,
         "--device", device,
@@ -96,57 +151,74 @@ def separate_vocals(
         "-o", output_dir,
         input_path,
     ]
+    bootstrap = (
+        "import sys, runpy;"
+        f"sys.path.insert(0, r'{ai_dir}');"
+        f"sys.argv = ['demucs', *{demucs_args!r}];"
+        "runpy.run_module('demucs', run_name='__main__', alter_sys=True)"
+    )
+    cmd = [python, "-c", bootstrap]
 
+    creationflags = 0x08000000 if sys.platform == "win32" else 0  # CREATE_NO_WINDOW
     try:
+        # Force unbuffered stderr so tqdm progress (which uses \r) reaches us live.
+        env.setdefault("PYTHONUNBUFFERED", "1")
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-            encoding="utf-8",
-            errors="replace",
             env=env,
+            creationflags=creationflags,
         )
 
         stderr_lines: list[str] = []
+        last_pct = {"v": -1}
 
-        def _read_stderr() -> None:
-            for line in proc.stderr:  # type: ignore[union-attr]
-                l = line.rstrip()
-                if l:
-                    stderr_lines.append(l)
+        def _emit(text: str) -> None:
+            if not text:
+                return
+            stderr_lines.append(text)
+            m = _PROGRESS_RE.search(text)
+            if m and progress_cb:
+                pct = int(m.group(1))
+                if pct != last_pct["v"]:
+                    last_pct["v"] = pct
+                    try:
+                        progress_cb(pct)
+                    except Exception:
+                        pass
 
-        t = threading.Thread(target=_read_stderr, daemon=True)
-        t.start()
+        def _pump(stream) -> None:
+            buf = b""
+            while True:
+                chunk = stream.read(1)
+                if not chunk:
+                    if buf:
+                        _emit(buf.decode("utf-8", errors="replace"))
+                    return
+                if chunk in (b"\r", b"\n"):
+                    if buf:
+                        _emit(buf.decode("utf-8", errors="replace"))
+                        buf = b""
+                else:
+                    buf += chunk
 
-        last_pct = -1
-        for line in proc.stdout:  # type: ignore[union-attr]
+        t_err = threading.Thread(target=_pump, args=(proc.stderr,), daemon=True)
+        t_out = threading.Thread(target=_pump, args=(proc.stdout,), daemon=True)
+        t_err.start()
+        t_out.start()
+
+        while proc.poll() is None:
             if cancelled_cb and cancelled_cb():
                 proc.kill()
                 return {"success": False, "error": "Cancelled"}
-            # demucs prints progress on stderr too; check both
-            m = _PROGRESS_RE.search(line)
-            if not m:
-                m = _PROGRESS_RE.search(stderr_lines[-1]) if stderr_lines else None
-            if m and progress_cb:
-                pct = int(m.group(1))
-                if pct != last_pct:
-                    last_pct = pct
-                    progress_cb(pct)
+            try:
+                proc.wait(timeout=0.2)
+            except subprocess.TimeoutExpired:
+                pass
 
-        proc.wait()
-        t.join(timeout=5)
-
-        # Also scan stderr for progress in case stdout was empty
-        if last_pct < 0 and progress_cb:
-            for line in stderr_lines:
-                m = _PROGRESS_RE.search(line)
-                if m:
-                    pct = int(m.group(1))
-                    if pct != last_pct:
-                        last_pct = pct
-                        progress_cb(pct)
+        t_err.join(timeout=5)
+        t_out.join(timeout=5)
 
         if proc.returncode != 0:
             detail = "\n".join(stderr_lines[-15:]) if stderr_lines else ""

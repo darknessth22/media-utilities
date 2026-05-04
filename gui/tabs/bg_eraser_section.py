@@ -6,8 +6,8 @@ import os
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
-    QFileDialog, QFrame, QHBoxLayout, QLabel,
-    QLineEdit, QProgressBar, QPushButton,
+    QButtonGroup, QFileDialog, QFrame, QHBoxLayout, QLabel,
+    QLineEdit, QProgressBar, QPushButton, QRadioButton,
     QScrollArea, QTextEdit, QVBoxLayout, QWidget,
 )
 
@@ -15,7 +15,9 @@ from core.i18n import tr
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 from gui.worker import Worker
-from utils.model_manager import is_rembg_installed, install_rembg
+from utils import model_manager
+from utils.install_errors import classify as classify_install_error
+from utils.model_manager import InsufficientDiskError
 
 
 def _card() -> QFrame:
@@ -44,7 +46,9 @@ class BgEraserSection(QScrollArea):
         self._settings = settings
         self._worker: Worker | None = None
         self._last_result_path: str | None = None
-        self._install_worker: Worker | None = None
+        self._install_proc = None
+        self._install_tail: list[str] = []
+        self._component_id = "bg_eraser"
 
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -103,11 +107,61 @@ class BgEraserSection(QScrollArea):
         self._install_desc.setStyleSheet("font-size: 12px;")
         layout.addWidget(self._install_desc)
 
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
         self._install_btn = QPushButton(tr("btn_install_model"))
         self._install_btn.setObjectName("PrimaryBtn")
         self._install_btn.setFixedWidth(160)
-        self._install_btn.clicked.connect(self._start_install)
-        layout.addWidget(self._install_btn)
+        self._install_btn.clicked.connect(self._show_pre_install_panel)
+        btn_row.addWidget(self._install_btn)
+
+        self._retry_btn = QPushButton(tr("install_retry_button"))
+        self._retry_btn.setObjectName("PrimaryBtn")
+        self._retry_btn.setFixedWidth(140)
+        self._retry_btn.clicked.connect(self._retry_install)
+        self._retry_btn.setVisible(False)
+        btn_row.addWidget(self._retry_btn)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+        self._preinstall_panel = QFrame()
+        self._preinstall_panel.setObjectName("Card")
+        self._preinstall_panel.setStyleSheet(
+            "QFrame#Card { border: 1px solid rgba(59,130,246,0.4);"
+            " background: rgba(59,130,246,0.06); border-radius: 8px; }"
+        )
+        pi_layout = QVBoxLayout(self._preinstall_panel)
+        pi_layout.setContentsMargins(14, 10, 14, 10)
+        pi_layout.setSpacing(6)
+        self._variant_label = QLabel(tr("install_variant_choose"))
+        self._variant_label.setStyleSheet("font-size: 12px; font-weight: bold;")
+        pi_layout.addWidget(self._variant_label)
+        self._variant_group = QButtonGroup(self)
+        self._variant_radios: list[QRadioButton] = []
+        self._variant_radio_box = QVBoxLayout()
+        self._variant_radio_box.setSpacing(2)
+        pi_layout.addLayout(self._variant_radio_box)
+        self._target_label = QLabel("")
+        self._target_label.setObjectName("TextMuted")
+        self._target_label.setWordWrap(True)
+        self._target_label.setStyleSheet("font-size: 11px;")
+        pi_layout.addWidget(self._target_label)
+        pi_btn_row = QHBoxLayout()
+        pi_btn_row.setSpacing(8)
+        self._confirm_btn = QPushButton(tr("install_confirm_button"))
+        self._confirm_btn.setObjectName("PrimaryBtn")
+        self._confirm_btn.setFixedWidth(120)
+        self._confirm_btn.clicked.connect(self._confirm_install)
+        self._cancel_btn = QPushButton(tr("install_cancel_button"))
+        self._cancel_btn.setObjectName("BrowseBtn")
+        self._cancel_btn.setFixedWidth(100)
+        self._cancel_btn.clicked.connect(self._cancel_pre_install)
+        pi_btn_row.addWidget(self._confirm_btn)
+        pi_btn_row.addWidget(self._cancel_btn)
+        pi_btn_row.addStretch()
+        pi_layout.addLayout(pi_btn_row)
+        self._preinstall_panel.setVisible(False)
+        layout.addWidget(self._preinstall_panel)
 
         self._install_status = QLabel("")
         self._install_status.setObjectName("TextMuted")
@@ -126,51 +180,151 @@ class BgEraserSection(QScrollArea):
         return card
 
     def _refresh_install_state(self) -> None:
-        installed = is_rembg_installed()
+        installed = model_manager.is_installed(self._component_id)
         self._install_banner.setVisible(not installed)
         self._tools_container.setVisible(installed)
 
+    def _show_pre_install_panel(self) -> None:
+        try:
+            variants = model_manager.available_variants(self._component_id)
+            recommended = model_manager.detected_variant(self._component_id)
+            target_dir = model_manager.pre_install_info(self._component_id).target_dir
+        except Exception as exc:
+            self._render_install_error(
+                tr("install_error_generic").format(error=str(exc))
+            )
+            return
+
+        for rb in self._variant_radios:
+            self._variant_group.removeButton(rb)
+            rb.setParent(None)
+            rb.deleteLater()
+        self._variant_radios = []
+
+        for variant, size_mb in variants:
+            base = (tr("install_variant_cuda") if variant == "cuda"
+                    else tr("install_variant_cpu"))
+            text = tr("install_variant_option").format(label=base, size_mb=size_mb)
+            if variant == recommended and len(variants) > 1:
+                text += "  " + tr("install_variant_recommended")
+            rb = QRadioButton(text)
+            rb.setStyleSheet("font-size: 12px;")
+            rb.setProperty("variant", variant)
+            if variant == recommended:
+                rb.setChecked(True)
+            self._variant_group.addButton(rb)
+            self._variant_radio_box.addWidget(rb)
+            self._variant_radios.append(rb)
+
+        self._variant_label.setVisible(len(variants) > 1)
+        self._target_label.setText(
+            tr("install_target_label").format(target=target_dir)
+        )
+        self._install_btn.setVisible(False)
+        self._preinstall_panel.setVisible(True)
+
+    def _selected_variant(self) -> str:
+        for rb in self._variant_radios:
+            if rb.isChecked():
+                return rb.property("variant") or "cpu"
+        return "cpu"
+
+    def _cancel_pre_install(self) -> None:
+        self._preinstall_panel.setVisible(False)
+        self._install_btn.setVisible(True)
+        self._install_btn.setEnabled(True)
+
+    def _confirm_install(self) -> None:
+        self._chosen_variant = self._selected_variant()
+        self._preinstall_panel.setVisible(False)
+        self._install_btn.setVisible(True)
+        self._start_install()
+
     def _start_install(self) -> None:
         self._install_btn.setEnabled(False)
+        self._retry_btn.setVisible(False)
+        self._install_status.setStyleSheet("font-size: 12px; color: #3B82F6;")
         self._install_status.setText(tr("lbl_model_installing"))
         self._install_status.setVisible(True)
         self._install_log.setVisible(True)
         self._install_log.clear()
+        self._install_tail = []
 
-        def _log_cb(line: str) -> None:
-            if self._install_worker:
-                self._install_worker.signals.progress.emit(0, 100, line)
-
-        self._install_worker = Worker(install_rembg, _log_cb)
-        self._install_worker.signals.progress.connect(self._on_install_log)
-        self._install_worker.signals.result.connect(self._on_install_done)
-        self._install_worker.signals.error.connect(self._on_install_error)
-        self._install_worker.start()
-
-    def _on_install_log(self, _v: int, _t: int, line: str) -> None:
-        if line:
-            self._install_log.append(line)
-
-    def _on_install_done(self, _result) -> None:
-        self._install_worker = None
-        self._install_status.setStyleSheet("font-size: 12px; color: #22C55E;")
-        self._install_status.setText(tr("lbl_model_install_done"))
-        self._install_btn.setEnabled(True)
-        # Reload the module so imports work without restart
+        variant = getattr(self, "_chosen_variant", None)
         try:
-            from core import bg_eraser as _be
-            import importlib
-            importlib.reload(_be)
-        except Exception:
-            pass
-        self._refresh_install_state()
+            self._install_proc = model_manager.start_install(
+                self._component_id, on_line=self._on_install_line, variant=variant,
+            )
+        except InsufficientDiskError as exc:
+            info = model_manager.pre_install_info(self._component_id, variant)
+            self._render_install_error(
+                tr("install_error_disk").format(
+                    required_mb=int(info.approx_size_mb * 1.5),
+                    target=info.target_dir,
+                )
+            )
+            return
+        except Exception as exc:
+            self._render_install_error(
+                tr("install_error_generic").format(error=str(exc))
+            )
+            return
 
-    def _on_install_error(self, err_tuple: tuple) -> None:
-        self._install_worker = None
-        _, msg, _ = err_tuple
+        self._install_proc.finished.connect(self._on_install_finished)
+
+    def _on_install_line(self, line: str) -> None:
+        import re as _re
+        if _re.match(r"^\s*\d+%\|", line) or _re.search(r"\d+\.\d+\s*[KMG]?B/", line):
+            self._install_status.setStyleSheet("font-size: 12px; color: #3B82F6;")
+            self._install_status.setText(line)
+            return
+        self._install_log.append(line)
+        self._install_tail.append(line)
+        if len(self._install_tail) > 200:
+            self._install_tail = self._install_tail[-200:]
+
+    def _on_install_finished(self, exit_code: int, _status) -> None:
+        proc = self._install_proc
+        self._install_proc = None
+        tail = "\n".join(self._install_tail)
+        if proc is not None:
+            try:
+                tail += bytes(proc.readAllStandardOutput()).decode(
+                    "utf-8", errors="replace"
+                )
+            except Exception:
+                pass
+        model_manager.finalize_install(self._component_id, exit_code, tail)
+
+        if exit_code == 0:
+            self._install_status.setStyleSheet("font-size: 12px; color: #22C55E;")
+            self._install_status.setText(tr("lbl_model_install_done"))
+            self._install_btn.setEnabled(True)
+            import importlib
+            importlib.invalidate_caches()
+            model_manager.ensure_ai_packages_on_path()
+            self._refresh_install_state()
+            return
+
+        state = model_manager.read_state(self._component_id)
+        info = model_manager.pre_install_info(self._component_id, state.variant)
+        msg = classify_install_error(
+            state.last_error or tail,
+            target=info.target_dir,
+            required_mb=int(info.approx_size_mb * 1.5),
+        )
+        self._render_install_error(msg)
+
+    def _render_install_error(self, msg: str) -> None:
         self._install_status.setStyleSheet("font-size: 12px; color: #EF4444;")
-        self._install_status.setText(tr("lbl_model_install_failed").format(error=msg))
-        self._install_btn.setEnabled(True)
+        self._install_status.setText(msg)
+        self._install_status.setVisible(True)
+        self._install_btn.setEnabled(False)
+        self._retry_btn.setVisible(True)
+
+    def _retry_install(self) -> None:
+        model_manager.uninstall(self._component_id)
+        self._start_install()
 
     # ── Source card ───────────────────────────────────────────────────────────
 
@@ -303,6 +457,10 @@ class BgEraserSection(QScrollArea):
         self._install_title.setText(f"⚠  {tr('lbl_model_not_installed')}")
         self._install_desc.setText(tr("lbl_model_rembg_desc"))
         self._install_btn.setText(tr("btn_install_model"))
+        self._retry_btn.setText(tr("install_retry_button"))
+        self._confirm_btn.setText(tr("install_confirm_button"))
+        self._cancel_btn.setText(tr("install_cancel_button"))
+        self._variant_label.setText(tr("install_variant_choose"))
         self._hdr_src.setText(tr("hdr_source_img"))
         self._hint_src.setText(tr("hint_bg_source_formats"))
         self._input_edit.setPlaceholderText(tr("ph_img"))
