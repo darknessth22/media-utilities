@@ -254,6 +254,12 @@ def embed_sendgrid_key():
     if not key:
         print("[WARN] SENDGRID_API_KEY not set — bug reporter will fail in built app.")
         return None
+    # Reject keys containing characters that would break the Python string
+    # literal in bug_reporter.py (newlines, quotes, backslashes). A malformed
+    # source file makes PyInstaller silently drop the module.
+    if any(c in key for c in '\r\n"\\'):
+        print("[FAIL] SENDGRID_API_KEY contains illegal characters (newline/quote/backslash).")
+        sys.exit(1)
     f = Path("gui/tabs/bug_reporter.py")
     original = f.read_text(encoding="utf-8")
     patched = original.replace("@@SENDGRID_API_KEY@@", key)

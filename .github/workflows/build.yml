@@ -37,28 +37,12 @@ jobs:
       - name: Install build-only Python dependencies
         run: pip install -r requirements-build.txt
 
-      - name: Embed SendGrid API key
-        shell: pwsh
-        env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-        run: |
-          $script = @'
-          import os, pathlib
-          key = os.environ.get("SENDGRID_API_KEY", "")
-          f = pathlib.Path("gui/tabs/bug_reporter.py")
-          text = f.read_text(encoding="utf-8")
-          if key:
-              text = text.replace("@@SENDGRID_API_KEY@@", key)
-          else:
-              print("Warning: SENDGRID_API_KEY secret not set")
-          f.write_text(text, encoding="utf-8")
-          '@
-          $script | python
-
       - name: Install Inno Setup 6
         run: choco install innosetup --no-progress -y
 
       - name: Build (clean venv)
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: python build_executable.py
 
       - name: Snapshot clean build
@@ -77,6 +61,8 @@ jobs:
           pip install rembg demucs torch onnxruntime --quiet
 
       - name: Build (polluted venv)
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: python build_executable.py
 
       - name: Compare clean vs polluted (SC-002)
