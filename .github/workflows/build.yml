@@ -28,6 +28,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      - name: Cache ffmpeg binaries
+        uses: actions/cache@v5
+        with:
+          path: bin
+          key: ${{ runner.os }}-ffmpeg-${{ hashFiles('build_config.json') }}
+
       - name: Install build-only Python dependencies
         run: pip install -r requirements-build.txt
 
