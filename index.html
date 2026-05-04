@@ -1,770 +1,589 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Videl | The All-in-One Media Workstation</title>
-    <meta name="description" content="The ultimate offline media workstation. Download videos, isolate studio-quality vocals, batch process PDFs, and manipulate media — all locally, all private.">
-
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="assets/videl_icon.png">
-
-    <!-- Open Graph -->
-    <meta property="og:title" content="Videl — The All-in-One Media Workstation">
-    <meta property="og:description" content="Studio AI audio separation, video tools, PDF suite. 100% offline. Free download.">
-    <meta property="og:type" content="website">
-    <meta property="og:image" content="assets/videl_logo.png">
-
-    <style>
-        /* ─── Design Tokens ─────────────────────────────────────── */
-        :root {
-            --blue:        #0D6EFD;
-            --blue-hover:  #0b5ed7;
-            --blue-glow:   rgba(13, 110, 253, 0.35);
-            --bg:          #0a0f1e;
-            --bg-card:     #111827;
-            --bg-card-2:   #1a2335;
-            --border:      #1e2d45;
-            --border-bright: #2a3f5f;
-            --text:        #f1f5f9;
-            --muted:       #64748b;
-            --muted-light: #94a3b8;
-            --accent-teal: #0ea5e9;
-            --accent-purple: #818cf8;
-        }
-
-        /* ─── Reset ──────────────────────────────────────────────── */
-        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-        html { scroll-behavior: smooth; }
-
-        body {
-            background: var(--bg);
-            color: var(--text);
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
-
-        /* ─── Noise Texture Overlay ──────────────────────────────── */
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        /* ─── Nav ─────────────────────────────────────────────────── */
-        nav {
-            position: fixed;
-            top: 0;
-            width: 100%;
-            z-index: 100;
-            padding: 16px 40px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: rgba(10, 15, 30, 0.85);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid var(--border);
-        }
-
-        .nav-logo img {
-            height: 32px;
-            width: auto;
-            display: block;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 32px;
-            list-style: none;
-        }
-
-        .nav-links a {
-            color: var(--muted-light);
-            text-decoration: none;
-            font-size: 0.9rem;
-            transition: color 0.2s;
-        }
-
-        .nav-links a:hover { color: var(--text); }
-
-        .nav-cta {
-            background: var(--blue);
-            color: white !important;
-            padding: 8px 20px;
-            border-radius: 20px;
-            font-weight: 600;
-            transition: background 0.2s, transform 0.2s !important;
-        }
-
-        .nav-cta:hover {
-            background: var(--blue-hover) !important;
-            transform: translateY(-1px);
-        }
-
-        /* ─── Hero ────────────────────────────────────────────────── */
-        .hero {
-            position: relative;
-            text-align: center;
-            padding: 160px 20px 80px;
-            max-width: 900px;
-            margin: 0 auto;
-            z-index: 1;
-        }
-
-        /* Radial glow behind hero text */
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -60%);
-            width: 700px;
-            height: 500px;
-            background: radial-gradient(ellipse, rgba(13,110,253,0.12) 0%, transparent 70%);
-            pointer-events: none;
-        }
-
-        .hero-logo {
-            height: 80px;
-            width: auto;
-            margin: 0 auto 24px;
-            display: block;
-            filter: drop-shadow(0 0 24px rgba(13,110,253,0.4));
-        }
-
-        .hero-badge {
-            display: inline-block;
-            background: rgba(13,110,253,0.15);
-            border: 1px solid rgba(13,110,253,0.35);
-            color: #60a5fa;
-            font-size: 0.8rem;
-            font-weight: 600;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            padding: 6px 16px;
-            border-radius: 20px;
-            margin-bottom: 28px;
-        }
-
-        .hero h1 {
-            font-size: clamp(2.5rem, 6vw, 4.5rem);
-            font-weight: 800;
-            line-height: 1.1;
-            letter-spacing: -1.5px;
-            margin-bottom: 24px;
-            background: linear-gradient(135deg, #ffffff 0%, #93c5fd 60%, #60a5fa 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .hero p {
-            font-size: 1.15rem;
-            color: var(--muted-light);
-            max-width: 580px;
-            margin: 0 auto 44px;
-        }
-
-        /* ─── Download Button ─────────────────────────────────────── */
-        .download-wrap {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 70px;
-        }
-
-        .btn-download {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            background: var(--blue);
-            color: white;
-            text-decoration: none;
-            padding: 16px 40px;
-            border-radius: 50px;
-            font-size: 1.1rem;
-            font-weight: 700;
-            letter-spacing: 0.3px;
-            transition: background 0.25s, transform 0.25s, box-shadow 0.25s;
-            box-shadow: 0 0 0 0 var(--blue-glow),
-                        0 4px 20px rgba(13, 110, 253, 0.4);
-        }
-
-        .btn-download:hover {
-            background: var(--blue-hover);
-            transform: translateY(-3px);
-            box-shadow: 0 0 30px var(--blue-glow),
-                        0 8px 30px rgba(13, 110, 253, 0.5);
-        }
-
-        .btn-download svg {
-            width: 20px;
-            height: 20px;
-            fill: currentColor;
-        }
-
-        /* Pulse ring animation */
-        @keyframes pulse-ring {
-            0%   { box-shadow: 0 0 0 0   rgba(13,110,253,0.5), 0 4px 20px rgba(13,110,253,0.4); }
-            70%  { box-shadow: 0 0 0 16px rgba(13,110,253,0),   0 4px 20px rgba(13,110,253,0.4); }
-            100% { box-shadow: 0 0 0 0   rgba(13,110,253,0),   0 4px 20px rgba(13,110,253,0.4); }
-        }
-
-        .btn-download.loaded { animation: pulse-ring 2s ease-out 1; }
-
-        .version-badge {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.85rem;
-            color: var(--muted);
-        }
-
-        .version-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: var(--muted);
-            display: inline-block;
-        }
-
-        .version-dot.online { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
-
-        /* ─── App Preview Placeholder ─────────────────────────────── */
-        .preview-wrap {
-            max-width: 1100px;
-            margin: 0 auto 100px;
-            padding: 0 24px;
-            position: relative;
-            z-index: 1;
-        }
-
-        .preview-frame {
-            background: var(--bg-card);
-            border: 1px solid var(--border-bright);
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 40px 80px rgba(0,0,0,0.6),
-                        0 0 0 1px rgba(255,255,255,0.03);
-        }
-
-        /* Fake window chrome */
-        .frame-chrome {
-            background: #0d1525;
-            padding: 12px 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .chrome-dot {
-            width: 12px; height: 12px;
-            border-radius: 50%;
-        }
-
-        .chrome-dot:nth-child(1) { background: #ff5f57; }
-        .chrome-dot:nth-child(2) { background: #febc2e; }
-        .chrome-dot:nth-child(3) { background: #28c840; }
-
-        .frame-content {
-            display: block;
-            background: var(--bg-card);
-        }
-
-        .frame-content img,
-        .frame-content .app-gif {
-            width: 100%;
-            display: block;
-            border: none;
-        }
-
-        /* Tab switcher for screenshot / gif */
-        .preview-tabs {
-            display: flex;
-            gap: 0;
-            background: #0d1525;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .preview-tab {
-            padding: 8px 20px;
-            font-size: 0.8rem;
-            color: var(--muted);
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: color 0.2s, border-color 0.2s;
-            user-select: none;
-        }
-
-        .preview-tab.active {
-            color: var(--text);
-            border-bottom-color: var(--blue);
-        }
-
-        .preview-panel { display: none; }
-        .preview-panel.active { display: block; }
-
-        /* ─── Stats Strip ─────────────────────────────────────────── */
-        .stats {
-            display: flex;
-            justify-content: center;
-            gap: 60px;
-            flex-wrap: wrap;
-            max-width: 900px;
-            margin: 0 auto 100px;
-            padding: 0 24px;
-            z-index: 1;
-            position: relative;
-        }
-
-        .stat-item { text-align: center; }
-
-        .stat-num {
-            font-size: 2.4rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #fff, #60a5fa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .stat-label { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
-
-        /* ─── Section Heading ─────────────────────────────────────── */
-        .section-head {
-            text-align: center;
-            max-width: 600px;
-            margin: 0 auto 56px;
-        }
-
-        .section-head h2 {
-            font-size: clamp(1.8rem, 4vw, 2.8rem);
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            margin-bottom: 12px;
-        }
-
-        .section-head p { color: var(--muted-light); font-size: 1rem; }
-
-        /* ─── Features Grid ───────────────────────────────────────── */
-        .features-section {
-            max-width: 1200px;
-            margin: 0 auto 110px;
-            padding: 0 24px;
-            position: relative;
-            z-index: 1;
-        }
-
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
-            gap: 24px;
-        }
-
-        .feat-card {
-            background: var(--bg-card);
-            padding: 32px;
-            border-radius: 16px;
-            border: 1px solid var(--border);
-            transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .feat-card::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, var(--card-accent, var(--blue)), transparent);
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .feat-card:hover {
-            border-color: var(--border-bright);
-            transform: translateY(-4px);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-        }
-
-        .feat-card:hover::before { opacity: 1; }
-
-        .feat-icon {
-            font-size: 2rem;
-            margin-bottom: 18px;
-            display: block;
-        }
-
-        .feat-card h3 {
-            font-size: 1.15rem;
-            font-weight: 700;
-            margin-bottom: 10px;
-            color: var(--text);
-        }
-
-        .feat-card p { color: var(--muted-light); font-size: 0.95rem; line-height: 1.65; }
-
-        /* Accent colors per card */
-        .feat-card:nth-child(1) { --card-accent: #0ea5e9; }
-        .feat-card:nth-child(2) { --card-accent: #a78bfa; }
-        .feat-card:nth-child(3) { --card-accent: #34d399; }
-        .feat-card:nth-child(4) { --card-accent: #fb923c; }
-        .feat-card:nth-child(5) { --card-accent: #f472b6; }
-        .feat-card:nth-child(6) { --card-accent: #60a5fa; }
-
-        /* ─── Tech Stack Callout ──────────────────────────────────── */
-        .tech-callout {
-            max-width: 900px;
-            margin: 0 auto 110px;
-            padding: 0 24px;
-            position: relative;
-            z-index: 1;
-        }
-
-        .tech-box {
-            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-card-2) 100%);
-            border: 1px solid var(--border-bright);
-            border-radius: 20px;
-            padding: 48px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 40px;
-            align-items: center;
-        }
-
-        .tech-box h2 {
-            font-size: 2rem;
-            font-weight: 700;
-            line-height: 1.2;
-            letter-spacing: -0.5px;
-            margin-bottom: 14px;
-        }
-
-        .tech-box p { color: var(--muted-light); font-size: 0.95rem; }
-
-        .tech-pills {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .pill {
-            background: rgba(255,255,255,0.06);
-            border: 1px solid var(--border-bright);
-            padding: 8px 16px;
-            border-radius: 30px;
-            font-size: 0.85rem;
-            color: var(--muted-light);
-            font-weight: 500;
-        }
-
-        /* ─── CTA Section ─────────────────────────────────────────── */
-        .cta-section {
-            text-align: center;
-            max-width: 700px;
-            margin: 0 auto 100px;
-            padding: 0 24px;
-            position: relative;
-            z-index: 1;
-        }
-
-        .cta-section h2 {
-            font-size: clamp(1.8rem, 4vw, 2.8rem);
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            margin-bottom: 14px;
-        }
-
-        .cta-section p { color: var(--muted-light); margin-bottom: 32px; }
-
-        /* ─── Footer ──────────────────────────────────────────────── */
-        footer {
-            border-top: 1px solid var(--border);
-            padding: 32px 40px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 16px;
-            color: var(--muted);
-            font-size: 0.85rem;
-            position: relative;
-            z-index: 1;
-        }
-
-        footer a {
-            color: var(--muted-light);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        footer a:hover { color: var(--text); }
-
-        .footer-links { display: flex; gap: 24px; }
-
-        /* ─── Loading skeleton ────────────────────────────────────── */
-        @keyframes shimmer {
-            0%   { background-position: -400px 0; }
-            100% { background-position:  400px 0; }
-        }
-
-        .skeleton {
-            background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-card-2) 50%, var(--bg-card) 75%);
-            background-size: 800px 100%;
-            animation: shimmer 1.5s infinite;
-            border-radius: 6px;
-            display: inline-block;
-        }
-
-        /* ─── Responsive ──────────────────────────────────────────── */
-        @media (max-width: 768px) {
-            nav { padding: 14px 20px; }
-            .nav-links { display: none; }
-            .tech-box { grid-template-columns: 1fr; padding: 32px 24px; }
-            .stats { gap: 32px; }
-            footer { justify-content: center; text-align: center; }
-            .footer-links { flex-wrap: wrap; justify-content: center; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Videl | The All-in-One Media Workstation</title>
+<meta name="description" content="Offline media workstation. AI vocal isolation, video downloader, image upscaler, jump-cutter, PDF suite — 20+ tools, 100% local.">
+<link rel="icon" type="image/png" href="assets/videl_icon.png">
+<meta property="og:title" content="Videl — The All-in-One Media Workstation">
+<meta property="og:description" content="20+ integrated media tools. Demucs v4 vocals, Real-ESRGAN upscaling, jump-cut auto-silence removal, PDF suite. 100% offline.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="assets/videl_logo.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --blue:#0D6EFD; --blue-hi:#3b82f6; --blue-glow:rgba(59,130,246,.45);
+  --bg:#05070f; --bg-2:#0a0f1e; --card:#0f172a; --card-2:#131c33;
+  --border:#1e2d45; --border-hi:#2a3f5f;
+  --text:#f1f5f9; --muted:#64748b; --muted-2:#94a3b8;
+  --teal:#0ea5e9; --purple:#a78bfa; --pink:#f472b6; --green:#34d399; --orange:#fb923c; --yellow:#fbbf24;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:'Inter',system-ui,-apple-system,sans-serif;
+  line-height:1.6; overflow-x:hidden; min-height:100vh;
+}
+
+/* ─── Animated aurora background ─────────────────────────── */
+.aurora{position:fixed;inset:0;z-index:-2;overflow:hidden;pointer-events:none}
+.aurora::before,.aurora::after{
+  content:''; position:absolute; border-radius:50%; filter:blur(120px); opacity:.5;
+  animation:drift 22s ease-in-out infinite alternate;
+}
+.aurora::before{
+  width:60vw; height:60vw; top:-20vw; left:-10vw;
+  background:radial-gradient(circle, #1d4ed8 0%, transparent 60%);
+}
+.aurora::after{
+  width:55vw; height:55vw; bottom:-15vw; right:-15vw;
+  background:radial-gradient(circle, #7c3aed 0%, transparent 60%);
+  animation-delay:-8s;
+}
+@keyframes drift{
+  0%{transform:translate(0,0) scale(1)}
+  50%{transform:translate(8vw,-4vw) scale(1.15)}
+  100%{transform:translate(-6vw,6vw) scale(.9)}
+}
+
+.grid-bg{
+  position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background-image:
+    linear-gradient(rgba(59,130,246,.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59,130,246,.05) 1px, transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse at center, black 30%, transparent 75%);
+}
+
+body::before{
+  content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E");
+}
+
+/* ─── Nav ─────────────────────────────────────────────────── */
+nav{
+  position:fixed; top:0; width:100%; z-index:100;
+  padding:14px 40px; display:flex; align-items:center; justify-content:space-between;
+  background:rgba(5,7,15,.7); backdrop-filter:blur(16px) saturate(1.4);
+  border-bottom:1px solid var(--border);
+}
+.nav-logo img{height:30px; width:auto; display:block}
+.nav-links{display:flex; gap:30px; list-style:none}
+.nav-links a{
+  color:var(--muted-2); text-decoration:none; font-size:.88rem; font-weight:500;
+  transition:color .2s; position:relative;
+}
+.nav-links a:not(.nav-cta)::after{
+  content:''; position:absolute; left:0; right:0; bottom:-4px; height:2px;
+  background:var(--blue-hi); transform:scaleX(0); transform-origin:left;
+  transition:transform .25s;
+}
+.nav-links a:not(.nav-cta):hover{color:var(--text)}
+.nav-links a:not(.nav-cta):hover::after{transform:scaleX(1)}
+.nav-cta{
+  background:linear-gradient(135deg,var(--blue) 0%, #2563eb 100%);
+  color:#fff !important; padding:8px 20px; border-radius:20px; font-weight:600;
+  transition:transform .2s, box-shadow .2s; box-shadow:0 4px 14px rgba(13,110,253,.35);
+}
+.nav-cta:hover{transform:translateY(-2px); box-shadow:0 6px 22px rgba(13,110,253,.55)}
+
+/* ─── Hero ─────────────────────────────────────────────────── */
+.hero{
+  position:relative; text-align:center; padding:160px 20px 60px;
+  max-width:980px; margin:0 auto; z-index:1;
+}
+.hero-logo{
+  height:84px; width:auto; margin:0 auto 24px; display:block;
+  filter:drop-shadow(0 0 28px rgba(59,130,246,.55));
+  animation:float 6s ease-in-out infinite;
+}
+@keyframes float{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-10px)}
+}
+.hero-badge{
+  display:inline-flex; align-items:center; gap:8px;
+  background:rgba(13,110,253,.12); border:1px solid rgba(59,130,246,.4);
+  color:#93c5fd; font-size:.78rem; font-weight:600; letter-spacing:1.2px;
+  text-transform:uppercase; padding:7px 18px; border-radius:24px; margin-bottom:28px;
+  backdrop-filter:blur(8px);
+}
+.hero-badge .live{
+  width:6px; height:6px; border-radius:50%; background:#22c55e;
+  box-shadow:0 0 8px #22c55e; animation:blink 2s ease-in-out infinite;
+}
+@keyframes blink{50%{opacity:.4}}
+
+.hero h1{
+  font-size:clamp(2.6rem,6.5vw,5rem); font-weight:900; line-height:1.05;
+  letter-spacing:-2px; margin-bottom:24px;
+  background:linear-gradient(135deg,#fff 0%, #c7d2fe 40%, #60a5fa 80%, #818cf8 100%);
+  background-size:200% 200%;
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  animation:shimmer-text 8s ease-in-out infinite;
+}
+@keyframes shimmer-text{
+  0%,100%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+}
+.hero p{
+  font-size:1.18rem; color:var(--muted-2); max-width:620px; margin:0 auto 44px;
+}
+
+/* ─── Download ─────────────────────────────────────────────── */
+.download-wrap{
+  display:flex; flex-direction:column; align-items:center; gap:14px; margin-bottom:60px;
+}
+.btn-download{
+  position:relative; display:inline-flex; align-items:center; gap:12px;
+  background:linear-gradient(135deg,var(--blue) 0%, #2563eb 100%);
+  color:#fff; text-decoration:none; padding:18px 44px; border-radius:50px;
+  font-size:1.1rem; font-weight:700; letter-spacing:.3px; overflow:hidden;
+  transition:transform .25s, box-shadow .25s;
+  box-shadow:0 4px 24px rgba(13,110,253,.45);
+}
+.btn-download::before{
+  content:''; position:absolute; top:0; left:-100%; width:100%; height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),transparent);
+  transition:left .6s;
+}
+.btn-download:hover::before{left:100%}
+.btn-download:hover{transform:translateY(-3px); box-shadow:0 12px 36px rgba(13,110,253,.6)}
+.btn-download svg{width:20px; height:20px; fill:currentColor}
+@keyframes pulse-ring{
+  0%{box-shadow:0 0 0 0 rgba(59,130,246,.55), 0 4px 24px rgba(13,110,253,.45)}
+  70%{box-shadow:0 0 0 18px rgba(59,130,246,0), 0 4px 24px rgba(13,110,253,.45)}
+  100%{box-shadow:0 0 0 0 rgba(59,130,246,0), 0 4px 24px rgba(13,110,253,.45)}
+}
+.btn-download.loaded{animation:pulse-ring 2.4s ease-out 1}
+.version-badge{display:flex; align-items:center; gap:8px; font-size:.85rem; color:var(--muted)}
+.version-dot{width:7px; height:7px; border-radius:50%; background:var(--muted)}
+.version-dot.online{background:#22c55e; box-shadow:0 0 8px #22c55e}
+
+/* ─── Preview frame ────────────────────────────────────────── */
+.preview-wrap{max-width:1100px; margin:0 auto 110px; padding:0 24px; z-index:1; position:relative}
+.preview-frame{
+  background:var(--card); border:1px solid var(--border-hi); border-radius:18px;
+  overflow:hidden; box-shadow:0 50px 100px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.04);
+  transition:transform .4s cubic-bezier(.2,.7,.3,1);
+}
+.preview-frame:hover{transform:translateY(-6px) scale(1.005)}
+.frame-chrome{
+  background:#0a0f1e; padding:12px 16px; display:flex; align-items:center; gap:8px;
+  border-bottom:1px solid var(--border);
+}
+.chrome-dot{width:12px; height:12px; border-radius:50%}
+.chrome-dot:nth-child(1){background:#ff5f57}
+.chrome-dot:nth-child(2){background:#febc2e}
+.chrome-dot:nth-child(3){background:#28c840}
+.preview-tabs{display:flex; margin-left:12px}
+.preview-tab{
+  padding:6px 16px; font-size:.78rem; color:var(--muted); cursor:pointer;
+  border-radius:6px; transition:color .2s, background .2s; user-select:none;
+}
+.preview-tab.active{color:var(--text); background:rgba(59,130,246,.18)}
+.frame-content{background:var(--card)}
+.preview-panel{display:none}
+.preview-panel.active{display:block}
+.frame-content img{width:100%; display:block}
+
+/* ─── Stats ────────────────────────────────────────────────── */
+.stats{
+  display:grid; grid-template-columns:repeat(4,1fr); gap:32px;
+  max-width:960px; margin:0 auto 110px; padding:0 24px; z-index:1; position:relative;
+}
+.stat-item{text-align:center; padding:24px 12px; border-radius:16px; transition:background .3s}
+.stat-item:hover{background:rgba(255,255,255,.02)}
+.stat-num{
+  font-size:2.6rem; font-weight:900; letter-spacing:-1px;
+  background:linear-gradient(135deg,#fff,#60a5fa);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+}
+.stat-label{font-size:.82rem; color:var(--muted); margin-top:4px; letter-spacing:.5px; text-transform:uppercase}
+
+/* ─── Section heading ──────────────────────────────────────── */
+.section-head{text-align:center; max-width:680px; margin:0 auto 60px}
+.section-head .eyebrow{
+  display:inline-block; font-size:.75rem; font-weight:700; letter-spacing:2px;
+  text-transform:uppercase; color:var(--blue-hi); margin-bottom:14px;
+}
+.section-head h2{
+  font-size:clamp(1.9rem,4.2vw,3rem); font-weight:800;
+  letter-spacing:-1px; margin-bottom:14px; line-height:1.15;
+}
+.section-head p{color:var(--muted-2); font-size:1.05rem}
+
+/* ─── Tools grid ───────────────────────────────────────────── */
+.tools-section{max-width:1280px; margin:0 auto 110px; padding:0 24px; z-index:1; position:relative}
+.tools-grid{
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:18px;
+}
+.tool-card{
+  position:relative; background:var(--card); padding:24px;
+  border-radius:14px; border:1px solid var(--border);
+  transition:border-color .25s, transform .25s, box-shadow .25s;
+  overflow:hidden; cursor:default;
+}
+.tool-card::before{
+  content:''; position:absolute; inset:0; border-radius:14px;
+  background:radial-gradient(400px circle at var(--mx,50%) var(--my,50%), rgba(59,130,246,.10), transparent 40%);
+  opacity:0; transition:opacity .3s; pointer-events:none;
+}
+.tool-card:hover{
+  border-color:var(--accent,var(--blue-hi));
+  transform:translateY(-4px);
+  box-shadow:0 20px 40px rgba(0,0,0,.4), 0 0 0 1px var(--accent,var(--blue-hi));
+}
+.tool-card:hover::before{opacity:1}
+.tool-icon{
+  width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+  font-size:1.4rem; margin-bottom:14px;
+  background:color-mix(in srgb, var(--accent,var(--blue-hi)) 18%, transparent);
+  border:1px solid color-mix(in srgb, var(--accent,var(--blue-hi)) 35%, transparent);
+}
+.tool-card h3{font-size:1rem; font-weight:700; margin-bottom:6px}
+.tool-card p{color:var(--muted-2); font-size:.86rem; line-height:1.55}
+.tool-card .tag{
+  position:absolute; top:14px; right:14px; font-size:.65rem; font-weight:700;
+  padding:3px 8px; border-radius:10px; letter-spacing:.5px; text-transform:uppercase;
+  background:color-mix(in srgb, var(--accent,var(--blue-hi)) 20%, transparent);
+  color:var(--accent,var(--blue-hi));
+}
+
+/* ─── Highlights ───────────────────────────────────────────── */
+.highlights{
+  max-width:1200px; margin:0 auto 120px; padding:0 24px; z-index:1; position:relative;
+  display:grid; grid-template-columns:repeat(3,1fr); gap:20px;
+}
+.hl-card{
+  position:relative; padding:36px 28px; border-radius:18px;
+  background:linear-gradient(160deg, var(--card) 0%, var(--card-2) 100%);
+  border:1px solid var(--border); overflow:hidden;
+  transition:transform .35s, border-color .35s;
+}
+.hl-card:hover{transform:translateY(-6px); border-color:var(--border-hi)}
+.hl-card::after{
+  content:''; position:absolute; top:-50%; right:-30%; width:80%; height:200%;
+  background:radial-gradient(ellipse, var(--hl-color,var(--blue-glow)) 0%, transparent 60%);
+  opacity:.18; pointer-events:none;
+}
+.hl-num{
+  font-family:'JetBrains Mono',monospace; font-size:.85rem; color:var(--muted);
+  margin-bottom:12px; letter-spacing:1px;
+}
+.hl-card h3{font-size:1.4rem; font-weight:800; margin-bottom:10px; letter-spacing:-.5px}
+.hl-card p{color:var(--muted-2); font-size:.95rem}
+
+/* ─── Tech callout ─────────────────────────────────────────── */
+.tech-callout{max-width:1100px; margin:0 auto 120px; padding:0 24px; z-index:1; position:relative}
+.tech-box{
+  background:linear-gradient(135deg, rgba(15,23,42,.9) 0%, rgba(19,28,51,.9) 100%);
+  border:1px solid var(--border-hi); border-radius:24px; padding:56px;
+  display:grid; grid-template-columns:1.1fr 1fr; gap:48px; align-items:center;
+  position:relative; overflow:hidden;
+}
+.tech-box::before{
+  content:''; position:absolute; top:-50%; left:-20%; width:60%; height:200%;
+  background:conic-gradient(from 0deg, transparent, rgba(59,130,246,.12), transparent 30%);
+  animation:rotate 14s linear infinite;
+  pointer-events:none;
+}
+@keyframes rotate{to{transform:rotate(360deg)}}
+.tech-box > div{position:relative; z-index:1}
+.tech-box h2{font-size:2.1rem; font-weight:800; line-height:1.2; letter-spacing:-1px; margin-bottom:14px}
+.tech-box p{color:var(--muted-2); font-size:.98rem}
+.tech-pills{display:flex; flex-wrap:wrap; gap:10px}
+.pill{
+  background:rgba(255,255,255,.05); border:1px solid var(--border-hi);
+  padding:9px 18px; border-radius:30px; font-size:.85rem; color:var(--muted-2);
+  font-weight:500; transition:all .2s; font-family:'JetBrains Mono',monospace;
+}
+.pill:hover{
+  background:rgba(59,130,246,.12); border-color:var(--blue-hi); color:#fff;
+  transform:translateY(-2px);
+}
+
+/* ─── CTA ─────────────────────────────────────────────────── */
+.cta-section{
+  text-align:center; max-width:780px; margin:0 auto 120px; padding:60px 24px;
+  position:relative; z-index:1;
+}
+.cta-section h2{font-size:clamp(1.9rem,4.2vw,3rem); font-weight:800; letter-spacing:-1px; margin-bottom:14px}
+.cta-section p{color:var(--muted-2); margin-bottom:34px; font-size:1.05rem}
+
+/* ─── Footer ──────────────────────────────────────────────── */
+footer{
+  border-top:1px solid var(--border); padding:36px 40px;
+  display:flex; justify-content:space-between; align-items:center;
+  flex-wrap:wrap; gap:16px; color:var(--muted); font-size:.85rem;
+  position:relative; z-index:1;
+}
+footer a{color:var(--muted-2); text-decoration:none; transition:color .2s}
+footer a:hover{color:var(--text)}
+.footer-links{display:flex; gap:24px}
+
+/* ─── Skeleton ─────────────────────────────────────────────── */
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+.skeleton{
+  background:linear-gradient(90deg,var(--card) 25%,var(--card-2) 50%,var(--card) 75%);
+  background-size:800px 100%; animation:shimmer 1.5s infinite;
+  border-radius:6px; display:inline-block;
+}
+
+/* ─── Reveal on scroll ─────────────────────────────────────── */
+.reveal{opacity:0; transform:translateY(28px); transition:opacity .7s, transform .7s}
+.reveal.in{opacity:1; transform:none}
+
+/* ─── Responsive ─────────────────────────────────────────── */
+@media (max-width:880px){
+  nav{padding:14px 20px}
+  .nav-links li:not(:last-child){display:none}
+  .tech-box{grid-template-columns:1fr; padding:36px 26px}
+  .stats{grid-template-columns:repeat(2,1fr); gap:20px}
+  .highlights{grid-template-columns:1fr}
+  .hero{padding-top:120px}
+}
+</style>
 </head>
 <body>
 
-<!-- ─── Navigation ───────────────────────────────────────────────── -->
+<div class="aurora"></div>
+<div class="grid-bg"></div>
+
 <nav>
-    <span class="nav-logo"><img src="assets/videl_logo.png" alt="Videl"></span>
-    <ul class="nav-links">
-        <li><a href="#features">Features</a></li>
-        <li><a href="#tech">Technology</a></li>
-        <li><a href="https://github.com/darknessth22/media-utilities" target="_blank">GitHub</a></li>
-        <li><a href="#download" class="nav-cta">Download</a></li>
-    </ul>
+  <span class="nav-logo"><img src="assets/videl_logo.png" alt="Videl"></span>
+  <ul class="nav-links">
+    <li><a href="#tools">Tools</a></li>
+    <li><a href="#highlights">Highlights</a></li>
+    <li><a href="#tech">Stack</a></li>
+    <li><a href="https://github.com/darknessth22/media-utilities" target="_blank" rel="noopener">GitHub</a></li>
+    <li><a href="#download" class="nav-cta">Download</a></li>
+  </ul>
 </nav>
 
-<!-- ─── Hero ─────────────────────────────────────────────────────── -->
 <section class="hero" id="download">
-    <img src="assets/videl_logo.png" alt="Videl Logo" class="hero-logo">
+  <img src="assets/videl_logo.png" alt="Videl Logo" class="hero-logo">
+  <div class="hero-badge"><span class="live"></span>Free &amp; Open Source · Windows 64-bit</div>
+  <h1>The All-in-One<br>Media Workstation</h1>
+  <p>20+ integrated tools for video, audio, image, and PDF — powered by Demucs v4, Real-ESRGAN, FFmpeg, and PyMuPDF. Runs entirely on your machine.</p>
 
-    <div class="hero-badge">Free & Open Source · Windows 64-bit</div>
-
-    <h1>The All-in-One<br>Media Workstation</h1>
-
-    <p>Download videos, isolate studio-quality vocals with Demucs v4, batch process PDFs, trim video frame-perfect — all offline, all private.</p>
-
-    <div class="download-wrap">
-        <a href="https://github.com/darknessth22/media-utilities/releases"
-           id="download-btn"
-           class="btn-download">
-            <!-- Windows logo SVG -->
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-13.051-1.851"/>
-            </svg>
-            Download for Windows
-        </a>
-        <div class="version-badge">
-            <span class="version-dot" id="status-dot"></span>
-            <span id="version-label" class="skeleton" style="min-width:220px;height:14px;">&nbsp;</span>
-        </div>
+  <div class="download-wrap">
+    <a href="https://github.com/darknessth22/media-utilities/releases" id="download-btn" class="btn-download">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-13.051-1.851"/></svg>
+      Download for Windows
+    </a>
+    <div class="version-badge">
+      <span class="version-dot" id="status-dot"></span>
+      <span id="version-label" class="skeleton" style="min-width:240px;height:14px">&nbsp;</span>
     </div>
+  </div>
 
-    <!-- App preview / promo video -->
-    <div class="preview-wrap" style="margin-top:0">
-        <div class="preview-frame">
-            <div class="frame-chrome">
-                <div class="chrome-dot"></div>
-                <div class="chrome-dot"></div>
-                <div class="chrome-dot"></div>
-                <div class="preview-tabs" style="margin-left:12px;border-bottom:none;background:transparent;">
-                    <span class="preview-tab active" onclick="switchTab('screenshot',this)">Screenshot</span>
-                    <span class="preview-tab" onclick="switchTab('overview',this)">Overview GIF</span>
-                </div>
-            </div>
-            <div class="frame-content">
-                <div class="preview-panel active" id="panel-screenshot">
-                    <img src="new screen gui.png" alt="Videl App Screenshot">
-                </div>
-                <div class="preview-panel" id="panel-overview">
-                    <img src="app-gui.gif" alt="Videl App Overview" class="app-gif">
-                </div>
-            </div>
+  <div class="preview-wrap">
+    <div class="preview-frame">
+      <div class="frame-chrome">
+        <div class="chrome-dot"></div><div class="chrome-dot"></div><div class="chrome-dot"></div>
+        <div class="preview-tabs">
+          <span class="preview-tab active" onclick="switchTab('screenshot',this)">Screenshot</span>
+          <span class="preview-tab" onclick="switchTab('overview',this)">Overview GIF</span>
         </div>
+      </div>
+      <div class="frame-content">
+        <div class="preview-panel active" id="panel-screenshot"><img src="new screen gui.png" alt="Videl App Screenshot"></div>
+        <div class="preview-panel" id="panel-overview"><img src="app-gui.gif" alt="Videl Overview"></div>
+      </div>
     </div>
+  </div>
 </section>
 
-<!-- ─── Stats ─────────────────────────────────────────────────────── -->
-<div class="stats">
-    <div class="stat-item">
-        <div class="stat-num">100%</div>
-        <div class="stat-label">Offline Processing</div>
-    </div>
-    <div class="stat-item">
-        <div class="stat-num">6+</div>
-        <div class="stat-label">Integrated Tools</div>
-    </div>
-    <div class="stat-item">
-        <div class="stat-num">EN/AR</div>
-        <div class="stat-label">Bilingual UI</div>
-    </div>
-    <div class="stat-item">
-        <div class="stat-num">0</div>
-        <div class="stat-label">Cloud Uploads</div>
-    </div>
+<div class="stats reveal">
+  <div class="stat-item"><div class="stat-num" data-count="20" data-suffix="+">0+</div><div class="stat-label">Integrated Tools</div></div>
+  <div class="stat-item"><div class="stat-num" data-count="100" data-suffix="%">0%</div><div class="stat-label">Offline</div></div>
+  <div class="stat-item"><div class="stat-num">EN/AR</div><div class="stat-label">Bilingual · RTL</div></div>
+  <div class="stat-item"><div class="stat-num" data-count="0">0</div><div class="stat-label">Cloud Uploads</div></div>
 </div>
 
-<!-- ─── Features ──────────────────────────────────────────────────── -->
-<section class="features-section" id="features">
-    <div class="section-head">
-        <h2>Everything in one place</h2>
-        <p>A complete media production toolkit that runs entirely on your machine.</p>
-    </div>
-
-    <div class="features-grid">
-        <div class="feat-card">
-            <span class="feat-icon">🎙️</span>
-            <h3>Studio AI Vocal Isolation</h3>
-            <p>Powered by Demucs v4 (HTDemucs). Separate vocals, drums, bass, and other stems with hybrid CPU/GPU rendering — no cloud API needed.</p>
-        </div>
-        <div class="feat-card">
-            <span class="feat-icon">📥</span>
-            <h3>Universal Video Downloader</h3>
-            <p>Pull video and audio from any major platform. Choose resolution, format, and subtitle language. Batch download entire playlists.</p>
-        </div>
-        <div class="feat-card">
-            <span class="feat-icon">✂️</span>
-            <h3>Frame-Perfect Video Editing</h3>
-            <p>Cut, trim, merge, and re-encode clips with EBU R128 loudness normalization. Lossless stream copy where possible for speed.</p>
-        </div>
-        <div class="feat-card">
-            <span class="feat-icon">📄</span>
-            <h3>Complete PDF Toolkit</h3>
-            <p>Merge, split, compress, rotate, unlock, watermark, and convert PDFs. Full batch processing support with drag-and-drop queues.</p>
-        </div>
-        <div class="feat-card">
-            <span class="feat-icon">🔒</span>
-            <h3>Privacy by Design</h3>
-            <p>All processing is local. No telemetry, no cloud sync. Strip EXIF/XMP metadata from images and documents on demand.</p>
-        </div>
-        <div class="feat-card">
-            <span class="feat-icon">🌐</span>
-            <h3>Bilingual Interface (EN/AR)</h3>
-            <p>Full English and Arabic UI with automatic RTL layout switching. Designed for MENA-region professionals from the ground up.</p>
-        </div>
-    </div>
+<section class="highlights reveal" id="highlights">
+  <div class="hl-card" style="--hl-color:rgba(167,139,250,.4)">
+    <div class="hl-num">// 01</div>
+    <h3>AI you actually own</h3>
+    <p>Demucs v4 stem separation and Real-ESRGAN upscaling run on your GPU or CPU. No API keys, no metering, no upload limits.</p>
+  </div>
+  <div class="hl-card" style="--hl-color:rgba(52,211,153,.4)">
+    <div class="hl-num">// 02</div>
+    <h3>One window, every workflow</h3>
+    <p>Download → trim → upscale → convert → watermark → mux → export. All in a single PySide6 native shell. No Electron bloat.</p>
+  </div>
+  <div class="hl-card" style="--hl-color:rgba(244,114,182,.4)">
+    <div class="hl-num">// 03</div>
+    <h3>Privacy by construction</h3>
+    <p>Strip EXIF/XMP, no telemetry, no cloud sync. Browser extension talks only to localhost bridge — your media never leaves the device.</p>
+  </div>
 </section>
 
-<!-- ─── Tech Callout ───────────────────────────────────────────────── -->
-<section class="tech-callout" id="tech">
-    <div class="tech-box">
-        <div>
-            <h2>Built on proven open-source foundations</h2>
-            <p>Videl wraps battle-tested libraries in a polished PySide6 desktop shell — no Electron, no browser overhead. Pure native performance.</p>
-        </div>
-        <div class="tech-pills">
-            <span class="pill">Python 3.11+</span>
-            <span class="pill">PySide6 / Qt</span>
-            <span class="pill">Demucs v4</span>
-            <span class="pill">FFmpeg</span>
-            <span class="pill">yt-dlp</span>
-            <span class="pill">PyMuPDF</span>
-            <span class="pill">PyTorch</span>
-            <span class="pill">CUDA / CPU</span>
-        </div>
+<section class="tools-section" id="tools">
+  <div class="section-head reveal">
+    <div class="eyebrow">Toolkit</div>
+    <h2>Twenty tools. One install.</h2>
+    <p>Every workflow you'd reach for separate apps to do — bundled, native, and offline.</p>
+  </div>
+
+  <div class="tools-grid reveal" id="tools-grid"></div>
+</section>
+
+<section class="tech-callout reveal" id="tech">
+  <div class="tech-box">
+    <div>
+      <h2>Built on proven open-source foundations</h2>
+      <p>Videl wraps battle-tested libraries in a polished PySide6 desktop shell — no Electron, no browser overhead. Pure native performance with optional CUDA acceleration.</p>
     </div>
+    <div class="tech-pills">
+      <span class="pill">Python 3.12</span>
+      <span class="pill">PySide6 / Qt</span>
+      <span class="pill">Demucs v4</span>
+      <span class="pill">Real-ESRGAN</span>
+      <span class="pill">FFmpeg</span>
+      <span class="pill">yt-dlp</span>
+      <span class="pill">PyMuPDF</span>
+      <span class="pill">Pillow</span>
+      <span class="pill">PyTorch</span>
+      <span class="pill">CUDA / CPU</span>
+      <span class="pill">Inno Setup</span>
+    </div>
+  </div>
 </section>
 
-<!-- ─── Final CTA ───────────────────────────────────────────────────── -->
-<section class="cta-section">
-    <h2>Ready to take control of your media?</h2>
-    <p>Free download. No account. No subscription. No cloud.</p>
-    <a href="https://github.com/darknessth22/media-utilities/releases"
-       id="download-btn-2"
-       class="btn-download">
-        <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor">
-            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
-        </svg>
-        Download Videl Free
-    </a>
+<section class="cta-section reveal">
+  <h2>Ready to take control of your media?</h2>
+  <p>Free download. No account. No subscription. No cloud.</p>
+  <a href="https://github.com/darknessth22/media-utilities/releases" id="download-btn-2" class="btn-download">
+    <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+    Download Videl Free
+  </a>
 </section>
 
-<!-- ─── Footer ──────────────────────────────────────────────────────── -->
 <footer>
-    <span>© 2025 Videl. All rights reserved.</span>
-    <div class="footer-links">
-        <a href="https://github.com/darknessth22/media-utilities" target="_blank">GitHub</a>
-        <a href="https://github.com/darknessth22/media-utilities/releases" target="_blank">Releases</a>
-        <a href="https://github.com/darknessth22/media-utilities/issues" target="_blank">Report a Bug</a>
-    </div>
+  <span>© 2025 Videl. All rights reserved.</span>
+  <div class="footer-links">
+    <a href="https://github.com/darknessth22/media-utilities" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://github.com/darknessth22/media-utilities/releases" target="_blank" rel="noopener">Releases</a>
+    <a href="https://github.com/darknessth22/media-utilities/issues" target="_blank" rel="noopener">Report a Bug</a>
+  </div>
 </footer>
 
-<!-- ─── Self-Updating GitHub API Fetch ──────────────────────────────── -->
 <script>
-    function switchTab(panel, el) {
-        document.querySelectorAll('.preview-panel').forEach(p => p.classList.remove('active'));
-        document.querySelectorAll('.preview-tab').forEach(t => t.classList.remove('active'));
-        document.getElementById('panel-' + panel).classList.add('active');
-        el.classList.add('active');
+const TOOLS = [
+  { icon:'🎙️', name:'AI Vocal Isolator',     desc:'Demucs v4 (HTDemucs). Separate vocals, drums, bass & other stems.',                 tag:'AI', color:'#a78bfa'},
+  { icon:'🖼️', name:'AI Image Upscaler',     desc:'Real-ESRGAN x2 / x4 super-resolution with optional GPU acceleration.',              tag:'AI', color:'#f472b6'},
+  { icon:'📥', name:'Universal Downloader',  desc:'Pull video & audio from any major site via yt-dlp. Playlists, subs, formats.',      tag:'',   color:'#0ea5e9'},
+  { icon:'✂️', name:'Trim & Cut',            desc:'Frame-perfect trimming with lossless stream copy where possible.',                  tag:'',   color:'#34d399'},
+  { icon:'🧩', name:'Merge',                 desc:'Concatenate clips with codec-safe re-encode fallback.',                              tag:'',   color:'#34d399'},
+  { icon:'🔁', name:'Convert',               desc:'Format & codec conversion with EBU R128 loudness normalization.',                  tag:'',   color:'#fb923c'},
+  { icon:'🗜️', name:'Compress',              desc:'CRF / bitrate ladder targeting size or visual quality.',                            tag:'',   color:'#fb923c'},
+  { icon:'🔊', name:'Audio Mux',             desc:'Swap, add, or remove audio tracks without re-encoding video.',                       tag:'',   color:'#0ea5e9'},
+  { icon:'⏭️', name:'Jump Cutter',           desc:'Detect and remove silences automatically — podcast & vlog ready.',                  tag:'New',color:'#fbbf24'},
+  { icon:'🎞️', name:'Frame Grabber',         desc:'Extract stills at any timestamp or sample N frames per second.',                    tag:'',   color:'#0ea5e9'},
+  { icon:'🌀', name:'GIF Maker',             desc:'High-quality GIFs with palette generation and dithering control.',                  tag:'',   color:'#f472b6'},
+  { icon:'📦', name:'Chunker',               desc:'Split long files into uniform parts for upload limits or batch jobs.',              tag:'',   color:'#94a3b8'},
+  { icon:'🎨', name:'Palette Extractor',     desc:'Pull dominant colours from any image or video frame.',                              tag:'',   color:'#a78bfa'},
+  { icon:'🪄', name:'Background Eraser',     desc:'One-click background removal for product shots & cut-outs.',                         tag:'AI', color:'#f472b6'},
+  { icon:'💧', name:'Watermarker',           desc:'Pillow-based image & video watermarking with positioning + opacity.',               tag:'',   color:'#34d399'},
+  { icon:'🌐', name:'Spatial Audio',         desc:'Convert stereo to immersive multichannel layouts.',                                 tag:'',   color:'#0ea5e9'},
+  { icon:'🧹', name:'Metadata Scrubber',     desc:'Strip EXIF / XMP / ID3 from images, video, and documents.',                          tag:'',   color:'#22c55e'},
+  { icon:'📄', name:'PDF Toolkit',           desc:'Merge, split, compress, rotate, unlock, watermark, and convert PDFs.',              tag:'',   color:'#fb923c'},
+  { icon:'📑', name:'Document Tools',        desc:'Office ↔ PDF conversion and quick text/table extraction.',                          tag:'',   color:'#fb923c'},
+  { icon:'🧩', name:'Browser Extension',     desc:'Chrome / Edge bridge to send media from any tab to the local app.',                 tag:'New',color:'#fbbf24'},
+];
+
+const grid = document.getElementById('tools-grid');
+TOOLS.forEach((t,i)=>{
+  const el = document.createElement('div');
+  el.className = 'tool-card';
+  el.style.setProperty('--accent', t.color);
+  el.style.transitionDelay = (i*25)+'ms';
+  el.innerHTML = `
+    ${t.tag ? `<span class="tag">${t.tag}</span>` : ''}
+    <div class="tool-icon">${t.icon}</div>
+    <h3>${t.name}</h3>
+    <p>${t.desc}</p>`;
+  el.addEventListener('mousemove', e=>{
+    const r = el.getBoundingClientRect();
+    el.style.setProperty('--mx', (e.clientX-r.left)+'px');
+    el.style.setProperty('--my', (e.clientY-r.top)+'px');
+  });
+  grid.appendChild(el);
+});
+
+function switchTab(panel, el){
+  document.querySelectorAll('.preview-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.preview-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('panel-'+panel).classList.add('active');
+  el.classList.add('active');
+}
+
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }});
+},{threshold:.12});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+function animateCount(el){
+  const target = parseInt(el.dataset.count,10);
+  const suffix = el.dataset.suffix || '';
+  const dur = 1400; const start = performance.now();
+  function tick(now){
+    const t = Math.min(1,(now-start)/dur);
+    const eased = 1 - Math.pow(1-t,3);
+    el.textContent = Math.round(target*eased)+suffix;
+    if(t<1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+const countIo = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting && e.target.dataset.count !== undefined){
+      animateCount(e.target); countIo.unobserve(e.target);
     }
+  });
+},{threshold:.5});
+document.querySelectorAll('.stat-num[data-count]').forEach(el=>countIo.observe(el));
 
-    /**
-     * CONFIGURE THIS: replace with your actual GitHub repo path.
-     * Format: 'username/repo-name'
-     * Example: 'fares-mostafa/videl'
-     */
-    const REPO = 'darknessth22/media-utilities';
+const REPO = 'darknessth22/media-utilities';
+const API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
+const btnPrimary   = document.getElementById('download-btn');
+const btnSecondary = document.getElementById('download-btn-2');
+const versionLabel = document.getElementById('version-label');
+const statusDot    = document.getElementById('status-dot');
 
-    const API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
+function setButtons(href){ btnPrimary.href = href; btnSecondary.href = href; btnPrimary.classList.add('loaded'); }
+function setVersion(text, online=true){
+  versionLabel.classList.remove('skeleton');
+  versionLabel.style.minWidth=''; versionLabel.style.height='';
+  versionLabel.textContent = text;
+  statusDot.className = online ? 'version-dot online' : 'version-dot';
+}
 
-    const btnPrimary   = document.getElementById('download-btn');
-    const btnSecondary = document.getElementById('download-btn-2');
-    const versionLabel = document.getElementById('version-label');
-    const statusDot    = document.getElementById('status-dot');
-
-    function setButtons(href) {
-        btnPrimary.href   = href;
-        btnSecondary.href = href;
-        btnPrimary.classList.add('loaded');
+fetch(API_URL)
+  .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
+  .then(release=>{
+    const exe = release.assets.find(a=>a.name.endsWith('.exe')) || release.assets[0];
+    if(exe){
+      setButtons(exe.browser_download_url);
+      const mb = (exe.size/1048576).toFixed(1);
+      setVersion(`Version ${release.tag_name} · Windows 64-bit · ${mb} MB`);
+    } else {
+      setButtons(`https://github.com/${REPO}/releases`);
+      setVersion(`${release.tag_name} — see Releases page`, false);
     }
-
-    function setVersion(text, online = true) {
-        versionLabel.classList.remove('skeleton');
-        versionLabel.style.minWidth = '';
-        versionLabel.style.height   = '';
-        versionLabel.textContent    = text;
-        statusDot.className = online ? 'version-dot online' : 'version-dot';
-    }
-
-    fetch(API_URL)
-        .then(res => {
-            if (!res.ok) throw new Error(`GitHub API: ${res.status}`);
-            return res.json();
-        })
-        .then(release => {
-            // Prefer .exe, fall back to first asset, fall back to releases page
-            const exeAsset = release.assets.find(a => a.name.endsWith('.exe'))
-                          || release.assets[0];
-
-            if (exeAsset) {
-                setButtons(exeAsset.browser_download_url);
-                const mb = (exeAsset.size / 1048576).toFixed(1);
-                setVersion(`Version ${release.tag_name} · Windows 64-bit · ${mb} MB`);
-            } else {
-                // Release exists but no binary yet (e.g. CI still running)
-                setButtons(`https://github.com/${REPO}/releases`);
-                setVersion(`${release.tag_name} — see Releases page`, false);
-            }
-        })
-        .catch(err => {
-            console.warn('Release fetch failed:', err.message);
-            setButtons(`https://github.com/${REPO}/releases`);
-            setVersion('View all releases on GitHub →', false);
-        });
+  })
+  .catch(()=>{
+    setButtons(`https://github.com/${REPO}/releases`);
+    setVersion('View all releases on GitHub →', false);
+  });
 </script>
-
 </body>
 </html>
