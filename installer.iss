@@ -39,6 +39,11 @@ Name: "{autodesktop}\Videl"; Filename: "{app}\Videl.exe"; Tasks: desktopicon
 Name: "{group}\Browser Extension Folder"; Filename: "{app}\browser_extension"; IconFilename: "{app}\Videl.exe"; Comment: "Open the Videl browser extension folder"
 
 [Run]
+; Flush the Windows shell icon cache so users upgrading from older builds
+; don't see a low-res / blurry icon left over from a previous install.
+Filename: "{sys}\ie4uinit.exe"; Parameters: "-ClearIconCache"; Flags: runhidden skipifdoesntexist
+Filename: "{sys}\ie4uinit.exe"; Parameters: "-show"; Flags: runhidden skipifdoesntexist
+Filename: "{cmd}"; Parameters: "/C taskkill /F /IM explorer.exe & del /A /Q ""%LOCALAPPDATA%\Microsoft\Windows\Explorer\iconcache*"" & del /A /Q ""%LOCALAPPDATA%\Microsoft\Windows\Explorer\thumbcache*"" & start explorer.exe"; Flags: runhidden
 Filename: "{app}\Videl.exe"; Description: "{cm:LaunchProgram,Videl}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]

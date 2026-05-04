@@ -66,6 +66,11 @@ elif os.path.exists('Scripts/spotdl.exe'):
 
 hiddenimports = []
 
+# Force-include all GUI tab modules. Static imports in gui/app.py should be
+# detected automatically, but CI builds have intermittently dropped
+# gui.tabs.bug_reporter — pinning the whole package avoids the gamble.
+hiddenimports += collect_submodules('gui')
+
 # yt-dlp: lazy-loads extractors internally — no submodule collection needed
 hiddenimports += ['yt_dlp']
 
