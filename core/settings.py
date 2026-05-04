@@ -23,7 +23,9 @@ class UserSettings:
     presets: dict = field(default_factory=dict)
     start_with_windows: bool = False
     language: str = "en"
-    version: int = 10
+    extension_bridge_enabled: bool = True
+    extension_bridge_port: int = 17654
+    version: int = 11
 
 
 class SettingsManager:
@@ -112,6 +114,10 @@ class SettingsManager:
             if merged_data.get("version", 1) < 10:
                 merged_data.setdefault("language", "en")
                 merged_data["version"] = 10
+            if merged_data.get("version", 1) < 11:
+                merged_data.setdefault("extension_bridge_enabled", True)
+                merged_data.setdefault("extension_bridge_port", 17654)
+                merged_data["version"] = 11
 
             return UserSettings(**merged_data)
         except (json.JSONDecodeError, OSError, TypeError):

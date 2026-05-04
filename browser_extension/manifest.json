@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Download with Videl",
+  "version": "1.0.0",
+  "description": "Adds a one-click 'Download with Videl' button over every video on the web. Sends the URL to the local Videl desktop app.",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": [
+    "http://127.0.0.1:17654/*",
+    "http://localhost:17654/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_title": "Download with Videl",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icon16.png", "icon48.png", "icon128.png"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
