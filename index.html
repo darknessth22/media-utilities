@@ -374,7 +374,7 @@ footer a:hover{color:var(--text)}
   <p>20+ integrated tools for video, audio, image, and PDF — powered by Demucs v4, Real-ESRGAN, FFmpeg, and PyMuPDF. Runs entirely on your machine.</p>
 
   <div class="download-wrap">
-    <a href="https://github.com/darknessth22/media-utilities/releases" id="download-btn" class="btn-download">
+    <a href="https://github.com/darknessth22/media-utilities/releases/latest/download/Videl_Setup.exe" id="download-btn" class="btn-download">
       <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-13.051-1.851"/></svg>
       Download for Windows
     </a>
@@ -461,7 +461,7 @@ footer a:hover{color:var(--text)}
 <section class="cta-section reveal">
   <h2>Ready to take control of your media?</h2>
   <p>Free download. No account. No subscription. No cloud.</p>
-  <a href="https://github.com/darknessth22/media-utilities/releases" id="download-btn-2" class="btn-download">
+  <a href="https://github.com/darknessth22/media-utilities/releases/latest/download/Videl_Setup.exe" id="download-btn-2" class="btn-download">
     <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
     Download Videl Free
   </a>
@@ -576,12 +576,12 @@ fetch(API_URL)
       const mb = (exe.size/1048576).toFixed(1);
       setVersion(`Version ${release.tag_name} · Windows 64-bit · ${mb} MB`);
     } else {
-      setButtons(`https://github.com/${REPO}/releases`);
+      setButtons(`https://github.com/${REPO}/releases/latest/download/Videl_Setup.exe`);
       setVersion(`${release.tag_name} — see Releases page`, false);
     }
   })
   .catch(()=>{
-    setButtons(`https://github.com/${REPO}/releases`);
+    setButtons(`https://github.com/${REPO}/releases/latest/download/Videl_Setup.exe`);
     setVersion('View all releases on GitHub →', false);
   });
 </script>
