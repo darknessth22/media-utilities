@@ -670,6 +670,12 @@
   "lbl_jumpcut_padding": "Edge padding: {ms} ms",
   "update_title": "Update available",
   "update_body": "A new version of Videl is available.\n\nInstalled: v{current}\nLatest:    v{latest}",
-  "update_download": "Download Update",
-  "update_skip": "Skip for Now"
+  "update_download": "Download & Install",
+  "update_skip": "Skip for Now",
+  "update_cancel": "Cancel",
+  "update_downloading": "Preparing download for v{latest}…",
+  "update_downloading_progress": "Downloading… {done} / {total} MB",
+  "update_failed_title": "Update failed",
+  "update_failed_body": "Couldn't download the update.\n\n{error}\n\nOpen the website to download manually?",
+  "update_open_browser": "Open Website"
 }
