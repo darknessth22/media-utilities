@@ -40,6 +40,7 @@ from core.settings import SettingsManager, UserSettings
 from core.i18n import I18n, tr
 from core.tray import SystemTrayIcon
 from core.extension_bridge import ExtensionBridge
+from core.version import VERSION as APP_VERSION
 from gui.dnd_handler import DndHandler
 from gui.tabs.download_section import DownloadSection
 from gui.tabs.convert_section import ConvertSection
@@ -389,6 +390,13 @@ class TitleBar(QWidget):
         self._title = QLabel(tr("app_name"))
         self._title.setObjectName("TitleLabel")
         layout.addWidget(self._title)
+
+        self._version_label = QLabel(f"v{APP_VERSION}")
+        self._version_label.setObjectName("TitleVersion")
+        self._version_label.setStyleSheet(
+            "color:#8B949E; font-size:11px; padding:0 0 0 8px;"
+        )
+        layout.addWidget(self._version_label)
         layout.addStretch()
 
         # Download queue icon with badge
