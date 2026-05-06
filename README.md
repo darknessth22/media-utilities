@@ -1,6 +1,6 @@
-# Media Utility
+# Videl
 
-A desktop application for downloading, converting, trimming, compressing, merging, transforming, and managing media files — plus PDF tools, background removal, colour palette extraction, and frame grabbing. Built with PySide6.
+Offline media workstation for Windows — download, convert, trim, compress, merge, transform, watermark, scrub metadata, split, upscale, isolate vocals, erase backgrounds, work with PDFs, and more. Built with PySide6.
 
 ---
 
@@ -8,25 +8,18 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 
 ![Videl GUI](<new screen gui.png>)
 
-## Overview
-
 ![App Overview](<app-gui.gif>)
-
----
-
-## UI
-
-![Videl GUI](<screen-hui.png>)
 
 ---
 
 ## Features
 
 ### Browser Extension (Download with Videl)
-- One-click downloads from any website. The Videl browser extension overlays a small "Videl" button on the top-right of every `<video>` on the web.
-- Click the button → Videl jumps to the foreground with the URL pre-loaded in the Downloader tab.
-- Works alongside the desktop app via a local-only HTTP bridge on `127.0.0.1:17654` (loopback only — never exposed on the network).
-- Page URL is preferred over the raw `<video>` source so yt-dlp's per-site extractors handle YouTube, TikTok, Twitter/X, etc. correctly.
+- Floats a "Download with Videl" button over every `<video>` on the web (top-right corner, follows the video on scroll).
+- Click → Videl jumps to the foreground with the URL pre-loaded in the Downloader tab.
+- Talks to the desktop app via a local-only HTTP bridge on `127.0.0.1:17654` (loopback, never exposed on the network).
+- Page URL is preferred over the raw `<video>` source so yt-dlp's per-site extractors handle YouTube, TikTok, Twitter/X, Twitch, Facebook, Instagram, etc.
+- LinkedIn is excluded — their new SDUI feed strips post URNs from the DOM, so reliable per-post URL extraction is not possible. Paste LinkedIn URLs into the Downloader tab manually.
 - Source lives in [`browser_extension/`](browser_extension/) — load it unpacked from `chrome://extensions` (Developer mode → Load unpacked).
 
 ### Download
@@ -68,7 +61,7 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 - **Resize**: preset resolutions (4K, 1080p, 720p, TikTok, Instagram Square…) or custom W×H with lock-AR
 - **Crop**: aspect-ratio presets (16:9, 9:16, 1:1…) or manual W/H/X/Y with live preview
 - **Rotate / Flip**: 90° CW, 90° CCW, 180°, Flip H, Flip V — operations chain and preview live
-- **Presets** — separate preset bars for Resize (e.g. "YouTube 1080p") and Crop (e.g. "TikTok 9:16")
+- **Presets** — separate preset bars for Resize and Crop
 
 ### Audio Mux
 - **Mute Video** — strip the audio track entirely
@@ -81,102 +74,108 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 - Lossless stream copy when compatible; auto re-encode when codecs/resolutions differ
 
 ### Watermark
-- Stamp a **logo image** (PNG with transparency recommended) or **text** onto any video or image file
+- Stamp a **logo image** (PNG with transparency) or **text** onto any video or image
 - Batch mode — queue multiple files, all processed in one run
-- **Logo options**: position (top-left / top-right / bottom-left / bottom-right / center), scale (% of frame width), opacity
+- **Logo options**: position, scale (% of frame width), opacity
 - **Text options**: custom text, position, font size, font color, opacity, semi-transparent background box
-- **Video encode settings**: CRF/QP quality, encoding preset, hardware acceleration (NVIDIA NVENC / AMD AMF / Intel QuickSync / CPU) — same GPU support as Compress
-- Images processed instantly (no re-encode); videos re-encoded at CRF 18 by default (near-lossless)
-- Output saved as `<name>_watermarked.<ext>` alongside originals or in a chosen folder
+- **Video encode settings**: CRF/QP, preset, hardware acceleration (same GPU support as Compress)
+- Images processed instantly; videos re-encoded at CRF 18 by default
+- Output: `<name>_watermarked.<ext>`
 
-### Metadata Scrubber
+### Metadata Scrubber (Forensics-Grade)
 - Strip **all metadata** from video and audio files — GPS, timestamps, EXIF tags, chapter markers
-- Stream copy (no re-encode) — instantaneous regardless of file size
+- Forensics-grade re-encode pipeline removes embedded camera/encoder fingerprints
 - Batch mode with progress tracking
 - Supported: MP4, MKV, AVI, MOV, WEBM, FLV, M4V, WMV, MP3, WAV, AAC, FLAC, OGG, M4A
-- Output saved as `<name>_clean.<ext>`
+- Output: `<name>_clean.<ext>`
 
 ### Auto-Chunker
 - Split a video or audio file into equal parts by **duration** or **target size (MB)**
-- Stream copy — no re-encode, no quality loss, near-instant splitting
-- **By duration**: set segment length in minutes/seconds (e.g. 10 min per part)
-- **By size**: set max MB per chunk — duration auto-calculated from bitrate
-- Output parts named `<name>_part000.<ext>`, `<name>_part001.<ext>`, …
-- Useful for upload size limits (Discord, WhatsApp, email)
+- Stream copy — no re-encode, no quality loss
+- **By duration**: e.g. 10 min per part
+- **By size**: e.g. 25 MB chunks for WhatsApp; duration auto-calculated from bitrate
+- Output: `<name>_part000.<ext>`, `<name>_part001.<ext>`, …
 
 ### Frame Grabber
 - Extract a single frame from any video as a full-resolution JPEG or PNG
 - Set the exact timestamp (HH:MM:SS) to capture
-- Inline thumbnail preview of the grabbed frame
-- Output saved as `<name>_frame_<timestamp>.<ext>`
+- Inline thumbnail preview
+- Output: `<name>_frame_<timestamp>.<ext>`
 
 ### Hex Palette Extractor
-- Analyse any image and extract its dominant colour palette
-- Choose the number of colours (2–32)
-- Displays hex codes + colour swatches — click any swatch to copy the hex code
+- Analyse any image and extract its dominant colour palette (2–32 colours)
+- Hex codes + colour swatches — click any swatch to copy the hex code
 - Optional colour wheel view showing hue/saturation distribution
 
 ### BG Eraser
 - Remove the background from a photo in one click — fully offline after first run
-- Powered by the `rembg` AI model (U2-Net)
-- Input preview + result preview on a checkerboard transparency grid
-- Output saved as `<name>_nobg.png` (PNG with transparency)
-- First-launch in-tab installer fetches AI components into `%LOCALAPPDATA%\Videl\ai_packages\bg_eraser` against Videl's bundled Python (no system pip required, no app restart)
-- Pre-install panel discloses variant, approximate download size, and target folder before any network activity; insufficient-disk errors fail fast with no download
-- First model-weights run downloads ~170 MB; subsequent runs are instant and offline
+- Powered by `rembg` (U2-Net)
+- Input + result preview on a checkerboard transparency grid
+- Output: `<name>_nobg.png` (PNG with transparency)
+- First-launch in-tab installer fetches AI components into `%LOCALAPPDATA%\Videl\ai_packages\bg_eraser`
+- First model run downloads ~170 MB; subsequent runs are offline
 
 ### Vocal Isolator
-- Separate any song or video into two stems: **Vocals** and **Accompaniment** (background music)
-- Powered by Meta's **HTDemucs v4** model — studio-grade 2-stem AI separation, fully offline after first run
-- Automatic GPU routing: uses NVIDIA CUDA if a supported card is detected (compute capability ≥ 7.0 — RTX 20/30/40/50, V100, A100, H100, etc.), silently falls back to CPU on any other machine. Maxwell (GTX 9xx) and Pascal (GTX 10xx) are not supported by the bundled CUDA 12.8 build, so the CUDA install option is disabled for those cards and CPU is used instead
-- Real-time progress bar fed from the demucs subprocess output (no spinning wheel)
-- Runs in a dedicated background thread — use other Videl tools while the AI processes
-- Persistent warning badge when running on CPU: "May take 2–5 minutes"
-- First-launch in-tab installer downloads `demucs` + `torch` (CPU or CUDA wheel auto-selected) into `%LOCALAPPDATA%\Videl\ai_packages\vocal_isolator` against the bundled Python — no app restart, main window stays usable, kill-mid-install rolls back cleanly on next launch
-- Pre-install panel discloses variant (CPU vs CUDA), approximate download size, and target folder before any network activity; insufficient-disk errors fail fast with no download
-- First model-weights run downloads the HTDemucs model (~300 MB); subsequent runs are instant and offline
-- Output: `vocals.wav` + `no_vocals.wav` in a subfolder beside the source
+- Separate any song or video into **Vocals** + **Accompaniment**
+- Powered by Meta's **HTDemucs v4** — studio-grade 2-stem separation, fully offline after first run
+- Auto GPU routing: NVIDIA CUDA on supported cards (compute ≥ 7.0 — RTX 20/30/40/50, V100, A100, H100), CPU otherwise. Maxwell/Pascal disabled (CUDA 12.8 build)
+- Real-time progress bar from the demucs subprocess
+- Runs on a background thread — keep using Videl meanwhile
+- First-launch installer pulls `demucs` + `torch` (CPU or CUDA wheel) into `%LOCALAPPDATA%\Videl\ai_packages\vocal_isolator`
+- First model run downloads ~300 MB HTDemucs weights
+- Output: `vocals.wav` + `no_vocals.wav` next to the source
 
 ### AI Upscaler
-- Upscale photos **2× or 4×** with **Real-ESRGAN** (RealESRGAN_x4plus weights) — rebuilds edge structure and micro-contrast far more cleanly than bicubic
-- VRAM-friendly **tiling** (Off / 128 / 256 / 512) so 4K outputs run on 4–8 GB cards without OOM crashes
-- **Reuses PyTorch from the Vocal Isolator install** — no redundant ~3 GB CUDA torch download. Install Vocal Isolator first; the upscaler banner stays disabled until it is present
-- Inherits whatever variant Vocal Isolator picked: CUDA from there → CUDA here; CPU there → CPU here
-- First-launch in-tab installer fetches only the upscaler-specific deps (`realesrgan` + `basicsr` + `facexlib` + `gfpgan` + `opencv-python` + `scipy` + `scikit-image` + a few small libs, ~180 MB) into `%LOCALAPPDATA%\Videl\ai_packages\upscaler` against the bundled Python — pip runs with `--no-deps` so torch/torchvision are not redownloaded
-- First upscale run downloads the x4plus weights (~64 MB); subsequent runs are offline
-- Output: `<name>_upscaled_x4.<ext>` next to the source by default, or any path you choose (PNG / JPG / WebP)
+- Upscale photos **2× or 4×** with **Real-ESRGAN** (RealESRGAN_x4plus)
+- VRAM-friendly tiling (Off / 128 / 256 / 512) — 4K outputs run on 4–8 GB cards without OOM
+- **Reuses PyTorch from the Vocal Isolator install** — no duplicate ~3 GB CUDA torch download. Install Vocal Isolator first
+- First-launch installer fetches upscaler-only deps (`realesrgan`, `basicsr`, `facexlib`, `gfpgan`, `opencv-python`, `scipy`, `scikit-image`, ~180 MB) with `--no-deps`
+- First upscale run downloads ~64 MB x4plus weights
+- Output: `<name>_upscaled_x4.<ext>` (PNG / JPG / WebP)
 
 ### PDF Toolkit
-- **Compress** — reduce file size by re-rendering pages at Screen (72 dpi), Web (150 dpi), or Print (300 dpi) quality
-- **Merge** — combine multiple PDFs into one; drag rows to set page order before merging
-- **Split** — export every page as its own PDF, or extract a custom range (e.g. `1-3, 5, 7-9`)
-- **Extract Images** — pull embedded images out of a PDF as JPEGs, or render every page as a high-res JPEG at a chosen DPI
-- Powered by PyMuPDF — no external tools required
+- **Compress** — re-render at Screen (72 dpi), Web (150 dpi), or Print (300 dpi)
+- **Merge** — combine PDFs; drag rows to set page order
+- **Split** — every page as its own PDF, or extract a custom range (`1-3, 5, 7-9`)
+- **Extract Images** — pull embedded images out as JPEGs, or render every page as a high-res JPEG
+- Powered by PyMuPDF — no external tools
 
 ### Jump-Cutter (Auto-Silence Removal)
-- Detects silent gaps with FFmpeg `silencedetect`, then re-encodes keeping only the loud parts
+- Detects silent gaps with FFmpeg `silencedetect`, re-encodes keeping only loud parts
 - **Silence sensitivity** slider (-20 dB strict → -40 dB aggressive)
 - **Minimum silence duration** slider (0.1 s – 3.0 s)
-- **Edge padding** preserves a margin of silence around each cut so speech does not clip
-- Works for both audio and video; output: `<name>_jumpcut.<ext>`
+- **Edge padding** preserves a margin around each cut so speech does not clip
+- Audio + video; output: `<name>_jumpcut.<ext>`
 
 ### History
 - Log of all operations with status, filename, timestamp
 - Persists across restarts
 
+### Bug Reporter
+- One-click in-app bug report — captures app version, OS, log tail
+- Sent via SendGrid to the maintainers
+
+### Smart Updater
+- Silent GitHub Releases check on launch
+- Prompts when a newer tag exists; downloads + installs in-place via Inno RestartManager (no manual reinstall)
+
+### i18n (EN / AR)
+- Full English + Arabic UI translations
+- RTL layout flip when Arabic is selected
+
 ### Settings
 | Setting | Description |
 |---|---|
 | Theme | Auto (OS), Light, Dark |
-| Output folder | Default save location for all operations |
+| Language | English, Arabic (RTL) |
+| Output folder | Default save location |
 | Default codec | Fallback codec for conversions |
 | Quit on close | Close = quit or minimize to tray |
 | Intercept timeout | Browser-based download intercept wait (10–300 s) |
-| **Output naming template** | Filename pattern for converted files — supports `{name}`, `{ext}`, `{date}`, `{datetime}` |
-| Hardware acceleration | GPU encoder/decoder for video compression — None, NVIDIA, AMD, Intel, VideoToolbox |
+| **Output naming template** | `{name}`, `{ext}`, `{date}`, `{datetime}` |
+| Hardware acceleration | None, NVIDIA, AMD, Intel, VideoToolbox |
 | Cookies | File path or browser source for authenticated downloads |
 | Spotify credentials | Custom Client ID/Secret to avoid shared rate limits |
-| Smart Updater | Silent GitHub Releases check on launch; prompts for download when a newer tag exists (PyInstaller --onefile, full re-download) |
 
 ---
 
@@ -184,7 +183,7 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl + Enter` | Trigger the primary action for the current section |
+| `Ctrl + Enter` | Trigger primary action for the current section |
 | `Esc` | Cancel an in-progress operation |
 | `Ctrl + V` | Paste clipboard URL → Download section (when no text field is focused) |
 
@@ -192,36 +191,33 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 
 ## Requirements
 
-- Python 3.10+
-- FFmpeg (bundled in the Windows installer; otherwise must be on PATH)
+- Windows 10 / 11 (primary target — installer ships everything)
+- Python 3.12+ (only when running from source)
+- FFmpeg (bundled in the installer; otherwise must be on PATH)
 
-### Python dependencies
+### Python dependencies (from-source only)
 ```bash
-pip install PySide6>=6.6.0 yt-dlp Pillow pillow-heif PyMuPDF python-docx openpyxl python-pptx spotdl docx2pdf pypdf
+pip install -r requirements.txt
 ```
 
-AI components (`rembg`, `demucs`, `torch`, `onnxruntime`) are **not** installed
-into the app environment. The Windows installer ships a bundled embeddable
-Python under `runtime/python/`; on first use of BG Eraser or Vocal Isolator,
-Videl runs `pip install` against that bundled Python and writes packages to
-`%LOCALAPPDATA%\Videl\ai_packages\<component>\` (per-user, no admin required).
+AI components (`rembg`, `demucs`, `torch`, `onnxruntime`, `realesrgan` …) are **not** in the app environment. The Windows installer ships a bundled embeddable Python under `runtime/python/`; on first use of an AI tab, Videl runs `pip install` against that bundled Python and writes packages to `%LOCALAPPDATA%\Videl\ai_packages\<component>\` (per-user, no admin required).
 
 ---
 
 ## Installation
 
 ### Windows installer (recommended)
-1. Download `MediaUtility_Setup.exe`
-2. Run and follow the prompts — FFmpeg is bundled
-3. Silent install: `MediaUtility_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES`
+1. Download `Videl_Setup.exe` from [Releases](https://github.com/darknessth22/media-utilities/releases/latest)
+2. Run and follow the prompts — FFmpeg + bundled Python included
+3. Silent install: `Videl_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES`
 
-Upgrade: run the new installer over the old one — settings and history are preserved.  
-Uninstall: Add/Remove Programs, or run `unins000.exe` in the install directory.  
-App data (`%APPDATA%\media-utilities`) is kept on uninstall.
+Upgrade: run the new installer over the old one — settings, history, and AI packages are preserved.
+Uninstall: Add/Remove Programs, or `unins000.exe` in the install directory.
+App data (`%APPDATA%\Videl`) and AI packages (`%LOCALAPPDATA%\Videl\ai_packages`) are kept on uninstall.
 
 ### From source
 ```bash
-git clone <repo>
+git clone https://github.com/darknessth22/media-utilities.git
 cd media-utilities
 pip install -r requirements.txt
 python main.py
@@ -231,7 +227,7 @@ python main.py
 
 ## Hardware Acceleration
 
-The Compress section exposes a Hardware Acceleration dropdown populated with encoders detected on the current machine.
+The Compress / Watermark sections expose a Hardware Acceleration dropdown populated with encoders detected on the current machine.
 
 | Option | Encoder | Requires |
 |---|---|---|
@@ -241,14 +237,13 @@ The Compress section exposes a Hardware Acceleration dropdown populated with enc
 | Intel | h264_qsv | Intel GPU + drivers |
 | VideoToolbox | h264_videotoolbox | macOS only |
 
-If a compression job fails after enabling hardware acceleration, switch back to None (CPU).  
-Hardware acceleration only applies to video — image compression always runs on CPU.
+If a job fails after enabling hardware acceleration, switch back to None (CPU). Hardware acceleration only applies to video.
 
 ---
 
 ## Output Naming Templates
 
-Configure in **Settings → Output Naming Template**. Applies to all converted and compressed files.
+Configure in **Settings → Output Naming Template**. Applies to converted and compressed files.
 
 | Placeholder | Value |
 |---|---|
@@ -257,40 +252,17 @@ Configure in **Settings → Output Naming Template**. Applies to all converted a
 | `{date}` | `YYYYMMDD` |
 | `{datetime}` | `YYYYMMDD_HHMMSS` |
 
-**Examples**
-
-| Template | Input | Output |
-|---|---|---|
-| `{name}_converted` *(default)* | `clip.mp4` → MP4 | `clip_converted.mp4` |
-| `{name}` | `clip.mp4` → MP4 | `clip.mp4` |
-| `{name}_{date}` | `clip.mp4` → MP4 | `clip_20260101.mp4` |
-| `client_{name}_{datetime}` | `clip.mp4` → MP4 | `client_clip_20260101_120000.mp4` |
-
-A live preview updates as you type in the Settings field.
-
 ---
 
 ## Presets
 
-Compress, Transform → Resize, Transform → Crop, and Download sections each have a **Preset bar** at the top.
+Compress, Transform → Resize, Transform → Crop, and Download have a **Preset bar** at the top.
 
-- **Save…** — captures the current settings and prompts for a name
+- **Save…** — captures current settings under a name
 - **Load** — restores the selected preset
 - **Delete** — removes the selected preset
 
-Presets are stored in `config.json` alongside other settings and persist across restarts.
-
-**Typical use cases**
-
-| Section | Example preset name | What it saves |
-|---|---|---|
-| Compress | "Client Web" | CRF 28, fast, CPU, output folder |
-| Compress | "Archive HQ" | CRF 22, slow, NVENC |
-| Compress | "Thumbnail" | Quality 80, max 1200 px |
-| Transform → Resize | "YouTube 1080p" | 1920×1080, output folder |
-| Transform → Resize | "TikTok Vertical" | 1080×1920 |
-| Transform → Crop | "16:9 Center" | 1280×720, X=320, Y=180 |
-| Download | "Spotify MP3" | Audio only, MP3, output folder |
+Presets persist in `config.json` across restarts.
 
 ---
 
@@ -303,9 +275,7 @@ Uses `spotdl` — matches track metadata from Spotify and downloads audio from Y
 - No DRM circumvention
 - Audio source is YouTube, not Spotify directly
 
-Supported URL types: tracks, albums, playlists.
-
-Custom Spotify credentials can be set in Settings to avoid shared rate limits.
+Custom Spotify credentials in Settings to avoid shared rate limits.
 
 ---
 
@@ -316,75 +286,28 @@ Required for Instagram, TikTok, and other authenticated platforms.
 1. Install the *Get cookies.txt LOCALLY* extension in Chrome/Brave/Edge/Firefox
 2. Log into the target site
 3. Export cookies from that site
-4. In Settings → Cookies, select the exported `.txt` file
+4. Settings → Cookies → select the exported `.txt` file
 
-Alternatively, select a browser directly (less reliable — may fail if the browser is open or uses OS-level cookie encryption).
-
----
-
-## How to Use: Watermark
-
-1. Open the **Watermark** tab
-2. Click **Add Files…** or **Add Folder…** — accepts video and image files
-3. Choose watermark type:
-   - **Logo / image overlay** — browse to a PNG (transparency supported), set position, scale, and opacity
-   - **Text watermark** — type your text, pick position, font size, color, and opacity
-4. Under **Video Encode Settings**, choose quality (CRF lower = better), preset, and hardware accelerator if available
-5. Optionally set an **Output Folder** — leave blank to save next to each source file
-6. Click **Apply Watermark** (or `Ctrl+Enter`)
-7. Output files appear as `<original_name>_watermarked.<ext>`
-
-**Tips**
-- PNG logos with transparent backgrounds look cleanest
-- GPU preset (NVIDIA/AMD/Intel) encodes 5–10× faster than CPU at equivalent quality
-- Images (JPG, PNG, etc.) are processed without re-encoding the video stream — instant
-
----
-
-## How to Use: Metadata Scrubber
-
-1. Open the **Scrubber** tab
-2. Drag and drop files onto the list, or click **Add Files…** / **Add Folder…**
-3. Optionally set an output folder (default: same directory as source)
-4. Click **Scrub Metadata** (or `Ctrl+Enter`)
-5. Output files appear as `<original_name>_clean.<ext>`
-
-No quality loss — files are remuxed via stream copy. GPS coordinates, camera model, recording timestamps, and all other metadata tags are removed.
-
----
-
-## How to Use: Auto-Chunker
-
-1. Open the **Chunker** tab
-2. Browse to a source video or audio file
-3. Choose split mode:
-   - **By Duration** — enter segment length (e.g. `10` minutes). Every chunk will be exactly that long except the last
-   - **By Size** — enter max MB per chunk (e.g. `25` for WhatsApp). Duration per chunk is calculated automatically from the file's bitrate
-4. Optionally set an output folder
-5. Click **Split** (or `Ctrl+Enter`)
-6. Output parts appear as `<name>_part000.<ext>`, `<name>_part001.<ext>`, …
-
-Stream copy — no re-encode, no quality loss. Large files split in seconds.
+Alternatively, select a browser directly (less reliable).
 
 ---
 
 ## Limitations
 
-- HEIC conversion requires `pillow-heif` installed
+- HEIC conversion requires `pillow-heif`
 - DOCX → PDF on Linux requires LibreOffice
+- LinkedIn browser-extension button is disabled (their feed scrubs post URNs from the DOM); paste LinkedIn URLs into the Downloader manually
 - Some platforms require cookies for authenticated downloads
-- Hardware acceleration availability depends on the GPU and installed drivers
-- Spotify downloads depend on YouTube availability of the track
-- BG Eraser and Vocal Isolator install their AI components on first use into `%LOCALAPPDATA%\Videl\ai_packages\` via the bundled embeddable Python — no system-wide pip install needed; killing the install rolls back on next launch
-- BG Eraser first model run downloads ~170 MB of weights
-- Vocal Isolator first model run downloads ~300 MB HTDemucs weights; GPU variant (`torch+cu128`) is auto-selected when a supported NVIDIA GPU (compute capability ≥ 7.0) is detected — Maxwell/Pascal cards fall back to the CPU variant
-- AI Upscaler first run downloads ~64 MB Real-ESRGAN x4plus weights. Install is ~180 MB because torch is reused from Vocal Isolator's `ai_packages` dir (Vocal Isolator must be installed first)
-- PDF Compress works by re-rendering pages — gains are largest on image-heavy PDFs; text-only PDFs see smaller size reductions
+- BG Eraser / Vocal Isolator / AI Upscaler install AI components on first use into `%LOCALAPPDATA%\Videl\ai_packages\` — first runs download model weights
+- Vocal Isolator GPU (CUDA 12.8) requires compute capability ≥ 7.0; Maxwell/Pascal fall back to CPU
+- AI Upscaler requires Vocal Isolator installed first (it reuses torch)
+- PDF Compress works by re-rendering — gains are largest on image-heavy PDFs
 
 ---
 
-## Size Budget (maintainers)
+## Maintainers
 
-`size-budget.json` defines limits for the installer and installed files.  
-The build script `build_executable.py` fails if the build exceeds the budget + 5% tolerance.  
-Update `size-budget.json` in the PR if a new feature legitimately increases size.
+- `core/version.py` is the single source of truth for the app version
+- `size-budget.json` defines installer/installed size limits — `build_executable.py` fails the build if exceeded by more than 5%
+- Push to `master` triggers CI (pytest) + Build (PyInstaller + Inno Setup → Releases)
+- Tagging `vX.Y.Z` triggers a release artifact upload
