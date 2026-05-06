@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPlainTextEdit,
     QProgressBar,
     QPushButton,
     QScrollArea,
@@ -19,7 +20,12 @@ from PySide6.QtWidgets import (
 )
 
 from core.i18n import tr
-from core.jumpcutter import remove_silence, _AUDIO_EXTS, _VIDEO_EXTS
+from core.jumpcutter import (
+    _AUDIO_EXTS,
+    _VIDEO_EXTS,
+    parse_protected_ranges,
+    remove_silence,
+)
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 from gui.worker import Worker
@@ -66,6 +72,7 @@ class JumpcutSection(QScrollArea):
 
         layout.addWidget(self._build_source_card())
         layout.addWidget(self._build_params_card())
+        layout.addWidget(self._build_protected_card())
         layout.addWidget(self._build_output_card())
         layout.addWidget(self._build_progress_card())
         self.setWidget(content)
@@ -149,6 +156,49 @@ class JumpcutSection(QScrollArea):
         )
         layout.addWidget(self._pad_slider)
         return card
+
+    # ── Protected ranges ──────────────────────────────────────────────────────
+
+    def _build_protected_card(self) -> QFrame:
+        card = _card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(8)
+        self._hdr_protected = _section_header(tr("hdr_jumpcut_protected"))
+        layout.addWidget(self._hdr_protected)
+
+        self._lbl_protected_hint = QLabel(tr("hint_jumpcut_protected"))
+        self._lbl_protected_hint.setObjectName("TextMuted")
+        self._lbl_protected_hint.setWordWrap(True)
+        self._lbl_protected_hint.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._lbl_protected_hint)
+
+        self._protected_edit = QPlainTextEdit()
+        self._protected_edit.setObjectName("PillInput")
+        self._protected_edit.setPlaceholderText(tr("ph_jumpcut_protected"))
+        self._protected_edit.setFixedHeight(110)
+        self._protected_edit.textChanged.connect(self._update_protected_status)
+        layout.addWidget(self._protected_edit)
+
+        self._lbl_protected_status = QLabel("")
+        self._lbl_protected_status.setObjectName("TextSecondary")
+        self._lbl_protected_status.setStyleSheet("font-size: 11px;")
+        layout.addWidget(self._lbl_protected_status)
+        return card
+
+    def _update_protected_status(self) -> None:
+        text = self._protected_edit.toPlainText()
+        ranges, errors = parse_protected_ranges(text)
+        if errors:
+            self._lbl_protected_status.setText(
+                tr("lbl_jumpcut_protected_err").format(n=len(errors), line=errors[0][:60])
+            )
+            self._lbl_protected_status.setStyleSheet("color:#e06c75; font-size: 11px;")
+        else:
+            self._lbl_protected_status.setText(
+                tr("lbl_jumpcut_protected_ok").format(n=len(ranges))
+            )
+            self._lbl_protected_status.setStyleSheet("font-size: 11px;")
 
     # ── Output / progress ─────────────────────────────────────────────────────
 
@@ -240,6 +290,10 @@ class JumpcutSection(QScrollArea):
         self._lbl_noise.setText(tr("lbl_jumpcut_noise").format(db=self._noise_slider.value()))
         self._lbl_dur.setText(tr("lbl_jumpcut_minsil").format(s=self._dur_slider.value() / 10.0))
         self._lbl_pad.setText(tr("lbl_jumpcut_padding").format(ms=self._pad_slider.value() * 10))
+        self._hdr_protected.setText(tr("hdr_jumpcut_protected"))
+        self._lbl_protected_hint.setText(tr("hint_jumpcut_protected"))
+        self._protected_edit.setPlaceholderText(tr("ph_jumpcut_protected"))
+        self._update_protected_status()
         self._hdr_out.setText(tr("hdr_output_folder"))
         self._out_input.setPlaceholderText(tr("ph_same_dir"))
         self._browse_out_btn.setText(tr("btn_browse"))
@@ -266,10 +320,17 @@ class JumpcutSection(QScrollArea):
         min_dur = self._dur_slider.value() / 10.0
         padding = self._pad_slider.value() / 100.0
 
+        protected, errors = parse_protected_ranges(self._protected_edit.toPlainText())
+        if errors:
+            self.status_message.emit(
+                tr("err_jumpcut_protected").format(line=errors[0][:60]), True
+            )
+            return
+
         self._set_busy(True, "Removing silence…", "Detecting and cutting silences…")
 
         def _do():
-            return remove_silence(src, noise_db, min_dur, padding, out_dir)
+            return remove_silence(src, noise_db, min_dur, padding, out_dir, protected)
 
         self._pending_src = src
         self._worker = Worker(_do)

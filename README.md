@@ -152,6 +152,7 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 - **Silence sensitivity** slider (-20 dB strict → -40 dB aggressive)
 - **Minimum silence duration** slider (0.1 s – 3.0 s)
 - **Edge padding** preserves a margin of silence around each cut so speech does not clip
+- **Protected ranges** — list time ranges (one per line, `start - end`, accepts seconds / `M:SS` / `H:MM:SS`) that must be kept intact; silence inside them is preserved
 - Works for both audio and video; output: `<name>_jumpcut.<ext>`
 
 ### History
