@@ -18,6 +18,7 @@ Thumbs.db
 # IDE files
 .idea/
 .vscode/
+.cursor/
 *.sublime-*
 
 # Media files (to avoid large files in repo)
@@ -54,6 +55,7 @@ setup.py
 dist/
 build/
 *.spec
+!media_util_gui.spec
 
 # Test and Lint caches
 .pytest_cache/
@@ -68,11 +70,22 @@ Output/
 bin/
 ffplay.exe
 
-# AI agent workflow dirs (local tooling only)
+# AI agent workflow dirs and config (local tooling only)
 .agent/
 .claude/
 .gemini/
 .specify/
+CLAUDE.md
+
+# Graphify output (generated knowledge graph, local tooling only)
+graphify-out/
+
+# Size budget (maintainer-only, not part of source)
+size-budget.json
 
 # Legacy files
 gui.html
+.build_venv/
+
+# Bundled Python runtime (build output, never checked in)
+runtime/

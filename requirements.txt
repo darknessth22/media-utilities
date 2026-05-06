@@ -1,6 +1,8 @@
 yt-dlp>=2023.3.4
 Pillow>=9.5.0
 pillow-heif>=0.10.0
+# rembg and demucs installed on-demand via in-app button (not bundled in build)
+# onnxruntime is a dependency of rembg — also installed on-demand
 PyMuPDF>=1.22.5
 python-docx>=0.8.11
 pyinstaller>=5.13.0
@@ -8,4 +10,9 @@ docx2pdf>=0.1.8
 desktop-notifier>=3.3.2
 curl-cffi>=0.7.1
 PySide6>=6.6.0
+PySide6-Addons>=6.6.0
+packaging>=23.0
 playwright>=1.40.0
+pywin32>=306
+openpyxl>=3.1.0
+python-pptx>=0.6.21

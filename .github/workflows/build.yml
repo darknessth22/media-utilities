@@ -2,12 +2,14 @@ name: Build Videl
 
 on:
   push:
-    branches: [main]
+    branches: [main, phase1/security-stability]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -16,30 +18,82 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Cache pip
         uses: actions/cache@v5
         with:
           path: ~\AppData\Local\pip\Cache
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-build.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install Python dependencies
-        run: pip install -r requirements.txt
+      - name: Cache ffmpeg binaries
+        uses: actions/cache@v5
+        with:
+          path: bin
+          key: ${{ runner.os }}-ffmpeg-${{ hashFiles('build_config.json') }}
+
+      - name: Install build-only Python dependencies
+        run: pip install -r requirements-build.txt
 
       - name: Install Inno Setup 6
         run: choco install innosetup --no-progress -y
 
-      - name: Build executable and installer
+      - name: Build (clean venv)
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: python build_executable.py
+
+      - name: Snapshot clean build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/clean | Out-Null
+          Copy-Item Output/Videl_Setup.exe artifacts/clean/Videl_Setup.exe
+          Copy-Item dist/size-report.json artifacts/clean/size-report.json
+          # Capture path-set for parity comparison
+          Get-ChildItem -Recurse -File dist/Videl |
+            ForEach-Object { $_.FullName.Substring((Resolve-Path dist/Videl).Path.Length + 1) } |
+            Sort-Object | Out-File -Encoding utf8 artifacts/clean/paths.txt
+
+      - name: Pollute venv with AI packages (parity check)
+        run: |
+          pip install rembg demucs torch onnxruntime --quiet
+
+      - name: Build (polluted venv)
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        run: python build_executable.py
+
+      - name: Compare clean vs polluted (SC-002)
+        shell: pwsh
+        run: |
+          $polluted = Get-ChildItem -Recurse -File dist/Videl |
+            ForEach-Object { $_.FullName.Substring((Resolve-Path dist/Videl).Path.Length + 1) } |
+            Sort-Object
+          $polluted | Out-File -Encoding utf8 artifacts/polluted-paths.txt
+          $diff = Compare-Object (Get-Content artifacts/clean/paths.txt) $polluted
+          if ($diff) {
+            Write-Error "Path-set divergence between clean and polluted builds:"
+            $diff | Format-Table | Out-String | Write-Error
+            exit 1
+          }
+          $cleanReport = Get-Content artifacts/clean/size-report.json | ConvertFrom-Json
+          $pollutedReport = Get-Content dist/size-report.json | ConvertFrom-Json
+          $cleanSize = (Get-Item artifacts/clean/Videl_Setup.exe).Length
+          $pollutedSize = (Get-Item Output/Videl_Setup.exe).Length
+          $delta = [math]::Abs($pollutedSize - $cleanSize) / $cleanSize
+          Write-Host ("Installer size delta: {0:P2} (clean={1} bytes, polluted={2} bytes)" -f $delta, $cleanSize, $pollutedSize)
+          if ($delta -gt 0.05) {
+            Write-Error "Installer size delta exceeds 5% tolerance (SC-002)"
+            exit 1
+          }
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v5
         with:
           name: Videl-Setup-${{ github.sha }}
-          path: Output/Videl_Setup.exe
+          path: artifacts/clean/Videl_Setup.exe
           if-no-files-found: error
           retention-days: 30
 
@@ -47,6 +101,27 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: size-report-${{ github.sha }}
-          path: dist/size-report.json
+          path: artifacts/clean/size-report.json
           if-no-files-found: warn
           retention-days: 7
+
+      - name: Read app version
+        id: version
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path core/version.py -Pattern 'VERSION\s*=\s*"([^"]+)"').Matches.Groups[1].Value
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Detected version: $v"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Videl v${{ steps.version.outputs.version }}
+          prerelease: false
+          body: |
+            Built from `${{ github.ref_name }}` @ `${{ github.sha }}`.
+
+            **Installer:** `Videl_Setup.exe`
+          files: artifacts/clean/Videl_Setup.exe
+          fail_on_unmatched_files: true

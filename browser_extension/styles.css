@@ -1,0 +1,62 @@
+.videl-btn-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  transform: translateX(-100%);
+  z-index: 2147483647;
+  pointer-events: none;
+}
+
+.videl-download-btn {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(20, 24, 36, 0.82);
+  color: #fff;
+  font: 600 14px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  opacity: 0.92;
+  transition: opacity 120ms ease, background 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+}
+
+.videl-download-btn:hover {
+  opacity: 1;
+  background: #2563eb;
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.55);
+}
+
+.videl-download-btn .videl-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.videl-download-btn .videl-label {
+  white-space: nowrap;
+}
+
+.videl-download-btn.videl-busy {
+  background: #1e40af;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.videl-download-btn.videl-ok {
+  background: #16a34a;
+}
+
+.videl-download-btn.videl-err {
+  background: #b91c1c;
+}

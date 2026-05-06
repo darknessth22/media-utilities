@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
+from core.i18n import tr
 from core.muxer import mix_audio_overlay, mute_video, replace_audio
 from gui.worker import Worker
 
@@ -51,7 +52,7 @@ def _file_row(placeholder: str, filter_str: str, parent: QWidget):
     inp.setPlaceholderText(placeholder)
     row.addWidget(inp)
 
-    btn = QPushButton("Browse…")
+    btn = QPushButton(tr("btn_browse"))
     btn.setObjectName("BrowseBtn")
     btn.setFixedWidth(90)
     row.addWidget(btn)
@@ -84,10 +85,11 @@ class _MutePane(QWidget):
         v = QVBoxLayout(card)
         v.setContentsMargins(20, 16, 20, 16)
         v.setSpacing(10)
-        v.addWidget(_section_header("VIDEO FILE"))
+        self._hdr_vid = _section_header(tr("hdr_video_file"))
+        v.addWidget(self._hdr_vid)
 
-        self._video_inp, browse_btn, row = _file_row("Video file to mute…", _VIDEO_EXTS, self)
-        browse_btn.clicked.connect(self._browse_video)
+        self._video_inp, self._browse_vid, row = _file_row(tr("ph_mux_video_mute"), _VIDEO_EXTS, self)
+        self._browse_vid.clicked.connect(self._browse_video)
         v.addLayout(row)
         return card
 
@@ -96,12 +98,13 @@ class _MutePane(QWidget):
         v = QVBoxLayout(card)
         v.setContentsMargins(20, 16, 20, 16)
         v.setSpacing(10)
-        v.addWidget(_section_header("OUTPUT FOLDER"))
+        self._hdr_out = _section_header(tr("hdr_output_folder"))
+        v.addWidget(self._hdr_out)
 
-        self._out_inp, browse_btn, row = _file_row("Same directory as source file", "", self)
+        self._out_inp, self._browse_out, row = _file_row(tr("ph_mux_same_as_src"), "", self)
         if self._settings.output_folder:
             self._out_inp.setText(self._settings.output_folder)
-        browse_btn.clicked.connect(self._browse_output)
+        self._browse_out.clicked.connect(self._browse_output)
         v.addLayout(row)
         return card
 
@@ -122,6 +125,14 @@ class _MutePane(QWidget):
         self._progress_label.setVisible(False)
         v.addWidget(self._progress_label)
         return card
+
+    def retranslate_ui(self) -> None:
+        self._hdr_vid.setText(tr("hdr_video_file"))
+        self._hdr_out.setText(tr("hdr_output_folder"))
+        self._video_inp.setPlaceholderText(tr("ph_mux_video_mute"))
+        self._out_inp.setPlaceholderText(tr("ph_mux_same_as_src"))
+        self._browse_vid.setText(tr("btn_browse"))
+        self._browse_out.setText(tr("btn_browse"))
 
     def _browse_video(self) -> None:
         start = os.path.dirname(self._video_inp.text()) or os.path.expanduser("~")
@@ -166,7 +177,7 @@ class _MutePane(QWidget):
         self._progress_bar.setVisible(busy)
         self._progress_label.setVisible(busy)
         if busy:
-            self._progress_label.setText("Stripping audio track…")
+            self._progress_label.setText(tr("dyn_stripping_audio"))
         self.busy_changed.emit(busy)
 
     def _on_result(self, success: bool, src: str, out_dir: str | None) -> None:
@@ -225,24 +236,23 @@ class _ReplaceAudioPane(QWidget):
         v.setContentsMargins(20, 16, 20, 16)
         v.setSpacing(10)
 
-        v.addWidget(_section_header("VIDEO FILE"))
-        self._video_inp, browse_vid, row_vid = _file_row("Video file (source of visuals)…", _VIDEO_EXTS, self)
-        browse_vid.clicked.connect(self._browse_video)
+        self._hdr_vid = _section_header(tr("hdr_video_file"))
+        v.addWidget(self._hdr_vid)
+        self._video_inp, self._browse_vid, row_vid = _file_row(tr("ph_mux_video_visuals"), _VIDEO_EXTS, self)
+        self._browse_vid.clicked.connect(self._browse_video)
         v.addLayout(row_vid)
 
-        v.addWidget(_section_header("NEW AUDIO FILE"))
-        self._audio_inp, browse_aud, row_aud = _file_row("Audio file (new sound track)…", _AUDIO_EXTS, self)
-        browse_aud.clicked.connect(self._browse_audio)
+        self._hdr_audio = _section_header(tr("hdr_new_audio"))
+        v.addWidget(self._hdr_audio)
+        self._audio_inp, self._browse_aud, row_aud = _file_row(tr("ph_mux_audio_new_track"), _AUDIO_EXTS, self)
+        self._browse_aud.clicked.connect(self._browse_audio)
         v.addLayout(row_aud)
 
-        hint = QLabel(
-            "Output stops at whichever stream ends first (FFmpeg -shortest flag). "
-            "If the audio is longer than the video, the extra audio is discarded."
-        )
-        hint.setObjectName("TextMuted")
-        hint.setWordWrap(True)
-        hint.setStyleSheet("font-size: 12px;")
-        v.addWidget(hint)
+        self._replace_hint = QLabel(tr("hint_mux_replace_shortest"))
+        self._replace_hint.setObjectName("TextMuted")
+        self._replace_hint.setWordWrap(True)
+        self._replace_hint.setStyleSheet("font-size: 12px;")
+        v.addWidget(self._replace_hint)
         return card
 
     def _build_output_card(self) -> QFrame:
@@ -250,12 +260,13 @@ class _ReplaceAudioPane(QWidget):
         v = QVBoxLayout(card)
         v.setContentsMargins(20, 16, 20, 16)
         v.setSpacing(10)
-        v.addWidget(_section_header("OUTPUT FOLDER"))
+        self._hdr_out = _section_header(tr("hdr_output_folder"))
+        v.addWidget(self._hdr_out)
 
-        self._out_inp, browse_btn, row = _file_row("Same directory as video file", "", self)
+        self._out_inp, self._browse_out, row = _file_row(tr("ph_mux_same_as_video"), "", self)
         if self._settings.output_folder:
             self._out_inp.setText(self._settings.output_folder)
-        browse_btn.clicked.connect(self._browse_output)
+        self._browse_out.clicked.connect(self._browse_output)
         v.addLayout(row)
         return card
 
@@ -276,6 +287,18 @@ class _ReplaceAudioPane(QWidget):
         self._progress_label.setVisible(False)
         v.addWidget(self._progress_label)
         return card
+
+    def retranslate_ui(self) -> None:
+        self._hdr_vid.setText(tr("hdr_video_file"))
+        self._hdr_audio.setText(tr("hdr_new_audio"))
+        self._hdr_out.setText(tr("hdr_output_folder"))
+        self._video_inp.setPlaceholderText(tr("ph_mux_video_visuals"))
+        self._audio_inp.setPlaceholderText(tr("ph_mux_audio_new_track"))
+        self._out_inp.setPlaceholderText(tr("ph_mux_same_as_video"))
+        self._browse_vid.setText(tr("btn_browse"))
+        self._browse_aud.setText(tr("btn_browse"))
+        self._browse_out.setText(tr("btn_browse"))
+        self._replace_hint.setText(tr("hint_mux_replace_shortest"))
 
     def _browse_video(self) -> None:
         start = os.path.dirname(self._video_inp.text()) or os.path.expanduser("~")
@@ -317,7 +340,7 @@ class _ReplaceAudioPane(QWidget):
 
         out_dir = self._out_inp.text().strip() or None
         self._set_busy(True)
-        self.status_message.emit("Replacing audio track…", False)
+        self.status_message.emit(tr("dyn_replacing_audio"), False)
 
         def do_replace():
             return replace_audio(vid, aud, out_dir)
@@ -331,7 +354,7 @@ class _ReplaceAudioPane(QWidget):
         self._progress_bar.setVisible(busy)
         self._progress_label.setVisible(busy)
         if busy:
-            self._progress_label.setText("Replacing audio track…")
+            self._progress_label.setText(tr("dyn_replacing_audio"))
         self.busy_changed.emit(busy)
 
     def _on_result(self, success: bool, vid: str, out_dir: str | None) -> None:
@@ -366,6 +389,14 @@ class _ReplaceAudioPane(QWidget):
 class _AddAudioPane(QWidget):
     """Add Audio sub-tab — mixes an audio file over the video's existing audio."""
 
+    _VOL_TICK_KEYS = (
+        "vol_tick_0",
+        "vol_tick_50",
+        "vol_tick_100",
+        "vol_tick_150",
+        "vol_tick_200",
+    )
+
     status_message = Signal(str, bool)
     busy_changed = Signal(bool)
 
@@ -391,28 +422,27 @@ class _AddAudioPane(QWidget):
         v.setContentsMargins(20, 16, 20, 16)
         v.setSpacing(10)
 
-        v.addWidget(_section_header("VIDEO FILE"))
-        self._video_inp, browse_vid, row_vid = _file_row(
-            "Video file (keeps its own audio)…", _VIDEO_EXTS, self
+        self._hdr_vid = _section_header(tr("hdr_video_file"))
+        v.addWidget(self._hdr_vid)
+        self._video_inp, self._browse_vid, row_vid = _file_row(
+            tr("ph_mux_video_keeps_audio"), _VIDEO_EXTS, self
         )
-        browse_vid.clicked.connect(self._browse_video)
+        self._browse_vid.clicked.connect(self._browse_video)
         v.addLayout(row_vid)
 
-        v.addWidget(_section_header("AUDIO FILE TO ADD"))
-        self._audio_inp, browse_aud, row_aud = _file_row(
-            "Audio file to mix in…", _AUDIO_EXTS, self
+        self._hdr_audio = _section_header(tr("hdr_audio_add"))
+        v.addWidget(self._hdr_audio)
+        self._audio_inp, self._browse_aud, row_aud = _file_row(
+            tr("ph_mux_audio_mix_in"), _AUDIO_EXTS, self
         )
-        browse_aud.clicked.connect(self._browse_audio)
+        self._browse_aud.clicked.connect(self._browse_audio)
         v.addLayout(row_aud)
 
-        hint = QLabel(
-            "The video's original audio is preserved. The added audio is mixed on top. "
-            "Output length matches the video — any extra audio is discarded."
-        )
-        hint.setObjectName("TextMuted")
-        hint.setWordWrap(True)
-        hint.setStyleSheet("font-size: 12px;")
-        v.addWidget(hint)
+        self._add_hint = QLabel(tr("hint_mux_add_mix"))
+        self._add_hint.setObjectName("TextMuted")
+        self._add_hint.setWordWrap(True)
+        self._add_hint.setStyleSheet("font-size: 12px;")
+        v.addWidget(self._add_hint)
         return card
 
     def _build_volume_card(self) -> QFrame:
@@ -420,7 +450,8 @@ class _AddAudioPane(QWidget):
         v = QVBoxLayout(card)
         v.setContentsMargins(20, 16, 20, 16)
         v.setSpacing(10)
-        v.addWidget(_section_header("ADDED AUDIO VOLUME"))
+        self._hdr_vol = _section_header(tr("hdr_audio_volume"))
+        v.addWidget(self._hdr_vol)
 
         row = QHBoxLayout()
         row.setSpacing(12)
@@ -442,11 +473,13 @@ class _AddAudioPane(QWidget):
 
         tick_row = QHBoxLayout()
         tick_row.setContentsMargins(0, 0, 44 + 12, 0)
-        for pct in ("0%", "50%", "100%", "150%", "200%"):
-            lbl = QLabel(pct)
+        self._tick_labels: list[QLabel] = []
+        for key in self._VOL_TICK_KEYS:
+            lbl = QLabel(tr(key))
             lbl.setObjectName("TextMuted")
             lbl.setStyleSheet("font-size: 10px;")
             lbl.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            self._tick_labels.append(lbl)
             tick_row.addWidget(lbl, 1)
         v.addLayout(tick_row)
         return card
@@ -456,12 +489,13 @@ class _AddAudioPane(QWidget):
         v = QVBoxLayout(card)
         v.setContentsMargins(20, 16, 20, 16)
         v.setSpacing(10)
-        v.addWidget(_section_header("OUTPUT FOLDER"))
+        self._hdr_out = _section_header(tr("hdr_output_folder"))
+        v.addWidget(self._hdr_out)
 
-        self._out_inp, browse_btn, row = _file_row("Same directory as video file", "", self)
+        self._out_inp, self._browse_out, row = _file_row(tr("ph_mux_same_as_video"), "", self)
         if self._settings.output_folder:
             self._out_inp.setText(self._settings.output_folder)
-        browse_btn.clicked.connect(self._browse_output)
+        self._browse_out.clicked.connect(self._browse_output)
         v.addLayout(row)
         return card
 
@@ -482,6 +516,22 @@ class _AddAudioPane(QWidget):
         self._progress_label.setVisible(False)
         v.addWidget(self._progress_label)
         return card
+
+    def retranslate_ui(self) -> None:
+        self._hdr_vid.setText(tr("hdr_video_file"))
+        self._hdr_audio.setText(tr("hdr_audio_add"))
+        self._hdr_vol.setText(tr("hdr_audio_volume"))
+        self._hdr_out.setText(tr("hdr_output_folder"))
+        self._video_inp.setPlaceholderText(tr("ph_mux_video_keeps_audio"))
+        self._audio_inp.setPlaceholderText(tr("ph_mux_audio_mix_in"))
+        self._out_inp.setPlaceholderText(tr("ph_mux_same_as_video"))
+        self._browse_vid.setText(tr("btn_browse"))
+        self._browse_aud.setText(tr("btn_browse"))
+        self._browse_out.setText(tr("btn_browse"))
+        self._add_hint.setText(tr("hint_mux_add_mix"))
+        for key, lbl in zip(self._VOL_TICK_KEYS, self._tick_labels, strict=True):
+            lbl.setText(tr(key))
+        self._on_volume_changed(self._vol_slider.value())
 
     def _on_volume_changed(self, value: int) -> None:
         self._vol_label.setText(f"{value}%")
@@ -541,7 +591,7 @@ class _AddAudioPane(QWidget):
         self._progress_bar.setVisible(busy)
         self._progress_label.setVisible(busy)
         if busy:
-            self._progress_label.setText("Mixing audio tracks…")
+            self._progress_label.setText(tr("dyn_mixing_audio"))
         self.busy_changed.emit(busy)
 
     def _on_result(self, success: bool, vid: str, out_dir: str | None) -> None:
@@ -611,6 +661,13 @@ class MuxSection(QWidget):
         for pane in (self._mute_pane, self._replace_pane, self._add_pane):
             pane.status_message.connect(self.status_message)
             pane.busy_changed.connect(self.busy_changed)
+
+
+    def retranslate_ui(self) -> None:
+        self._mute_pane.retranslate_ui()
+        self._replace_pane.retranslate_ui()
+        self._add_pane.retranslate_ui()
+
 
     def on_sub_tab_changed(self, index: int) -> None:
         self._stack.setCurrentIndex(index)

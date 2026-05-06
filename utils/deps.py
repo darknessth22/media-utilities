@@ -4,6 +4,10 @@ import sys
 
 from utils.ffmpeg import ffmpeg_path
 
+# Windowed (frozen) build has no console; spawning a console subprocess
+# without this flag flashes a cmd window. 0x08000000 = CREATE_NO_WINDOW.
+_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+
 
 def check_playwright_installed() -> tuple[bool, str]:
     """Check if playwright package and Chromium binary are available."""
@@ -25,6 +29,7 @@ def check_playwright_installed() -> tuple[bool, str]:
             capture_output=True,
             text=True,
             timeout=30,
+            creationflags=_NO_WINDOW,
         )
         if result.returncode != 0:
             return False, "Playwright Chromium not installed. Run: python -m playwright install chromium"
@@ -61,7 +66,7 @@ def check_dependencies() -> str | None:
 
     # FFmpeg (critical)
     try:
-        subprocess.run([ffmpeg_path, "-version"], capture_output=True, check=True)
+        subprocess.run([ffmpeg_path, "-version"], capture_output=True, check=True, creationflags=_NO_WINDOW)
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("\nFFmpeg not found! Media conversion features will be unavailable.")
         return "ffmpeg_missing"
@@ -87,7 +92,7 @@ def check_dependencies() -> str | None:
         cmds = ["soffice", "libreoffice"] if sys.platform == "win32" else ["libreoffice", "soffice"]
         for cmd in cmds:
             try:
-                subprocess.run([cmd, "--version"], capture_output=True, check=True)
+                subprocess.run([cmd, "--version"], capture_output=True, check=True, creationflags=_NO_WINDOW)
                 break
             except (subprocess.CalledProcessError, FileNotFoundError):
                 continue
@@ -97,7 +102,8 @@ def check_dependencies() -> str | None:
     # spotdl (Spotify support) — optional, not available on Python 3.14+
     try:
         result = subprocess.run(
-            ["spotdl", "--version"], capture_output=True, text=True, check=True
+            ["spotdl", "--version"], capture_output=True, text=True, check=True,
+            creationflags=_NO_WINDOW,
         )
         print(f"spotdl available: {result.stdout.strip()}")
     except (subprocess.CalledProcessError, FileNotFoundError):

@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.i18n import tr
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 from gui.presets_bar import PresetsBar
@@ -144,20 +145,21 @@ class CompressSection(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("SOURCE FILE"))
+        self._hdr_src = _section_header(tr("hdr_source_file"))
+        layout.addWidget(self._hdr_src)
 
         row = QHBoxLayout()
         self._file_input = QLineEdit()
         self._file_input.setObjectName("PillInput")
-        self._file_input.setPlaceholderText("Image or video file…")
+        self._file_input.setPlaceholderText(tr("ph_img_vid"))
         self._file_input.textChanged.connect(self._on_source_changed)
         row.addWidget(self._file_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_file)
-        row.addWidget(browse_btn)
+        self._browse_src_btn = QPushButton(tr("btn_browse"))
+        self._browse_src_btn.setObjectName("BrowseBtn")
+        self._browse_src_btn.setFixedWidth(90)
+        self._browse_src_btn.clicked.connect(self._browse_file)
+        row.addWidget(self._browse_src_btn)
         layout.addLayout(row)
 
         self._type_label = QLabel()
@@ -171,7 +173,8 @@ class CompressSection(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("COMPRESSION OPTIONS"))
+        self._hdr_opts = _section_header(tr("hdr_compress_opts"))
+        layout.addWidget(self._hdr_opts)
 
         # Stacked: index 0 = image opts, index 1 = video opts, index 2 = placeholder
         self._opts_stack = QStackedWidget()
@@ -183,31 +186,40 @@ class CompressSection(QWidget):
         img_layout.setSpacing(8)
 
         q_row = QHBoxLayout()
-        q_row.addWidget(QLabel("Quality  (1–100)"))
-        q_hint = QLabel("Higher = better quality, larger file")
-        q_hint.setObjectName("TextMuted")
-        q_hint.setStyleSheet("font-size: 11px;")
-        q_row.addWidget(q_hint)
+        q_row.addWidget(QLabel(tr("lbl_quality_img")))
+        self._img_qty_hint = QLabel(tr("hint_quality_higher"))
+        self._img_qty_hint.setObjectName("TextMuted")
+        self._img_qty_hint.setStyleSheet("font-size: 11px;")
+        q_row.addWidget(self._img_qty_hint)
         q_row.addStretch()
         self._quality_spin = QSpinBox()
         self._quality_spin.setRange(1, 100)
         self._quality_spin.setValue(85)
         self._quality_spin.setFixedWidth(60)
+        self._quality_spin.setToolTip(
+            "JPEG / WebP quality (1–100).\n"
+            "85–95: high quality  |  70–84: good balance  |  below 70: visible compression"
+        )
         q_row.addWidget(self._quality_spin)
         img_layout.addLayout(q_row)
 
         dim_row = QHBoxLayout()
-        dim_row.addWidget(QLabel("Max dimension (px)"))
-        dim_hint = QLabel("0 = keep original size")
-        dim_hint.setObjectName("TextMuted")
-        dim_hint.setStyleSheet("font-size: 11px;")
-        dim_row.addWidget(dim_hint)
+        dim_row.addWidget(QLabel(tr("lbl_max_dim")))
+        self._dim_hint = QLabel(tr("hint_dim_zero_keep"))
+        self._dim_hint.setObjectName("TextMuted")
+        self._dim_hint.setStyleSheet("font-size: 11px;")
+        dim_row.addWidget(self._dim_hint)
         dim_row.addStretch()
         self._max_dim_spin = QSpinBox()
         self._max_dim_spin.setRange(0, 16000)
         self._max_dim_spin.setValue(0)
         self._max_dim_spin.setSingleStep(100)
         self._max_dim_spin.setFixedWidth(80)
+        self._max_dim_spin.setToolTip(
+            "Maximum image dimension in pixels.\n"
+            "The longer side is scaled down to fit; aspect ratio is preserved.\n"
+            "0 = keep original size (no resize)."
+        )
         dim_row.addWidget(self._max_dim_spin)
         img_layout.addLayout(dim_row)
 
@@ -220,22 +232,27 @@ class CompressSection(QWidget):
         vid_layout.setSpacing(8)
 
         crf_row = QHBoxLayout()
-        crf_row.addWidget(QLabel("CRF  (18–51)"))
-        crf_hint = QLabel("Lower = better quality, larger file  ·  28 is a good default")
-        crf_hint.setObjectName("TextMuted")
-        crf_hint.setStyleSheet("font-size: 11px;")
-        crf_row.addWidget(crf_hint)
+        crf_row.addWidget(QLabel(tr("lbl_crf_video")))
+        self._crf_hint = QLabel(tr("hint_quality_lower"))
+        self._crf_hint.setObjectName("TextMuted")
+        self._crf_hint.setStyleSheet("font-size: 11px;")
+        crf_row.addWidget(self._crf_hint)
         crf_row.addStretch()
         self._crf_spin = QSpinBox()
         self._crf_spin.setRange(18, 51)
         self._crf_spin.setValue(28)
         self._crf_spin.setFixedWidth(80)
+        self._crf_spin.setToolTip(
+            "Constant Rate Factor — controls quality vs. file size.\n"
+            "Lower = better quality + larger file.\n"
+            "18–23: near lossless  |  24–28: good balance  |  35+: visible quality loss"
+        )
         crf_row.addWidget(self._crf_spin)
         vid_layout.addLayout(crf_row)
 
         preset_row = QHBoxLayout()
-        preset_row.addWidget(QLabel("Preset"))
-        self._preset_hint = QLabel("Slower = smaller file at same quality")
+        preset_row.addWidget(QLabel(tr("lbl_preset")))
+        self._preset_hint = QLabel(tr("hint_preset_smaller"))
         self._preset_hint.setObjectName("TextMuted")
         self._preset_hint.setStyleSheet("font-size: 11px;")
         preset_row.addWidget(self._preset_hint)
@@ -247,25 +264,35 @@ class CompressSection(QWidget):
         ])
         self._preset_combo.setCurrentText("medium")
         self._preset_combo.setFixedWidth(110)
+        self._preset_combo.setToolTip(
+            "Encoding speed preset.\n"
+            "Slower preset = smaller file at the same CRF quality, but takes longer.\n"
+            "'medium' is a good starting point; use 'slow' for archiving."
+        )
         preset_row.addWidget(self._preset_combo)
         vid_layout.addLayout(preset_row)
 
         hw_row = QHBoxLayout()
-        hw_row.addWidget(QLabel("Hardware Acceleration"))
-        hw_hint = QLabel("GPU encoder — faster encode, slightly lower quality ceiling")
-        hw_hint.setObjectName("TextMuted")
-        hw_hint.setStyleSheet("font-size: 11px;")
-        hw_row.addWidget(hw_hint)
+        hw_row.addWidget(QLabel(tr("lbl_hw_accel")))
+        self._hw_hint = QLabel(tr("hint_hw_gpu_encoder"))
+        self._hw_hint.setObjectName("TextMuted")
+        self._hw_hint.setStyleSheet("font-size: 11px;")
+        hw_row.addWidget(self._hw_hint)
         hw_row.addStretch()
         self._hw_combo = QComboBox()
         self._hw_combo.setFixedWidth(130)
-        self._hw_combo.addItem("None (CPU)", "none")
+        self._hw_combo.setToolTip(
+            "GPU hardware encoder — faster than CPU (libx264) but uses QP instead of CRF.\n"
+            "Requires a compatible NVIDIA, AMD, or Intel GPU with up-to-date drivers.\n"
+            "Falls back to CPU automatically if the selected GPU is not detected."
+        )
+        self._hw_combo.addItem(tr("lbl_none_cpu"), "none")
         if "nvidia" in self._available_hw:
             self._hw_combo.addItem("NVIDIA (NVENC)", "nvidia")
         if "amd" in self._available_hw:
             self._hw_combo.addItem("AMD (AMF)", "amd")
         if "intel" in self._available_hw:
-            self._hw_combo.addItem("Intel (QuickSync)", "intel")
+            self._hw_combo.addItem(tr("lbl_intel_qsv"), "intel")
         saved_hw = getattr(self._settings, "hw_accel", "none")
         idx = self._hw_combo.findData(saved_hw)
         if idx >= 0:
@@ -280,10 +307,10 @@ class CompressSection(QWidget):
         placeholder = QWidget()
         ph_layout = QVBoxLayout(placeholder)
         ph_layout.setContentsMargins(0, 0, 0, 0)
-        ph_lbl = QLabel("Browse a file to see compression options.")
-        ph_lbl.setObjectName("TextMuted")
-        ph_lbl.setStyleSheet("font-size: 12px;")
-        ph_layout.addWidget(ph_lbl)
+        self._opts_ph_lbl = QLabel(tr("hint_browse_compress"))
+        self._opts_ph_lbl.setObjectName("TextMuted")
+        self._opts_ph_lbl.setStyleSheet("font-size: 12px;")
+        ph_layout.addWidget(self._opts_ph_lbl)
         self._opts_stack.addWidget(placeholder)
 
         self._opts_stack.setCurrentIndex(2)  # placeholder until file chosen
@@ -295,21 +322,22 @@ class CompressSection(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("OUTPUT FOLDER"))
+        self._hdr_out = _section_header(tr("hdr_output_folder"))
+        layout.addWidget(self._hdr_out)
 
         row = QHBoxLayout()
         self._out_input = QLineEdit()
         self._out_input.setObjectName("PillInput")
-        self._out_input.setPlaceholderText("Same directory as source file")
+        self._out_input.setPlaceholderText(tr("ph_same_dir"))
         if self._settings.output_folder:
             self._out_input.setText(self._settings.output_folder)
         row.addWidget(self._out_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_output)
-        row.addWidget(browse_btn)
+        self._browse_out_btn = QPushButton(tr("btn_browse"))
+        self._browse_out_btn.setObjectName("BrowseBtn")
+        self._browse_out_btn.setFixedWidth(90)
+        self._browse_out_btn.clicked.connect(self._browse_output)
+        row.addWidget(self._browse_out_btn)
         layout.addLayout(row)
         return card
 
@@ -332,30 +360,62 @@ class CompressSection(QWidget):
         return card
 
     _PRESET_OPTIONS = {
-        "none":   (["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"], "medium", "Slower = smaller file at same quality"),
-        "nvidia": (["p1", "p2", "p3", "p4", "p5", "p6", "p7"], "p4", "p1 = fastest · p7 = best quality — file size controlled by QP, not preset"),
-        "amd":    (["speed", "balanced", "quality"], "balanced", "Tradeoff between encode speed and compression"),
-        "intel":  (["veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"], "medium", "Slower = smaller file at same quality"),
+        "none":   (["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"], "medium", "hint_preset_smaller"),
+        "nvidia": (["p1", "p2", "p3", "p4", "p5", "p6", "p7"], "p4", "hint_compress_nvenc_hint"),
+        "amd":    (["speed", "balanced", "quality"], "balanced", "hint_compress_amd_hint"),
+        "intel":  (["veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"], "medium", "hint_preset_smaller"),
     }
 
     def _on_hw_changed(self, _idx: int) -> None:
         hw = self._hw_combo.currentData()
-        presets, default, hint = self._PRESET_OPTIONS.get(hw, self._PRESET_OPTIONS["none"])
+        presets, default, hint_key = self._PRESET_OPTIONS.get(hw, self._PRESET_OPTIONS["none"])
         self._preset_combo.blockSignals(True)
         self._preset_combo.clear()
         self._preset_combo.addItems(presets)
         self._preset_combo.setCurrentText(default)
         self._preset_combo.blockSignals(False)
-        self._preset_hint.setText(hint)
+        self._preset_hint.setText(tr(hint_key))
 
     # ── Source change handler ──────────────────────────────────────────────────
+
+
+    def retranslate_ui(self) -> None:
+        self._hdr_src.setText(tr("hdr_source_file"))
+        self._browse_src_btn.setText(tr("btn_browse"))
+        self._file_input.setPlaceholderText(tr("ph_img_vid"))
+        self._hdr_opts.setText(tr("hdr_compress_opts"))
+        self._img_qty_hint.setText(tr("hint_quality_higher"))
+        self._crf_hint.setText(tr("hint_quality_lower"))
+        self._dim_hint.setText(tr("hint_dim_zero_keep"))
+        self._hw_hint.setText(tr("hint_hw_gpu_encoder"))
+        self._opts_ph_lbl.setText(tr("hint_browse_compress"))
+        hw = self._hw_combo.currentData()
+        _, _, hint_key = self._PRESET_OPTIONS.get(hw, self._PRESET_OPTIONS["none"])
+        self._preset_hint.setText(tr(hint_key))
+        self._hdr_out.setText(tr("hdr_output_folder"))
+        self._out_input.setPlaceholderText(tr("ph_same_dir"))
+        self._browse_out_btn.setText(tr("btn_browse"))
+        mt = getattr(self, "_media_type", "unknown")
+        self._type_label.setText(self._media_type_label(mt))
+        for i in range(self._hw_combo.count()):
+            data = self._hw_combo.itemData(i)
+            if data == "none":
+                self._hw_combo.setItemText(i, tr("lbl_none_cpu"))
+            elif data == "nvidia":
+                self._hw_combo.setItemText(i, "NVIDIA (NVENC)")
+            elif data == "amd":
+                self._hw_combo.setItemText(i, "AMD (AMF)")
+            elif data == "intel":
+                self._hw_combo.setItemText(i, tr("lbl_intel_qsv"))
+
+    def _media_type_label(self, mt: str) -> str:
+        return {"image": tr("type_label_image"), "video": tr("type_label_video")}.get(mt, "")
 
     def _on_source_changed(self, path: str) -> None:
         path = path.strip()
         mt = _detect_type(path) if os.path.isfile(path) else "unknown"
         self._media_type = mt
-        label_map = {"image": "Image file", "video": "Video file"}
-        self._type_label.setText(label_map.get(mt, ""))
+        self._type_label.setText(self._media_type_label(mt))
         if mt == "image":
             self._opts_stack.setCurrentIndex(0)
         elif mt == "video":
@@ -405,7 +465,7 @@ class CompressSection(QWidget):
 
         out_dir = self._out_input.text().strip() or os.path.dirname(src)
         self._set_busy(True)
-        self.status_message.emit("Compressing…", False)
+        self.status_message.emit(tr("dyn_compressing"), False)
 
         if self._media_type == "image":
             quality = self._quality_spin.value()
@@ -430,7 +490,7 @@ class CompressSection(QWidget):
         self._progress_bar.setVisible(busy)
         self._progress_label.setVisible(busy)
         if busy:
-            self._progress_label.setText("Compressing…")
+            self._progress_label.setText(tr("dyn_compressing"))
         self.busy_changed.emit(busy)
 
     def _on_result(self, result: dict) -> None:

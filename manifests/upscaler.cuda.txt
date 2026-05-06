@@ -1,0 +1,31 @@
+# AI Upscaler (Real-ESRGAN) — CUDA variant. torch is reused from vocal_isolator;
+# torchvision is NOT in vocal_isolator's manifest so we install the cu128 build
+# here, matched to vocal_isolator's torch 2.7.0+cu128 ABI.
+--extra-index-url https://download.pytorch.org/whl/cu128
+torchvision==0.22.0+cu128
+realesrgan==0.3.0
+basicsr==1.4.2
+facexlib==0.3.0
+gfpgan==1.3.8
+filterpy==1.4.5
+opencv-python==4.10.0.84
+numpy==1.26.4
+Pillow==10.4.0
+tqdm==4.66.5
+scipy==1.13.1
+scikit-image==0.24.0
+addict==2.4.0
+lmdb==1.5.1
+pyyaml==6.0.2
+requests==2.32.3
+future==1.0.0
+yapf==0.40.2
+imageio==2.35.1
+tifffile==2024.8.30
+networkx==3.3
+lazy-loader==0.4
+packaging==24.1
+charset-normalizer==3.3.2
+idna==3.10
+urllib3==2.2.3
+certifi==2024.8.30

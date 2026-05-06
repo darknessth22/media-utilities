@@ -3,11 +3,22 @@
 Run with:
     python main.py
 """
+import os
 import signal
 import sys
 
+# Load .env before any package imports that read secrets at import time (e.g. bug reporter).
+_env_path = os.path.join(os.path.dirname(__file__), ".env")
+if os.path.isfile(_env_path):
+    with open(_env_path, encoding="utf-8") as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip())
+
 from PySide6.QtWidgets import QApplication, QMessageBox
-from PySide6.QtCore import QThread, QTimer, Signal, qInstallMessageHandler, QtMsgType
+from PySide6.QtCore import Qt, QThread, QTimer, Signal, qInstallMessageHandler, QtMsgType
 
 
 def _qt_message_handler(mode, _context, message):
@@ -24,12 +35,27 @@ def _qt_message_handler(mode, _context, message):
 
 qInstallMessageHandler(_qt_message_handler)
 
+from utils import model_manager
+_RECONCILE_RESULT = model_manager.reconcile_on_launch()
+model_manager.ensure_ai_packages_on_path()
+
+# Single-instance mutex — installer uses this name to detect a running instance.
+# If the mutex already exists, another Videl is running: bail out before any UI
+# (incl. splash) is created so a second instance cannot spawn a duplicate splash.
+if sys.platform == "win32" and getattr(sys, "frozen", False):
+    import ctypes
+    _ERROR_ALREADY_EXISTS = 183
+    _mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "VidelAppMutex")
+    if ctypes.windll.kernel32.GetLastError() == _ERROR_ALREADY_EXISTS:
+        sys.exit(0)
+
 from core.settings import SettingsManager
 from core.version import VERSION
+from core.i18n import I18n
 from gui.app import MainWindow
 from gui.theme import ThemeManager
+from gui.pages.splash_screen import SplashScreen
 
-import os
 _APP_ICON = os.path.join(os.path.dirname(__file__), "assets", "videl_icon.png")
 
 
@@ -56,13 +82,41 @@ def main() -> None:
     # Load user settings
     settings = SettingsManager.load()
 
-    # Initialise and apply theme
+    # Initialise i18n and layout direction before the window is created
+    i18n = I18n.instance()
+    i18n.set_language(getattr(settings, "language", "en"))
+
+    # Initialise and apply theme (RTL must be set before first paint)
     theme_manager = ThemeManager(app)
+    theme_manager.set_rtl(i18n.is_rtl)
     theme_manager.set_mode(settings.theme_mode)
 
-    # Create and show the main window immediately so the user sees the UI.
-    window = MainWindow(settings, theme_manager)
-    window.show()
+    # Show splash; create main window only when user clicks "Get Started".
+    splash = SplashScreen()
+    splash.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
+    screen = app.primaryScreen().availableGeometry()
+    sw = min(1100, screen.width())
+    sh = min(700, screen.height())
+    splash.setGeometry(
+        screen.x() + (screen.width() - sw) // 2,
+        screen.y() + (screen.height() - sh) // 2,
+        sw, sh,
+    )
+    splash.show()
+
+    def _on_ready():
+        splash.close()
+        win = MainWindow(settings, theme_manager)
+        win.show()
+        _apply_reconcile(win, _RECONCILE_RESULT)
+        checker = _DepsChecker(win)
+        checker.done.connect(lambda err: _on_deps_checked(err, win))
+        checker.start()
+        # Silent Smart Updater — keep ref on window to prevent GC.
+        from core.updater import start_update_check
+        win._update_checker = start_update_check(win)
+
+    splash.ready_to_start.connect(_on_ready)
 
     # Allow Ctrl+C (SIGINT) to quit the Qt event loop cleanly.
     # Qt's C++ loop doesn't return to Python regularly, so we use a short
@@ -72,26 +126,65 @@ def main() -> None:
     _sigint_timer.start(200)
     _sigint_timer.timeout.connect(lambda: None)
 
-    # Check dependencies in the background; notify on critical failure.
-    checker = _DepsChecker(window)
-    checker.done.connect(lambda err: _on_deps_checked(err, window))
-    checker.start()
+
 
     sys.exit(app.exec())
 
 
+def _apply_reconcile(window: MainWindow, result) -> None:
+    """Surface rolled-back / needs-reinstall results from launch reconcile."""
+    from core.i18n import tr
+
+    for cid in result.rolled_back:
+        window.update_status(tr("install_interrupted_toast"), is_error=True)
+        break  # one-shot toast, not per id
+
+    if not result.needs_reinstall:
+        return
+
+    window.update_status(tr("install_needs_reinstall_toast"))
+
+    def _kick_off(component_id: str) -> None:
+        try:
+            proc = model_manager.start_install(
+                component_id,
+                on_line=lambda line: window.update_status(
+                    tr("install_progress").format(line=line[:120])
+                ),
+            )
+        except Exception as exc:  # missing runtime / disk / etc.
+            window.update_status(
+                tr("install_error_generic").format(error=str(exc)), is_error=True
+            )
+            return
+
+        def _on_finished(exit_code: int, _status) -> None:
+            tail = bytes(proc.readAllStandardOutput()).decode("utf-8", errors="replace")
+            model_manager.finalize_install(component_id, exit_code, tail)
+            if exit_code == 0:
+                model_manager.ensure_ai_packages_on_path()
+                window.update_status(tr("install_done"))
+            else:
+                window.update_status(
+                    tr("install_error_generic").format(error=f"exit {exit_code}"),
+                    is_error=True,
+                )
+
+        proc.finished.connect(_on_finished)
+
+    for cid in result.needs_reinstall:
+        _kick_off(cid)
+
+
 def _on_deps_checked(error: str, window: MainWindow) -> None:
     if error == "ffmpeg_missing":
+        from core.i18n import tr
         QMessageBox.critical(
             window,
-            "Missing Dependency",
-            "FFmpeg was not found on this system.\n\n"
-            "Media conversion, trimming, and download features will not work.\n\n"
-            "Install FFmpeg and add it to your system PATH, or place ffmpeg.exe "
-            "in the same directory as this application.\n\n"
-            "Download from: https://ffmpeg.org/download.html",
+            tr("dep_error_title"),
+            tr("dep_error_ffmpeg"),
         )
-        window.update_status("FFmpeg not found — some features unavailable.", is_error=True)
+        window.update_status(tr("dep_error_status"), is_error=True)
 
 
 if __name__ == "__main__":

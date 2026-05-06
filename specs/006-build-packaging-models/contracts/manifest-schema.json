@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "videl/ai_component_state.json",
+  "title": "AI Component State",
+  "description": "Per-user on-disk state for one installed AI component. Lives at %LOCALAPPDATA%/Videl/ai_packages/<component_id>/state.json.",
+  "type": "object",
+  "required": ["status", "app_version"],
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["not_installed", "installing", "installed", "failed"]
+    },
+    "variant": {
+      "type": "string",
+      "enum": ["cpu", "cuda"]
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "installed_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "last_error": {
+      "type": ["string", "null"]
+    },
+    "app_version": {
+      "type": "string"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "installed" } } },
+      "then": { "required": ["variant", "manifest_sha256", "installed_at"] }
+    }
+  ]
+}

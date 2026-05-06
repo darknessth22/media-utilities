@@ -3,9 +3,12 @@ import json
 import os
 import subprocess
 import sys
+import uuid
 
 from core.downloader import parse_time
 from utils.ffmpeg import ffmpeg_path, ffprobe_path
+from utils.process_registry import tracked_run
+from utils.tmp_janitor import track as _track_tmp, release as _release_tmp
 
 _WIN_FLAGS = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
 
@@ -74,8 +77,10 @@ def trim_media(file_path: str, start_time: str, end_time: str, output_dir: str |
 
     cmd.append(output_path)
 
+    job_id = str(uuid.uuid4())
     try:
-        subprocess.run(cmd, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
+        tracked_run(cmd, job_id, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
+        _release_tmp(output_path)
         return True
     except subprocess.CalledProcessError:
         return False
@@ -124,17 +129,20 @@ def ripple_delete_multi(
 
     temps: list[str] = []
     list_file = os.path.join(out_dir, f"_rd_list_{base}.txt")
+    job_id = str(uuid.uuid4())
 
     try:
         for i, (keep_start, keep_end) in enumerate(kept):
             tmp = os.path.join(out_dir, f"_rd_part{i}_{base}{ext_with_dot}")
             temps.append(tmp)
+            _track_tmp(tmp)
             cmd = [ffmpeg_path, "-y", "-i", file_path, "-ss", str(keep_start)]
             if keep_end is not None:
                 cmd += ["-to", str(keep_end)]
             cmd += ["-c", "copy", tmp]
-            subprocess.run(cmd, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
+            tracked_run(cmd, job_id, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
 
+        _track_tmp(list_file)
         with open(list_file, "w") as f:
             for tmp in temps:
                 f.write(f"file '{tmp}'\n")
@@ -143,7 +151,7 @@ def ripple_delete_multi(
             ffmpeg_path, "-y", "-f", "concat", "-safe", "0",
             "-i", list_file, "-c", "copy", output_path,
         ]
-        subprocess.run(cmd_concat, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
+        tracked_run(cmd_concat, job_id, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
 
         return True
     except subprocess.CalledProcessError:
@@ -152,10 +160,12 @@ def ripple_delete_multi(
         for tmp in temps:
             try:
                 os.remove(tmp)
+                _release_tmp(tmp)
             except OSError:
                 pass
         try:
             os.remove(list_file)
+            _release_tmp(list_file)
         except OSError:
             pass
 
@@ -201,21 +211,23 @@ def insert_clip(
     temp_after  = os.path.join(out_dir, f"_ins_after_{base}{ext_with_dot}")
     temp_clip   = os.path.join(out_dir, f"_ins_clip_{base}{ext_with_dot}")
     list_file   = os.path.join(out_dir, f"_ins_list_{base}.txt")
+    _track_tmp(temp_before, temp_after, temp_clip, list_file)
+    job_id = str(uuid.uuid4())
 
     try:
         # Stream copy before/after — fast, no re-encode of main video
-        subprocess.run(
+        tracked_run(
             [ffmpeg_path, "-y", "-i", main_path, "-to", str(at), "-c", "copy", temp_before],
-            check=True, capture_output=True, timeout=3600, **_WIN_FLAGS,
+            job_id, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS,
         )
-        subprocess.run(
+        tracked_run(
             [ffmpeg_path, "-y", "-i", main_path, "-ss", str(at), "-c", "copy", temp_after],
-            check=True, capture_output=True, timeout=3600, **_WIN_FLAGS,
+            job_id, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS,
         )
         # Re-encode only the clip to match main video's resolution, FPS, and audio sample rate
-        subprocess.run(
+        tracked_run(
             [ffmpeg_path, "-y", "-i", clip_path, *_CLIP_VIDEO, *_CLIP_AUDIO, temp_clip],
-            check=True, capture_output=True, timeout=3600, **_WIN_FLAGS,
+            job_id, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS,
         )
 
         with open(list_file, "w") as f:
@@ -223,10 +235,10 @@ def insert_clip(
             f.write(f"file '{temp_clip}'\n")
             f.write(f"file '{temp_after}'\n")
 
-        subprocess.run(
+        tracked_run(
             [ffmpeg_path, "-y", "-f", "concat", "-safe", "0",
              "-i", list_file, "-c", "copy", output_path],
-            check=True, capture_output=True, timeout=3600, **_WIN_FLAGS,
+            job_id, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS,
         )
 
         return True
@@ -236,5 +248,6 @@ def insert_clip(
         for tmp in (temp_before, temp_after, temp_clip, list_file):
             try:
                 os.remove(tmp)
+                _release_tmp(tmp)
             except OSError:
                 pass

@@ -26,9 +26,12 @@ try:
     from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
     from PySide6.QtMultimediaWidgets import QVideoWidget
     _MULTIMEDIA_AVAILABLE = True
-except ImportError:
+except Exception as _mm_exc:  # ImportError or DLL load failure (OSError)
+    from utils.app_logger import get_logger
+    get_logger().warning("QtMultimedia unavailable in trim_section: %s", _mm_exc)
     _MULTIMEDIA_AVAILABLE = False
 
+from core.i18n import tr
 from core.trimmer import trim_media, ripple_delete_multi, insert_clip
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
@@ -210,7 +213,7 @@ class _FullscreenPreview(QDialog):
             btn.clicked.connect(cb)
             btn_row.addWidget(btn)
 
-        close_btn = QPushButton("✕  Close  (Esc)")
+        close_btn = QPushButton(tr("btn_trim_fs_close"))
         close_btn.setFixedHeight(38)
         close_btn.setStyleSheet(
             "QPushButton{color:white;background:rgba(200,60,60,160);"
@@ -309,8 +312,10 @@ class TrimSection(QScrollArea):
         self._is_audio_only = False
         self._last_result_path: str | None = None
 
-        # Ripple delete segment rows: list of (start_input, end_input, row_widget)
-        self._rd_rows: list[tuple[QLineEdit, QLineEdit, QWidget]] = []
+        # Ripple rows: (start, end, row_widget, remove_btn, set_start_btn|None, set_end_btn|None)
+        self._rd_rows: list[
+            tuple[QLineEdit, QLineEdit, QWidget, QPushButton, QPushButton | None, QPushButton | None]
+        ] = []
 
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -326,15 +331,11 @@ class TrimSection(QScrollArea):
         if _MULTIMEDIA_AVAILABLE:
             self._content_layout.addWidget(self._build_player_card())
         else:
-            lbl = QLabel(
-                "ℹ  PySide6.QtMultimedia is not installed — "
-                "video preview unavailable.\n"
-                "You can still trim by entering start/end times manually."
-            )
-            lbl.setObjectName("TextMuted")
-            lbl.setWordWrap(True)
-            lbl.setStyleSheet("padding: 8px;")
-            self._content_layout.addWidget(lbl)
+            self._trim_mm_warn = QLabel(tr("warn_trim_no_mm"))
+            self._trim_mm_warn.setObjectName("TextMuted")
+            self._trim_mm_warn.setWordWrap(True)
+            self._trim_mm_warn.setStyleSheet("padding: 8px;")
+            self._content_layout.addWidget(self._trim_mm_warn)
 
         self._content_layout.addWidget(self._build_tabs_card())
         self._content_layout.addWidget(self._build_output_card())
@@ -354,23 +355,24 @@ class TrimSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("SOURCE FILE"))
+        self._hdr_src = _section_header(tr("hdr_source_file"))
+        layout.addWidget(self._hdr_src)
 
         row = QHBoxLayout()
         self._file_input = QLineEdit()
         self._file_input.setObjectName("PillInput")
-        self._file_input.setPlaceholderText("Video or audio file…")
+        self._file_input.setPlaceholderText(tr("ph_vid_aud"))
         self._file_input.textChanged.connect(self._on_source_changed)
         row.addWidget(self._file_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_file)
-        row.addWidget(browse_btn)
+        self._browse_src_btn = QPushButton(tr("btn_browse"))
+        self._browse_src_btn.setObjectName("BrowseBtn")
+        self._browse_src_btn.setFixedWidth(90)
+        self._browse_src_btn.clicked.connect(self._browse_file)
+        row.addWidget(self._browse_src_btn)
         layout.addLayout(row)
 
-        self._large_file_warn = QLabel("⚠  Large file (>4 GB) — trimming may be slow.")
+        self._large_file_warn = QLabel(tr("warn_trim_large_file"))
         self._large_file_warn.setObjectName("TextMuted")
         self._large_file_warn.setStyleSheet("color: #D29922; font-size: 12px;")
         self._large_file_warn.setVisible(False)
@@ -384,7 +386,8 @@ class TrimSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("PREVIEW"))
+        self._hdr_preview = _section_header(tr("hdr_preview"))
+        layout.addWidget(self._hdr_preview)
 
         self._video_widget = QVideoWidget()
         self._video_widget.setObjectName("VideoWidget")
@@ -434,7 +437,7 @@ class TrimSection(QScrollArea):
         self._vol_slider.setRange(0, 100)
         self._vol_slider.setValue(100)
         self._vol_slider.setFixedWidth(90)
-        self._vol_slider.setToolTip("Volume")
+        self._vol_slider.setToolTip(tr("tip_trim_volume"))
         self._vol_slider.valueChanged.connect(self._on_volume_changed)
         ctrl.addWidget(self._vol_slider)
 
@@ -443,12 +446,12 @@ class TrimSection(QScrollArea):
         ctrl.addWidget(self._time_label)
         ctrl.addStretch()
 
-        fs_btn = QPushButton("⛶")
-        fs_btn.setObjectName("SecondaryBtn")
-        fs_btn.setFixedSize(42, 42)
-        fs_btn.setToolTip("Fullscreen preview")
-        fs_btn.clicked.connect(self._open_fullscreen)
-        ctrl.addWidget(fs_btn)
+        self._trim_fs_btn = QPushButton("⛶")
+        self._trim_fs_btn.setObjectName("SecondaryBtn")
+        self._trim_fs_btn.setFixedSize(42, 42)
+        self._trim_fs_btn.setToolTip(tr("tip_trim_fullscreen"))
+        self._trim_fs_btn.clicked.connect(self._open_fullscreen)
+        ctrl.addWidget(self._trim_fs_btn)
 
         layout.addLayout(ctrl)
         self._video_widget.setVisible(False)
@@ -463,9 +466,9 @@ class TrimSection(QScrollArea):
         layout.setSpacing(0)
 
         self._tabs = QTabWidget()
-        self._tabs.addTab(self._build_trim_tab(),   "Trim")
-        self._tabs.addTab(self._build_ripple_tab(), "Ripple Delete")
-        self._tabs.addTab(self._build_insert_tab(), "Insert Clip")
+        self._tabs.addTab(self._build_trim_tab(), tr("tab_trim_sub_trim"))
+        self._tabs.addTab(self._build_ripple_tab(), tr("tab_trim_sub_ripple"))
+        self._tabs.addTab(self._build_insert_tab(), tr("tab_trim_sub_insert"))
         layout.addWidget(self._tabs)
         return card
 
@@ -476,31 +479,38 @@ class TrimSection(QScrollArea):
         layout = QVBoxLayout(w)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("TRIM RANGE  (HH:MM:SS)"))
+        self._hdr_trim = _section_header(tr("hdr_trim_range"))
+        layout.addWidget(self._hdr_trim)
 
         row = QHBoxLayout()
         row.setSpacing(16)
 
         start_col = QVBoxLayout()
-        start_col.addWidget(QLabel("Start time"))
+        self._lbl_trim_start = QLabel(tr("lbl_start_time"))
+        start_col.addWidget(self._lbl_trim_start)
         self._trim_start = _time_input("00:00:00")
         start_col.addWidget(self._trim_start)
 
         end_col = QVBoxLayout()
-        end_col.addWidget(QLabel("End time"))
+        self._lbl_trim_end = QLabel(tr("lbl_end_time"))
+        end_col.addWidget(self._lbl_trim_end)
         self._trim_end = _time_input("00:00:00")
         end_col.addWidget(self._trim_end)
 
         if _MULTIMEDIA_AVAILABLE:
-            set_s = QPushButton("Set to current")
-            set_s.setObjectName("BrowseBtn")
-            set_s.clicked.connect(lambda: self._trim_start.setText(_ms_to_str(self._player.position())))
-            start_col.addWidget(set_s)
+            self._trim_set_start_btn = QPushButton(tr("btn_set_to_current"))
+            self._trim_set_start_btn.setObjectName("BrowseBtn")
+            self._trim_set_start_btn.clicked.connect(
+                lambda: self._trim_start.setText(_ms_to_str(self._player.position()))
+            )
+            start_col.addWidget(self._trim_set_start_btn)
 
-            set_e = QPushButton("Set to current")
-            set_e.setObjectName("BrowseBtn")
-            set_e.clicked.connect(lambda: self._trim_end.setText(_ms_to_str(self._player.position())))
-            end_col.addWidget(set_e)
+            self._trim_set_end_btn = QPushButton(tr("btn_set_to_current"))
+            self._trim_set_end_btn.setObjectName("BrowseBtn")
+            self._trim_set_end_btn.clicked.connect(
+                lambda: self._trim_end.setText(_ms_to_str(self._player.position()))
+            )
+            end_col.addWidget(self._trim_set_end_btn)
 
         row.addLayout(start_col)
         row.addLayout(end_col)
@@ -516,14 +526,13 @@ class TrimSection(QScrollArea):
         layout = QVBoxLayout(w)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("DELETE SEGMENTS  (HH:MM:SS)"))
+        self._hdr_del_segs = _section_header(tr("hdr_delete_segs"))
+        layout.addWidget(self._hdr_del_segs)
 
-        hint = QLabel(
-            "Mark segments to cut out. The parts around them will be joined seamlessly."
-        )
-        hint.setObjectName("TextMuted")
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
+        self._ripple_hint = QLabel(tr("hint_trim_ripple"))
+        self._ripple_hint.setObjectName("TextMuted")
+        self._ripple_hint.setWordWrap(True)
+        layout.addWidget(self._ripple_hint)
 
         # Timeline visualiser
         self._rd_timeline = _SegmentTimeline()
@@ -543,7 +552,7 @@ class TrimSection(QScrollArea):
         scroll.setWidget(self._rd_rows_container)
         layout.addWidget(scroll)
 
-        add_btn = QPushButton("+ Add Segment")
+        add_btn = QPushButton(tr("btn_add_segment"))
         add_btn.setObjectName("BrowseBtn")
         add_btn.setFixedWidth(140)
         add_btn.clicked.connect(self._rd_add_segment)
@@ -570,26 +579,32 @@ class TrimSection(QScrollArea):
         end_in   = _time_input("00:00:00")
         start_in.textChanged.connect(self._rd_refresh_timeline)
         end_in.textChanged.connect(self._rd_refresh_timeline)
-        row_layout.addWidget(QLabel("From"))
+        row_layout.addWidget(QLabel(tr("lbl_from")))
         row_layout.addWidget(start_in)
-        row_layout.addWidget(QLabel("To"))
+        row_layout.addWidget(QLabel(tr("lbl_to")))
         row_layout.addWidget(end_in)
 
+        set_s_btn: QPushButton | None = None
+        set_e_btn: QPushButton | None = None
         if _MULTIMEDIA_AVAILABLE:
-            set_s = QPushButton("Set start")
-            set_s.setObjectName("BrowseBtn")
-            set_s.clicked.connect(lambda _=False, si=start_in: si.setText(_ms_to_str(self._player.position())))
-            set_e = QPushButton("Set end")
-            set_e.setObjectName("BrowseBtn")
-            set_e.clicked.connect(lambda _=False, ei=end_in: ei.setText(_ms_to_str(self._player.position())))
-            row_layout.addWidget(set_s)
-            row_layout.addWidget(set_e)
+            set_s_btn = QPushButton(tr("btn_set_start_seg"))
+            set_s_btn.setObjectName("BrowseBtn")
+            set_s_btn.clicked.connect(
+                lambda _=False, si=start_in: si.setText(_ms_to_str(self._player.position()))
+            )
+            set_e_btn = QPushButton(tr("btn_set_end_seg"))
+            set_e_btn.setObjectName("BrowseBtn")
+            set_e_btn.clicked.connect(
+                lambda _=False, ei=end_in: ei.setText(_ms_to_str(self._player.position()))
+            )
+            row_layout.addWidget(set_s_btn)
+            row_layout.addWidget(set_e_btn)
 
         remove_btn = QPushButton("✕")
         remove_btn.setObjectName("SecondaryBtn")
         remove_btn.setFixedSize(32, 32)
-        remove_btn.setToolTip("Remove this segment")
-        entry = (start_in, end_in, row_widget)
+        remove_btn.setToolTip(tr("tip_trim_remove_segment"))
+        entry = (start_in, end_in, row_widget, remove_btn, set_s_btn, set_e_btn)
         remove_btn.clicked.connect(lambda _=False, e=entry: self._rd_remove_segment(e))
         row_layout.addWidget(remove_btn)
         row_layout.addStretch()
@@ -608,13 +623,13 @@ class TrimSection(QScrollArea):
         self._rd_refresh_timeline()
 
     def _rd_renumber(self) -> None:
-        for i, (_, _, row_w) in enumerate(self._rd_rows):
+        for i, (_, _, row_w, _, _, _) in enumerate(self._rd_rows):
             lbl = row_w.findChild(QLabel)
             if lbl:
                 lbl.setText(f"{i + 1}.")
 
     def _rd_get_segments(self) -> list[tuple[str, str]]:
-        return [(s.text().strip(), e.text().strip()) for s, e, _ in self._rd_rows]
+        return [(s.text().strip(), e.text().strip()) for s, e, *_ in self._rd_rows]
 
     def _rd_refresh_timeline(self) -> None:
         self._rd_timeline.set_segments(self._rd_get_segments())
@@ -626,47 +641,45 @@ class TrimSection(QScrollArea):
         layout = QVBoxLayout(w)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("INSERT CLIP"))
+        self._hdr_insert = _section_header(tr("hdr_insert_clip"))
+        layout.addWidget(self._hdr_insert)
 
-        hint = QLabel(
-            "Insert a video clip into the source video at a specific timestamp. "
-            "Both videos will be re-encoded (H.264 / AAC) to ensure compatibility."
-        )
-        hint.setObjectName("TextMuted")
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
+        self._insert_hint = QLabel(tr("hint_trim_insert"))
+        self._insert_hint.setObjectName("TextMuted")
+        self._insert_hint.setWordWrap(True)
+        layout.addWidget(self._insert_hint)
 
         # Clip file
         clip_row = QHBoxLayout()
         self._ins_clip_input = QLineEdit()
         self._ins_clip_input.setObjectName("PillInput")
-        self._ins_clip_input.setPlaceholderText("Clip to insert…")
+        self._ins_clip_input.setPlaceholderText(tr("ph_clip"))
         clip_row.addWidget(self._ins_clip_input)
-        clip_browse = QPushButton("Browse…")
-        clip_browse.setObjectName("BrowseBtn")
-        clip_browse.setFixedWidth(90)
-        clip_browse.clicked.connect(self._browse_clip)
-        clip_row.addWidget(clip_browse)
+        self._browse_clip_btn = QPushButton(tr("btn_browse"))
+        self._browse_clip_btn.setObjectName("BrowseBtn")
+        self._browse_clip_btn.setFixedWidth(90)
+        self._browse_clip_btn.clicked.connect(self._browse_clip)
+        clip_row.addWidget(self._browse_clip_btn)
 
         clip_lbl_row = QVBoxLayout()
-        clip_lbl_row.addWidget(QLabel("Clip file"))
+        clip_lbl_row.addWidget(QLabel(tr("lbl_clip_file")))
         clip_lbl_row.addLayout(clip_row)
         layout.addLayout(clip_lbl_row)
 
         # Insert position
         at_col = QVBoxLayout()
-        at_col.addWidget(QLabel("Insert at  (HH:MM:SS in source video)"))
+        at_col.addWidget(QLabel(tr("lbl_insert_at")))
         at_row = QHBoxLayout()
         at_row.setSpacing(8)
         self._ins_at_input = _time_input("00:00:00")
         at_row.addWidget(self._ins_at_input)
         if _MULTIMEDIA_AVAILABLE:
-            set_at = QPushButton("Set to current")
-            set_at.setObjectName("BrowseBtn")
-            set_at.clicked.connect(
+            self._ins_set_at_btn = QPushButton(tr("btn_set_to_current"))
+            self._ins_set_at_btn.setObjectName("BrowseBtn")
+            self._ins_set_at_btn.clicked.connect(
                 lambda: self._ins_at_input.setText(_ms_to_str(self._player.position()))
             )
-            at_row.addWidget(set_at)
+            at_row.addWidget(self._ins_set_at_btn)
         at_row.addStretch()
         at_col.addLayout(at_row)
         layout.addLayout(at_col)
@@ -681,21 +694,22 @@ class TrimSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(_section_header("OUTPUT FOLDER"))
+        self._hdr_out = _section_header(tr("hdr_output_folder"))
+        layout.addWidget(self._hdr_out)
 
         row = QHBoxLayout()
         self._out_input = QLineEdit()
         self._out_input.setObjectName("PillInput")
-        self._out_input.setPlaceholderText("Same directory as source file")
+        self._out_input.setPlaceholderText(tr("ph_same_dir"))
         if self._settings.output_folder:
             self._out_input.setText(self._settings.output_folder)
         row.addWidget(self._out_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_output)
-        row.addWidget(browse_btn)
+        self._browse_out_btn = QPushButton(tr("btn_browse"))
+        self._browse_out_btn.setObjectName("BrowseBtn")
+        self._browse_out_btn.setFixedWidth(90)
+        self._browse_out_btn.clicked.connect(self._browse_output)
+        row.addWidget(self._browse_out_btn)
         layout.addLayout(row)
         return card
 
@@ -728,6 +742,50 @@ class TrimSection(QScrollArea):
         self._large_file_warn.setVisible(os.path.getsize(path) > 4 * 1024 * 1024 * 1024)
         if _MULTIMEDIA_AVAILABLE:
             self._load_media(path)
+
+
+    def retranslate_ui(self) -> None:
+        if hasattr(self, "_trim_mm_warn"):
+            self._trim_mm_warn.setText(tr("warn_trim_no_mm"))
+        self._hdr_src.setText(tr("hdr_source_file"))
+        self._file_input.setPlaceholderText(tr("ph_vid_aud"))
+        self._browse_src_btn.setText(tr("btn_browse"))
+        self._large_file_warn.setText(tr("warn_trim_large_file"))
+        if hasattr(self, "_hdr_preview"):
+            self._hdr_preview.setText(tr("hdr_preview"))
+            self._vol_slider.setToolTip(tr("tip_trim_volume"))
+            self._trim_fs_btn.setToolTip(tr("tip_trim_fullscreen"))
+        if hasattr(self, "_hdr_trim"):
+            self._hdr_trim.setText(tr("hdr_trim_range"))
+        self._lbl_trim_start.setText(tr("lbl_start_time"))
+        self._lbl_trim_end.setText(tr("lbl_end_time"))
+        if _MULTIMEDIA_AVAILABLE and hasattr(self, "_trim_set_start_btn"):
+            self._trim_set_start_btn.setText(tr("btn_set_to_current"))
+            self._trim_set_end_btn.setText(tr("btn_set_to_current"))
+        if hasattr(self, "_hdr_del_segs"):
+            self._hdr_del_segs.setText(tr("hdr_delete_segs"))
+        if hasattr(self, "_ripple_hint"):
+            self._ripple_hint.setText(tr("hint_trim_ripple"))
+        for _s, _e, _rw, rm_btn, ss_btn, se_btn in self._rd_rows:
+            rm_btn.setToolTip(tr("tip_trim_remove_segment"))
+            if ss_btn is not None:
+                ss_btn.setText(tr("btn_set_start_seg"))
+            if se_btn is not None:
+                se_btn.setText(tr("btn_set_end_seg"))
+        if hasattr(self, "_hdr_insert"):
+            self._hdr_insert.setText(tr("hdr_insert_clip"))
+        if hasattr(self, "_insert_hint"):
+            self._insert_hint.setText(tr("hint_trim_insert"))
+        self._browse_clip_btn.setText(tr("btn_browse"))
+        if _MULTIMEDIA_AVAILABLE and hasattr(self, "_ins_set_at_btn"):
+            self._ins_set_at_btn.setText(tr("btn_set_to_current"))
+        self._hdr_out.setText(tr("hdr_output_folder"))
+        self._out_input.setPlaceholderText(tr("ph_same_dir"))
+        self._browse_out_btn.setText(tr("btn_browse"))
+        if hasattr(self, "_tabs") and self._tabs.count() >= 3:
+            self._tabs.setTabText(_TAB_TRIM, tr("tab_trim_sub_trim"))
+            self._tabs.setTabText(_TAB_RIPPLE, tr("tab_trim_sub_ripple"))
+            self._tabs.setTabText(_TAB_INSERT, tr("tab_trim_sub_insert"))
 
     def _browse_file(self) -> None:
         start = os.path.dirname(self._file_input.text()) or os.path.expanduser("~")
@@ -835,19 +893,19 @@ class TrimSection(QScrollArea):
         tab = self._tabs.currentIndex()
         if tab == _TAB_TRIM:
             buttons = [
-                ("Set Start", lambda: self._trim_start.setText(_ms_to_str(dlg.get_position()))),
-                ("Set End",   lambda: self._trim_end.setText(_ms_to_str(dlg.get_position()))),
+                (tr("btn_set_start"), lambda: self._trim_start.setText(_ms_to_str(dlg.get_position()))),
+                (tr("btn_set_end"),   lambda: self._trim_end.setText(_ms_to_str(dlg.get_position()))),
             ]
         elif tab == _TAB_RIPPLE:
             # Set start/end on the last segment row
-            last_s, last_e, _ = self._rd_rows[-1]
+            last_s, last_e = self._rd_rows[-1][0], self._rd_rows[-1][1]
             buttons = [
-                ("Set Start", lambda: last_s.setText(_ms_to_str(dlg.get_position()))),
-                ("Set End",   lambda: last_e.setText(_ms_to_str(dlg.get_position()))),
+                (tr("btn_set_start"), lambda: last_s.setText(_ms_to_str(dlg.get_position()))),
+                (tr("btn_set_end"),   lambda: last_e.setText(_ms_to_str(dlg.get_position()))),
             ]
         else:  # INSERT
             buttons = [
-                ("Set Insert Point", lambda: self._ins_at_input.setText(_ms_to_str(dlg.get_position()))),
+                (tr("btn_set_insert"), lambda: self._ins_at_input.setText(_ms_to_str(dlg.get_position()))),
             ]
 
         dlg = _FullscreenPreview(
@@ -859,6 +917,18 @@ class TrimSection(QScrollArea):
         )
         dlg.exec()
         self._player.setPosition(dlg.get_position())
+
+    # ── Visibility ─────────────────────────────────────────────────────────────
+
+    def showEvent(self, event) -> None:
+        if _MULTIMEDIA_AVAILABLE and hasattr(self, "_pos_timer") and self._duration_ms:
+            self._pos_timer.start()
+        super().showEvent(event)
+
+    def hideEvent(self, event) -> None:
+        if _MULTIMEDIA_AVAILABLE and hasattr(self, "_pos_timer"):
+            self._pos_timer.stop()
+        super().hideEvent(event)
 
     # ── Primary action ─────────────────────────────────────────────────────────
 

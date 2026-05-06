@@ -1,6 +1,16 @@
 # Media Utility
 
-A desktop application for downloading, converting, trimming, compressing, merging, transforming, and managing media files. Built with PySide6.
+A desktop application for downloading, converting, trimming, compressing, merging, transforming, and managing media files — plus PDF tools, background removal, colour palette extraction, and frame grabbing. Built with PySide6.
+
+---
+
+## UI
+
+![Videl GUI](<new screen gui.png>)
+
+## Overview
+
+![App Overview](<app-gui.gif>)
 
 ---
 
@@ -11,6 +21,13 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 ---
 
 ## Features
+
+### Browser Extension (Download with Videl)
+- One-click downloads from any website. The Videl browser extension overlays a small "Videl" button on the top-right of every `<video>` on the web.
+- Click the button → Videl jumps to the foreground with the URL pre-loaded in the Downloader tab.
+- Works alongside the desktop app via a local-only HTTP bridge on `127.0.0.1:17654` (loopback only — never exposed on the network).
+- Page URL is preferred over the raw `<video>` source so yt-dlp's per-site extractors handle YouTube, TikTok, Twitter/X, etc. correctly.
+- Source lives in [`browser_extension/`](browser_extension/) — load it unpacked from `chrome://extensions` (Developer mode → Load unpacked).
 
 ### Download
 - YouTube, TikTok, Instagram, Facebook, Twitter/X, Twitch, LinkedIn, Spotify, and generic URLs
@@ -63,6 +80,86 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 - Join multiple video files in any order
 - Lossless stream copy when compatible; auto re-encode when codecs/resolutions differ
 
+### Watermark
+- Stamp a **logo image** (PNG with transparency recommended) or **text** onto any video or image file
+- Batch mode — queue multiple files, all processed in one run
+- **Logo options**: position (top-left / top-right / bottom-left / bottom-right / center), scale (% of frame width), opacity
+- **Text options**: custom text, position, font size, font color, opacity, semi-transparent background box
+- **Video encode settings**: CRF/QP quality, encoding preset, hardware acceleration (NVIDIA NVENC / AMD AMF / Intel QuickSync / CPU) — same GPU support as Compress
+- Images processed instantly (no re-encode); videos re-encoded at CRF 18 by default (near-lossless)
+- Output saved as `<name>_watermarked.<ext>` alongside originals or in a chosen folder
+
+### Metadata Scrubber
+- Strip **all metadata** from video and audio files — GPS, timestamps, EXIF tags, chapter markers
+- Stream copy (no re-encode) — instantaneous regardless of file size
+- Batch mode with progress tracking
+- Supported: MP4, MKV, AVI, MOV, WEBM, FLV, M4V, WMV, MP3, WAV, AAC, FLAC, OGG, M4A
+- Output saved as `<name>_clean.<ext>`
+
+### Auto-Chunker
+- Split a video or audio file into equal parts by **duration** or **target size (MB)**
+- Stream copy — no re-encode, no quality loss, near-instant splitting
+- **By duration**: set segment length in minutes/seconds (e.g. 10 min per part)
+- **By size**: set max MB per chunk — duration auto-calculated from bitrate
+- Output parts named `<name>_part000.<ext>`, `<name>_part001.<ext>`, …
+- Useful for upload size limits (Discord, WhatsApp, email)
+
+### Frame Grabber
+- Extract a single frame from any video as a full-resolution JPEG or PNG
+- Set the exact timestamp (HH:MM:SS) to capture
+- Inline thumbnail preview of the grabbed frame
+- Output saved as `<name>_frame_<timestamp>.<ext>`
+
+### Hex Palette Extractor
+- Analyse any image and extract its dominant colour palette
+- Choose the number of colours (2–32)
+- Displays hex codes + colour swatches — click any swatch to copy the hex code
+- Optional colour wheel view showing hue/saturation distribution
+
+### BG Eraser
+- Remove the background from a photo in one click — fully offline after first run
+- Powered by the `rembg` AI model (U2-Net)
+- Input preview + result preview on a checkerboard transparency grid
+- Output saved as `<name>_nobg.png` (PNG with transparency)
+- First-launch in-tab installer fetches AI components into `%LOCALAPPDATA%\Videl\ai_packages\bg_eraser` against Videl's bundled Python (no system pip required, no app restart)
+- Pre-install panel discloses variant, approximate download size, and target folder before any network activity; insufficient-disk errors fail fast with no download
+- First model-weights run downloads ~170 MB; subsequent runs are instant and offline
+
+### Vocal Isolator
+- Separate any song or video into two stems: **Vocals** and **Accompaniment** (background music)
+- Powered by Meta's **HTDemucs v4** model — studio-grade 2-stem AI separation, fully offline after first run
+- Automatic GPU routing: uses NVIDIA CUDA if a supported card is detected (compute capability ≥ 7.0 — RTX 20/30/40/50, V100, A100, H100, etc.), silently falls back to CPU on any other machine. Maxwell (GTX 9xx) and Pascal (GTX 10xx) are not supported by the bundled CUDA 12.8 build, so the CUDA install option is disabled for those cards and CPU is used instead
+- Real-time progress bar fed from the demucs subprocess output (no spinning wheel)
+- Runs in a dedicated background thread — use other Videl tools while the AI processes
+- Persistent warning badge when running on CPU: "May take 2–5 minutes"
+- First-launch in-tab installer downloads `demucs` + `torch` (CPU or CUDA wheel auto-selected) into `%LOCALAPPDATA%\Videl\ai_packages\vocal_isolator` against the bundled Python — no app restart, main window stays usable, kill-mid-install rolls back cleanly on next launch
+- Pre-install panel discloses variant (CPU vs CUDA), approximate download size, and target folder before any network activity; insufficient-disk errors fail fast with no download
+- First model-weights run downloads the HTDemucs model (~300 MB); subsequent runs are instant and offline
+- Output: `vocals.wav` + `no_vocals.wav` in a subfolder beside the source
+
+### AI Upscaler
+- Upscale photos **2× or 4×** with **Real-ESRGAN** (RealESRGAN_x4plus weights) — rebuilds edge structure and micro-contrast far more cleanly than bicubic
+- VRAM-friendly **tiling** (Off / 128 / 256 / 512) so 4K outputs run on 4–8 GB cards without OOM crashes
+- **Reuses PyTorch from the Vocal Isolator install** — no redundant ~3 GB CUDA torch download. Install Vocal Isolator first; the upscaler banner stays disabled until it is present
+- Inherits whatever variant Vocal Isolator picked: CUDA from there → CUDA here; CPU there → CPU here
+- First-launch in-tab installer fetches only the upscaler-specific deps (`realesrgan` + `basicsr` + `facexlib` + `gfpgan` + `opencv-python` + `scipy` + `scikit-image` + a few small libs, ~180 MB) into `%LOCALAPPDATA%\Videl\ai_packages\upscaler` against the bundled Python — pip runs with `--no-deps` so torch/torchvision are not redownloaded
+- First upscale run downloads the x4plus weights (~64 MB); subsequent runs are offline
+- Output: `<name>_upscaled_x4.<ext>` next to the source by default, or any path you choose (PNG / JPG / WebP)
+
+### PDF Toolkit
+- **Compress** — reduce file size by re-rendering pages at Screen (72 dpi), Web (150 dpi), or Print (300 dpi) quality
+- **Merge** — combine multiple PDFs into one; drag rows to set page order before merging
+- **Split** — export every page as its own PDF, or extract a custom range (e.g. `1-3, 5, 7-9`)
+- **Extract Images** — pull embedded images out of a PDF as JPEGs, or render every page as a high-res JPEG at a chosen DPI
+- Powered by PyMuPDF — no external tools required
+
+### Jump-Cutter (Auto-Silence Removal)
+- Detects silent gaps with FFmpeg `silencedetect`, then re-encodes keeping only the loud parts
+- **Silence sensitivity** slider (-20 dB strict → -40 dB aggressive)
+- **Minimum silence duration** slider (0.1 s – 3.0 s)
+- **Edge padding** preserves a margin of silence around each cut so speech does not clip
+- Works for both audio and video; output: `<name>_jumpcut.<ext>`
+
 ### History
 - Log of all operations with status, filename, timestamp
 - Persists across restarts
@@ -79,6 +176,7 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 | Hardware acceleration | GPU encoder/decoder for video compression — None, NVIDIA, AMD, Intel, VideoToolbox |
 | Cookies | File path or browser source for authenticated downloads |
 | Spotify credentials | Custom Client ID/Secret to avoid shared rate limits |
+| Smart Updater | Silent GitHub Releases check on launch; prompts for download when a newer tag exists (PyInstaller --onefile, full re-download) |
 
 ---
 
@@ -99,8 +197,14 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 
 ### Python dependencies
 ```bash
-pip install PySide6>=6.6.0 yt-dlp Pillow pillow-heif PyMuPDF python-docx openpyxl python-pptx spotdl docx2pdf
+pip install PySide6>=6.6.0 yt-dlp Pillow pillow-heif PyMuPDF python-docx openpyxl python-pptx spotdl docx2pdf pypdf
 ```
+
+AI components (`rembg`, `demucs`, `torch`, `onnxruntime`) are **not** installed
+into the app environment. The Windows installer ships a bundled embeddable
+Python under `runtime/python/`; on first use of BG Eraser or Vocal Isolator,
+Videl runs `pip install` against that bundled Python and writes packages to
+`%LOCALAPPDATA%\Videl\ai_packages\<component>\` (per-user, no admin required).
 
 ---
 
@@ -218,6 +322,52 @@ Alternatively, select a browser directly (less reliable — may fail if the brow
 
 ---
 
+## How to Use: Watermark
+
+1. Open the **Watermark** tab
+2. Click **Add Files…** or **Add Folder…** — accepts video and image files
+3. Choose watermark type:
+   - **Logo / image overlay** — browse to a PNG (transparency supported), set position, scale, and opacity
+   - **Text watermark** — type your text, pick position, font size, color, and opacity
+4. Under **Video Encode Settings**, choose quality (CRF lower = better), preset, and hardware accelerator if available
+5. Optionally set an **Output Folder** — leave blank to save next to each source file
+6. Click **Apply Watermark** (or `Ctrl+Enter`)
+7. Output files appear as `<original_name>_watermarked.<ext>`
+
+**Tips**
+- PNG logos with transparent backgrounds look cleanest
+- GPU preset (NVIDIA/AMD/Intel) encodes 5–10× faster than CPU at equivalent quality
+- Images (JPG, PNG, etc.) are processed without re-encoding the video stream — instant
+
+---
+
+## How to Use: Metadata Scrubber
+
+1. Open the **Scrubber** tab
+2. Drag and drop files onto the list, or click **Add Files…** / **Add Folder…**
+3. Optionally set an output folder (default: same directory as source)
+4. Click **Scrub Metadata** (or `Ctrl+Enter`)
+5. Output files appear as `<original_name>_clean.<ext>`
+
+No quality loss — files are remuxed via stream copy. GPS coordinates, camera model, recording timestamps, and all other metadata tags are removed.
+
+---
+
+## How to Use: Auto-Chunker
+
+1. Open the **Chunker** tab
+2. Browse to a source video or audio file
+3. Choose split mode:
+   - **By Duration** — enter segment length (e.g. `10` minutes). Every chunk will be exactly that long except the last
+   - **By Size** — enter max MB per chunk (e.g. `25` for WhatsApp). Duration per chunk is calculated automatically from the file's bitrate
+4. Optionally set an output folder
+5. Click **Split** (or `Ctrl+Enter`)
+6. Output parts appear as `<name>_part000.<ext>`, `<name>_part001.<ext>`, …
+
+Stream copy — no re-encode, no quality loss. Large files split in seconds.
+
+---
+
 ## Limitations
 
 - HEIC conversion requires `pillow-heif` installed
@@ -225,6 +375,11 @@ Alternatively, select a browser directly (less reliable — may fail if the brow
 - Some platforms require cookies for authenticated downloads
 - Hardware acceleration availability depends on the GPU and installed drivers
 - Spotify downloads depend on YouTube availability of the track
+- BG Eraser and Vocal Isolator install their AI components on first use into `%LOCALAPPDATA%\Videl\ai_packages\` via the bundled embeddable Python — no system-wide pip install needed; killing the install rolls back on next launch
+- BG Eraser first model run downloads ~170 MB of weights
+- Vocal Isolator first model run downloads ~300 MB HTDemucs weights; GPU variant (`torch+cu128`) is auto-selected when a supported NVIDIA GPU (compute capability ≥ 7.0) is detected — Maxwell/Pascal cards fall back to the CPU variant
+- AI Upscaler first run downloads ~64 MB Real-ESRGAN x4plus weights. Install is ~180 MB because torch is reused from Vocal Isolator's `ai_packages` dir (Vocal Isolator must be installed first)
+- PDF Compress works by re-rendering pages — gains are largest on image-heavy PDFs; text-only PDFs see smaller size reductions
 
 ---
 

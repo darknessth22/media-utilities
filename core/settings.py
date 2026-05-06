@@ -10,7 +10,7 @@ class UserSettings:
     """Represents all user-configurable preferences."""
     output_folder: str | None = None
     default_codec: str = "original"
-    theme_mode: str = "auto"
+    theme_mode: str = "dark"
     quit_on_close: bool = True
     intercept_timeout: int = 30
     spotify_client_id: str = ""
@@ -22,7 +22,10 @@ class UserSettings:
     output_name_template: str = "{name}_converted"
     presets: dict = field(default_factory=dict)
     start_with_windows: bool = False
-    version: int = 9
+    language: str = "en"
+    extension_bridge_enabled: bool = True
+    extension_bridge_port: int = 17654
+    version: int = 11
 
 
 class SettingsManager:
@@ -108,6 +111,13 @@ class SettingsManager:
             if merged_data.get("version", 1) < 9:
                 merged_data.setdefault("start_with_windows", False)
                 merged_data["version"] = 9
+            if merged_data.get("version", 1) < 10:
+                merged_data.setdefault("language", "en")
+                merged_data["version"] = 10
+            if merged_data.get("version", 1) < 11:
+                merged_data.setdefault("extension_bridge_enabled", True)
+                merged_data.setdefault("extension_bridge_port", 17654)
+                merged_data["version"] = 11
 
             return UserSettings(**merged_data)
         except (json.JSONDecodeError, OSError, TypeError):

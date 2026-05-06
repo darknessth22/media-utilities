@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.i18n import tr
 from core.document import convert_document
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
@@ -85,19 +86,20 @@ class DocumentSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(self._section_header("SOURCE DOCUMENT"))
+        self._hdr_src = self._section_header(tr("hdr_source_doc"))
+        layout.addWidget(self._hdr_src)
 
         row = QHBoxLayout()
         self._file_input = QLineEdit()
         self._file_input.setObjectName("PillInput")
-        self._file_input.setPlaceholderText("PDF, Word document, or image…")
+        self._file_input.setPlaceholderText(tr("ph_doc"))
         row.addWidget(self._file_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_file)
-        row.addWidget(browse_btn)
+        self._browse_src_btn = QPushButton(tr("btn_browse"))
+        self._browse_src_btn.setObjectName("BrowseBtn")
+        self._browse_src_btn.setFixedWidth(90)
+        self._browse_src_btn.clicked.connect(self._browse_file)
+        row.addWidget(self._browse_src_btn)
         layout.addLayout(row)
         return card
 
@@ -106,7 +108,8 @@ class DocumentSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(self._section_header("TARGET FORMAT"))
+        self._hdr_fmt = self._section_header(tr("hdr_target_format"))
+        layout.addWidget(self._hdr_fmt)
 
         row = QHBoxLayout()
         row.setSpacing(8)
@@ -131,21 +134,22 @@ class DocumentSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
-        layout.addWidget(self._section_header("OUTPUT FOLDER"))
+        self._hdr_out = self._section_header(tr("hdr_output_folder"))
+        layout.addWidget(self._hdr_out)
 
         row = QHBoxLayout()
         self._out_input = QLineEdit()
         self._out_input.setObjectName("PillInput")
-        self._out_input.setPlaceholderText("Same directory as source file")
+        self._out_input.setPlaceholderText(tr("ph_same_dir"))
         if self._settings.output_folder:
             self._out_input.setText(self._settings.output_folder)
         row.addWidget(self._out_input)
 
-        browse_btn = QPushButton("Browse…")
-        browse_btn.setObjectName("BrowseBtn")
-        browse_btn.setFixedWidth(90)
-        browse_btn.clicked.connect(self._browse_output)
-        row.addWidget(browse_btn)
+        self._browse_out_btn = QPushButton(tr("btn_browse"))
+        self._browse_out_btn.setObjectName("BrowseBtn")
+        self._browse_out_btn.setFixedWidth(90)
+        self._browse_out_btn.clicked.connect(self._browse_output)
+        row.addWidget(self._browse_out_btn)
         layout.addLayout(row)
         return card
 
@@ -177,6 +181,18 @@ class DocumentSection(QScrollArea):
             btn.setProperty("selected", "true" if active else "false")
             btn.style().unpolish(btn)
             btn.style().polish(btn)
+
+
+    def retranslate_ui(self) -> None:
+        self._hdr_src.setText(tr("hdr_source_doc"))
+        self._file_input.setPlaceholderText(tr("ph_doc"))
+        self._browse_src_btn.setText(tr("btn_browse"))
+        self._hdr_fmt.setText(tr("hdr_target_format"))
+        self._hdr_out.setText(tr("hdr_output_folder"))
+        self._out_input.setPlaceholderText(tr("ph_same_dir"))
+        self._browse_out_btn.setText(tr("btn_browse"))
+        if self._progress_label.isVisible():
+            self._progress_label.setText(tr("dyn_converting"))
 
     def _browse_file(self) -> None:
         start = os.path.dirname(self._file_input.text()) or os.path.expanduser("~")
@@ -248,7 +264,7 @@ class DocumentSection(QScrollArea):
         self._progress_bar.setVisible(busy)
         self._progress_label.setVisible(busy)
         if busy:
-            self._progress_label.setText("Converting…")
+            self._progress_label.setText(tr("dyn_converting"))
         self.busy_changed.emit(busy)
 
     def _on_result(self, result: dict) -> None:

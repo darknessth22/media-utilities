@@ -4,8 +4,10 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import uuid
 
 from utils.ffmpeg import ffmpeg_path
+from utils.process_registry import tracked_run
 
 _WIN_FLAGS = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
 
@@ -24,7 +26,7 @@ def mute_video(video_path: str, output_dir: str | None = None) -> bool:
 
     cmd = [ffmpeg_path, "-y", "-i", video_path, "-an", "-c:v", "copy", output_path]
     try:
-        subprocess.run(cmd, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
+        tracked_run(cmd, str(uuid.uuid4()), check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
         return True
     except subprocess.CalledProcessError:
         return False
@@ -67,7 +69,7 @@ def mix_audio_overlay(
         output_path,
     ]
     try:
-        subprocess.run(cmd, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
+        tracked_run(cmd, str(uuid.uuid4()), check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
         return True
     except subprocess.CalledProcessError:
         return False
@@ -100,7 +102,7 @@ def replace_audio(video_path: str, audio_path: str, output_dir: str | None = Non
         output_path,
     ]
     try:
-        subprocess.run(cmd, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
+        tracked_run(cmd, str(uuid.uuid4()), check=True, capture_output=True, timeout=3600, **_WIN_FLAGS)
         return True
     except subprocess.CalledProcessError:
         return False
