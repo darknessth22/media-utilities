@@ -138,14 +138,21 @@ Offline media workstation for Windows — download, convert, trim, compress, mer
 - **Merge** — combine PDFs; drag rows to set page order
 - **Split** — every page as its own PDF, or extract a custom range (`1-3, 5, 7-9`)
 - **Extract Images** — pull embedded images out as JPEGs, or render every page as a high-res JPEG
+- **OCR** — turn scanned PDFs into searchable PDFs (invisible text layer, Ctrl+F works) or plain `.txt` files
+  - Two pluggable engines, installed on demand:
+    - **RapidOCR** (~120 MB) — ONNX-based, lightweight, English + CJK (bundled models)
+    - **EasyOCR** (~350 MB CPU; CUDA build reuses Vocal Isolator's PyTorch) — 80+ languages, optional GPU
+  - Adjustable render DPI (72–600); language picker per engine
 - Powered by PyMuPDF — no external tools
 
 ### Jump-Cutter (Auto-Silence Removal)
 - Detects silent gaps with FFmpeg `silencedetect`, re-encodes keeping only loud parts
 - **Silence sensitivity** slider (-20 dB strict → -40 dB aggressive)
 - **Minimum silence duration** slider (0.1 s – 3.0 s)
-- **Edge padding** preserves a margin around each cut so speech does not clip
-- Audio + video; output: `<name>_jumpcut.<ext>`
+- **Edge padding** preserves a margin of silence around each cut so speech does not clip
+- **Inline media preview** — built-in player with scrubber, play/pause, mute, and volume so you can hear/see exactly which part of the file you're marking
+- **Protected ranges** — visual range editor: scrub the player and tap **Mark In** / **Mark Out**, or use per-row "Set start/end" buttons; multiple ranges with a mini-timeline showing green protected bands; silence inside any protected range is preserved
+- Works for both audio and video; output: `<name>_jumpcut.<ext>`
 
 ### History
 - Log of all operations with status, filename, timestamp

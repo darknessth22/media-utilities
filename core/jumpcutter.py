@@ -20,6 +20,89 @@ _SILENCE_START_RE = re.compile(r"silence_start:\s*(-?\d+(?:\.\d+)?)")
 _SILENCE_END_RE   = re.compile(r"silence_end:\s*(-?\d+(?:\.\d+)?)")
 
 
+def _parse_timestamp(token: str) -> float | None:
+    """Parse 'SS', 'SS.s', 'M:SS', 'M:SS.s', 'H:M:SS' to seconds. Return None on failure."""
+    token = token.strip()
+    if not token:
+        return None
+    try:
+        if ":" in token:
+            parts = token.split(":")
+            if len(parts) > 3:
+                return None
+            nums = [float(p) for p in parts]
+            total = 0.0
+            for n in nums:
+                total = total * 60.0 + n
+            return total if total >= 0 else None
+        v = float(token)
+        return v if v >= 0 else None
+    except ValueError:
+        return None
+
+
+def parse_protected_ranges(text: str) -> tuple[list[tuple[float, float]], list[str]]:
+    """Parse multi-line user input into (ranges, errors).
+
+    Each non-empty, non-comment line: '<start> - <end>' where each side accepts
+    seconds (e.g. '90', '12.5'), 'M:SS', or 'H:MM:SS'. '#' starts a comment.
+    Returns ranges sorted and merged; errors list per offending line.
+    """
+    ranges: list[tuple[float, float]] = []
+    errors: list[str] = []
+    for raw in text.splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        sep = "-" if "-" in line else ("→" if "→" in line else None)
+        if sep is None:
+            errors.append(raw)
+            continue
+        idx = line.rfind(sep)
+        a, b = line[:idx], line[idx + len(sep):]
+        s = _parse_timestamp(a)
+        e = _parse_timestamp(b)
+        if s is None or e is None or e <= s:
+            errors.append(raw)
+            continue
+        ranges.append((s, e))
+    ranges.sort()
+    merged: list[tuple[float, float]] = []
+    for s, e in ranges:
+        if merged and s <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], e))
+        else:
+            merged.append((s, e))
+    return merged, errors
+
+
+def _subtract_protected(
+    silences: list[tuple[float, float]],
+    protected: list[tuple[float, float]],
+) -> list[tuple[float, float]]:
+    """Remove protected sub-intervals from each silence; split when needed."""
+    if not protected:
+        return list(silences)
+    out: list[tuple[float, float]] = []
+    for s, e in silences:
+        chunks = [(s, e)]
+        for ps, pe in protected:
+            new_chunks: list[tuple[float, float]] = []
+            for cs, ce in chunks:
+                if pe <= cs or ps >= ce:
+                    new_chunks.append((cs, ce))
+                    continue
+                if ps > cs:
+                    new_chunks.append((cs, ps))
+                if pe < ce:
+                    new_chunks.append((pe, ce))
+            chunks = new_chunks
+            if not chunks:
+                break
+        out.extend(chunks)
+    return out
+
+
 def _probe_duration(file_path: str) -> float | None:
     try:
         result = subprocess.run(
@@ -93,6 +176,7 @@ def remove_silence(
     min_duration: float = 0.5,
     padding: float = 0.05,
     output_dir: str | None = None,
+    protected_ranges: list[tuple[float, float]] | None = None,
 ) -> tuple[bool, str | None, dict]:
     """Detect silences and re-encode keeping only loud parts.
 
@@ -111,7 +195,9 @@ def remove_silence(
 
     job_id = str(uuid.uuid4())
     silences = detect_silences(file_path, noise_db, min_duration, job_id) or []
-    kept = _kept_ranges(silences, duration, padding)
+    effective_silences = _subtract_protected(silences, protected_ranges or [])
+    effective_silences.sort()
+    kept = _kept_ranges(effective_silences, duration, padding)
     if not kept:
         return False, None, {
             "orig_duration": duration, "new_duration": 0.0,
@@ -173,5 +259,7 @@ def remove_silence(
     return True, output_path, {
         "orig_duration": duration,
         "new_duration": new_duration,
-        "silences_removed": len(silences),
+        "silences_removed": len(effective_silences),
+        "silences_detected": len(silences),
+        "protected_ranges": len(protected_ranges or []),
     }

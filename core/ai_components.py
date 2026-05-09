@@ -56,6 +56,27 @@ _REGISTRY: dict[str, AIComponent] = {
         approx_size_mb_cuda=190,
         extra_pip_args=("--no-deps",),
     ),
+    "ocr_rapid": AIComponent(
+        id="ocr_rapid",
+        label_key="tool_ocr_rapid_name",
+        importable_name="rapidocr_onnxruntime",
+        manifest_cpu=os.path.join(_MANIFESTS_DIR, "ocr_rapid.txt"),
+        manifest_cuda=None,
+        approx_size_mb_cpu=120,
+        approx_size_mb_cuda=None,
+    ),
+    "ocr_easy": AIComponent(
+        id="ocr_easy",
+        label_key="tool_ocr_easy_name",
+        importable_name="easyocr",
+        # Reuses torch from vocal_isolator. torchvision lives here. Variant must
+        # match vocal_isolator's torch ABI — pick CUDA iff vocal_isolator CUDA.
+        manifest_cpu=os.path.join(_MANIFESTS_DIR, "ocr_easy.txt"),
+        manifest_cuda=os.path.join(_MANIFESTS_DIR, "ocr_easy.cuda.txt"),
+        approx_size_mb_cpu=350,
+        approx_size_mb_cuda=380,
+        extra_pip_args=("--no-deps",),
+    ),
 }
 
 

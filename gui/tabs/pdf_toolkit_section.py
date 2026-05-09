@@ -5,6 +5,7 @@ import os
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QComboBox,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSpinBox,
     QStackedWidget,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -26,6 +28,9 @@ from core.i18n import tr
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 from gui.worker import Worker
+from utils import model_manager
+from utils.install_errors import classify as classify_install_error
+from utils.model_manager import InsufficientDiskError
 
 
 _PDF_FILTER = "PDF Files (*.pdf)"
@@ -41,7 +46,22 @@ _MODES = [
     "pdf_mode_merge",
     "pdf_mode_split",
     "pdf_mode_extract",
+    "pdf_mode_ocr",
 ]
+
+# UI lang code -> display key. Keep in sync with core/ocr.py language maps.
+_OCR_LANG_OPTIONS = [
+    ("en", "ocr_lang_en"),
+    ("ar", "ocr_lang_ar"),
+    ("ch", "ocr_lang_ch"),
+    ("ja", "ocr_lang_ja"),
+    ("ko", "ocr_lang_ko"),
+    ("en+ar", "ocr_lang_en_ar"),
+    ("en+fr", "ocr_lang_en_fr"),
+    ("en+es", "ocr_lang_en_es"),
+]
+# Per-engine subset (RapidOCR has fewer combinations).
+_OCR_LANGS_RAPID = {"en", "ch", "ja", "ko"}
 
 
 def _card() -> QFrame:
@@ -868,8 +888,507 @@ class _ExtractPane(QWidget):
         self.status_message.emit(f"Error: {msg}", True)
 
 
+class _OcrPane(QWidget):
+    """OCR a PDF -> searchable PDF or text. Backed by RapidOCR or EasyOCR
+    (each installable on demand via model_manager)."""
+
+    status_message = Signal(str, bool)
+    busy_changed = Signal(bool)
+
+    def __init__(self, settings, parent=None):
+        super().__init__(parent)
+        self._settings = settings
+        self._worker: Worker | None = None
+        self._install_proc = None
+        self._install_tail: list[str] = []
+        self._installing_id: str | None = None
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(16)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(self._build_engine_card())
+        layout.addWidget(self._build_source_card())
+        layout.addWidget(self._build_options_card())
+        layout.addWidget(self._build_output_card())
+        layout.addWidget(self._build_install_card())
+        layout.addWidget(self._build_progress_card())
+
+        self._refresh_engine_state()
+
+    # ── Engine selector ──────────────────────────────────────────────────────
+
+    def _build_engine_card(self) -> QFrame:
+        card = _card()
+        v = QVBoxLayout(card)
+        v.setContentsMargins(20, 16, 20, 16)
+        v.setSpacing(10)
+        self._hdr_engine = _hdr(tr("hdr_ocr_engine"))
+        v.addWidget(self._hdr_engine)
+
+        self._engine_hint = QLabel(tr("hint_ocr_engine"))
+        self._engine_hint.setObjectName("TextMuted")
+        self._engine_hint.setWordWrap(True)
+        self._engine_hint.setStyleSheet("font-size: 12px;")
+        v.addWidget(self._engine_hint)
+
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        self._engine_combo = QComboBox()
+        self._engine_combo.setObjectName("PillInput")
+        self._engine_combo.addItem(tr("ocr_engine_rapid"), "rapid")
+        self._engine_combo.addItem(tr("ocr_engine_easy"), "easy")
+        self._engine_combo.currentIndexChanged.connect(self._on_engine_changed)
+        row.addWidget(self._engine_combo, 1)
+
+        self._engine_status = QLabel("")
+        self._engine_status.setObjectName("TextMuted")
+        self._engine_status.setStyleSheet("font-size: 12px;")
+        row.addWidget(self._engine_status)
+        row.addStretch()
+        v.addLayout(row)
+
+        return card
+
+    # ── Source ──────────────────────────────────────────────────────────────
+
+    def _build_source_card(self) -> QFrame:
+        card = _card()
+        v = QVBoxLayout(card)
+        v.setContentsMargins(20, 16, 20, 16)
+        v.setSpacing(10)
+        self._hdr_src = _hdr(tr("hdr_source_pdf"))
+        v.addWidget(self._hdr_src)
+        self._src_inp, self._src_btn, row = _file_row(tr("ph_pdf_source"), self)
+        self._src_btn.clicked.connect(self._browse_src)
+        v.addLayout(row)
+        return card
+
+    # ── Options ─────────────────────────────────────────────────────────────
+
+    def _build_options_card(self) -> QFrame:
+        card = _card()
+        v = QVBoxLayout(card)
+        v.setContentsMargins(20, 16, 20, 16)
+        v.setSpacing(10)
+        self._hdr_opts = _hdr(tr("hdr_ocr_options"))
+        v.addWidget(self._hdr_opts)
+
+        # Output mode chips
+        mode_row = QHBoxLayout()
+        mode_row.setSpacing(8)
+        self._mode_searchable_btn = QPushButton(tr("ocr_mode_searchable"))
+        self._mode_searchable_btn.setObjectName("ChipBtn")
+        self._mode_searchable_btn.setCheckable(True)
+        self._mode_searchable_btn.setFlat(True)
+        self._mode_searchable_btn.clicked.connect(lambda: self._select_output_mode("searchable"))
+        mode_row.addWidget(self._mode_searchable_btn)
+
+        self._mode_text_btn = QPushButton(tr("ocr_mode_text"))
+        self._mode_text_btn.setObjectName("ChipBtn")
+        self._mode_text_btn.setCheckable(True)
+        self._mode_text_btn.setFlat(True)
+        self._mode_text_btn.clicked.connect(lambda: self._select_output_mode("text"))
+        mode_row.addWidget(self._mode_text_btn)
+        mode_row.addStretch()
+        v.addLayout(mode_row)
+
+        # Language
+        lang_row = QHBoxLayout()
+        self._lang_lbl = QLabel(tr("lbl_ocr_lang"))
+        self._lang_lbl.setObjectName("TextSecondary")
+        lang_row.addWidget(self._lang_lbl)
+        self._lang_combo = QComboBox()
+        self._lang_combo.setObjectName("PillInput")
+        lang_row.addWidget(self._lang_combo, 1)
+        v.addLayout(lang_row)
+
+        # DPI
+        dpi_row = QHBoxLayout()
+        self._dpi_lbl = QLabel(tr("lbl_ocr_dpi"))
+        self._dpi_lbl.setObjectName("TextSecondary")
+        dpi_row.addWidget(self._dpi_lbl)
+        self._dpi_spin = QSpinBox()
+        self._dpi_spin.setRange(72, 600)
+        self._dpi_spin.setSingleStep(50)
+        self._dpi_spin.setValue(300)
+        self._dpi_spin.setFixedWidth(80)
+        dpi_row.addWidget(self._dpi_spin)
+        dpi_row.addStretch()
+        v.addLayout(dpi_row)
+
+        self._output_mode = "searchable"
+        self._select_output_mode("searchable")
+        return card
+
+    # ── Output ──────────────────────────────────────────────────────────────
+
+    def _build_output_card(self) -> QFrame:
+        card = _card()
+        v = QVBoxLayout(card)
+        v.setContentsMargins(20, 16, 20, 16)
+        v.setSpacing(10)
+        self._hdr_out = _hdr(tr("hdr_output_file"))
+        v.addWidget(self._hdr_out)
+        self._out_inp, self._out_btn, row = _file_row(tr("ph_ocr_output_auto"), self)
+        self._out_btn.clicked.connect(self._browse_out)
+        v.addLayout(row)
+        return card
+
+    # ── Install card (engine missing) ───────────────────────────────────────
+
+    def _build_install_card(self) -> QFrame:
+        card = _card()
+        card.setStyleSheet(
+            "QFrame#Card { border: 1px solid rgba(245,158,11,0.4);"
+            " background: rgba(245,158,11,0.06); border-radius: 10px; }"
+        )
+        v = QVBoxLayout(card)
+        v.setContentsMargins(20, 16, 20, 16)
+        v.setSpacing(10)
+
+        self._install_title = QLabel(f"⚠  {tr('lbl_ocr_engine_not_installed')}")
+        self._install_title.setStyleSheet(
+            "font-size: 14px; font-weight: bold; color: #F59E0B;"
+        )
+        v.addWidget(self._install_title)
+
+        self._install_desc = QLabel("")
+        self._install_desc.setObjectName("TextMuted")
+        self._install_desc.setWordWrap(True)
+        self._install_desc.setStyleSheet("font-size: 12px;")
+        v.addWidget(self._install_desc)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+        self._install_btn = QPushButton(tr("btn_install_engine"))
+        self._install_btn.setObjectName("PrimaryBtn")
+        self._install_btn.setFixedWidth(180)
+        self._install_btn.clicked.connect(self._start_install)
+        btn_row.addWidget(self._install_btn)
+        btn_row.addStretch()
+        v.addLayout(btn_row)
+
+        self._install_status = QLabel("")
+        self._install_status.setObjectName("TextMuted")
+        self._install_status.setStyleSheet("font-size: 12px; color: #3B82F6;")
+        self._install_status.setVisible(False)
+        v.addWidget(self._install_status)
+
+        self._install_log = QTextEdit()
+        self._install_log.setReadOnly(True)
+        self._install_log.setFixedHeight(100)
+        self._install_log.setObjectName("PillInput")
+        self._install_log.setStyleSheet("font-size: 10px; font-family: monospace;")
+        self._install_log.setVisible(False)
+        v.addWidget(self._install_log)
+
+        card.setVisible(False)
+        self._install_card = card
+        return card
+
+    # ── Progress ────────────────────────────────────────────────────────────
+
+    def _build_progress_card(self) -> QFrame:
+        card = _card()
+        v = QVBoxLayout(card)
+        v.setContentsMargins(20, 16, 20, 16)
+        v.setSpacing(8)
+        self._progress = QProgressBar()
+        self._progress.setObjectName("TaskProgressBar")
+        self._progress.setRange(0, 100)
+        self._progress.setVisible(False)
+        v.addWidget(self._progress)
+        self._progress_lbl = QLabel()
+        self._progress_lbl.setObjectName("TextSecondary")
+        self._progress_lbl.setVisible(False)
+        v.addWidget(self._progress_lbl)
+        return card
+
+    # ── State / behaviour ───────────────────────────────────────────────────
+
+    def _current_engine(self) -> str:
+        return self._engine_combo.currentData() or "rapid"
+
+    def _engine_component_id(self, engine: str) -> str:
+        return "ocr_rapid" if engine == "rapid" else "ocr_easy"
+
+    def _refresh_engine_state(self) -> None:
+        engine = self._current_engine()
+        cid = self._engine_component_id(engine)
+        installed = model_manager.is_installed(cid)
+
+        # Status badge
+        self._engine_status.setText(
+            tr("ocr_engine_installed") if installed else tr("ocr_engine_not_installed")
+        )
+        self._engine_status.setStyleSheet(
+            "font-size: 12px; color: #22C55E;" if installed
+            else "font-size: 12px; color: #F59E0B;"
+        )
+
+        # Install card
+        if not installed and self._install_proc is None:
+            desc_key = ("lbl_ocr_rapid_desc" if engine == "rapid"
+                        else "lbl_ocr_easy_desc")
+            self._install_desc.setText(tr(desc_key))
+            self._install_card.setVisible(True)
+            self._install_btn.setEnabled(True)
+            self._install_status.setVisible(False)
+            self._install_log.setVisible(False)
+        elif installed:
+            self._install_card.setVisible(False)
+
+        # Refresh language dropdown for engine
+        self._populate_langs(engine)
+
+    def _populate_langs(self, engine: str) -> None:
+        prev = self._lang_combo.currentData()
+        self._lang_combo.blockSignals(True)
+        self._lang_combo.clear()
+        for code, key in _OCR_LANG_OPTIONS:
+            if engine == "rapid" and code not in _OCR_LANGS_RAPID:
+                continue
+            self._lang_combo.addItem(tr(key), code)
+        # Try to restore previous selection
+        if prev is not None:
+            idx = self._lang_combo.findData(prev)
+            if idx >= 0:
+                self._lang_combo.setCurrentIndex(idx)
+        self._lang_combo.blockSignals(False)
+
+    def _on_engine_changed(self, _idx: int) -> None:
+        self._refresh_engine_state()
+
+    def _select_output_mode(self, mode: str) -> None:
+        self._output_mode = mode
+        for btn, m in [(self._mode_searchable_btn, "searchable"),
+                       (self._mode_text_btn, "text")]:
+            active = m == mode
+            btn.setChecked(active)
+            btn.setProperty("selected", "true" if active else "false")
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+
+    def _browse_src(self) -> None:
+        start = os.path.dirname(self._src_inp.text()) or os.path.expanduser("~")
+        path, _ = QFileDialog.getOpenFileName(self, tr("dlg_select_pdf"), start, _PDF_FILTER)
+        if path:
+            self._src_inp.setText(path)
+
+    def _browse_out(self) -> None:
+        start = self._out_inp.text() or os.path.expanduser("~")
+        if self._output_mode == "text":
+            flt = "Text files (*.txt)"
+            path, _ = QFileDialog.getSaveFileName(self, tr("dlg_save_txt"), start, flt)
+        else:
+            path, _ = QFileDialog.getSaveFileName(self, tr("dlg_save_pdf"), start, _PDF_FILTER)
+        if path:
+            self._out_inp.setText(path)
+
+    def populate_file(self, path: str) -> None:
+        self._src_inp.setText(path)
+
+    # ── Install flow ────────────────────────────────────────────────────────
+
+    def _start_install(self) -> None:
+        engine = self._current_engine()
+        cid = self._engine_component_id(engine)
+        # Auto-pick variant: CUDA when supported (only ocr_easy has CUDA).
+        variant = model_manager.detected_variant(cid)
+
+        self._installing_id = cid
+        self._install_btn.setEnabled(False)
+        self._install_status.setStyleSheet("font-size: 12px; color: #3B82F6;")
+        self._install_status.setText(tr("lbl_ocr_installing"))
+        self._install_status.setVisible(True)
+        self._install_log.setVisible(True)
+        self._install_log.clear()
+        self._install_tail = []
+
+        try:
+            self._install_proc = model_manager.start_install(
+                cid, on_line=self._on_install_line, variant=variant,
+            )
+        except InsufficientDiskError:
+            info = model_manager.pre_install_info(cid, variant)
+            self._render_install_error(
+                tr("install_error_disk").format(
+                    required_mb=int(info.approx_size_mb * 1.5),
+                    target=info.target_dir,
+                )
+            )
+            return
+        except Exception as exc:  # noqa: BLE001
+            self._render_install_error(
+                tr("install_error_generic").format(error=str(exc))
+            )
+            return
+
+        self._install_proc.finished.connect(self._on_install_finished)
+
+    def _on_install_line(self, line: str) -> None:
+        import re as _re
+        if _re.match(r"^\s*\d+%\|", line) or _re.search(r"\d+\.\d+\s*[KMG]?B/", line):
+            self._install_status.setStyleSheet("font-size: 12px; color: #3B82F6;")
+            self._install_status.setText(line)
+            return
+        self._install_log.append(line)
+        self._install_tail.append(line)
+        if len(self._install_tail) > 200:
+            self._install_tail = self._install_tail[-200:]
+
+    def _on_install_finished(self, exit_code: int, _status) -> None:
+        proc = self._install_proc
+        self._install_proc = None
+        cid = self._installing_id or self._engine_component_id(self._current_engine())
+        self._installing_id = None
+
+        tail = "\n".join(self._install_tail)
+        if proc is not None:
+            try:
+                tail += bytes(proc.readAllStandardOutput()).decode("utf-8", errors="replace")
+            except Exception:
+                pass
+        model_manager.finalize_install(cid, exit_code, tail)
+
+        if exit_code == 0:
+            self._install_status.setStyleSheet("font-size: 12px; color: #22C55E;")
+            self._install_status.setText(tr("lbl_ocr_install_done"))
+            import importlib
+            importlib.invalidate_caches()
+            model_manager.ensure_ai_packages_on_path()
+            self._refresh_engine_state()
+            return
+
+        state = model_manager.read_state(cid)
+        info = model_manager.pre_install_info(cid, state.variant)
+        msg = classify_install_error(
+            state.last_error or tail,
+            target=info.target_dir,
+            required_mb=int(info.approx_size_mb * 1.5),
+        )
+        self._render_install_error(msg)
+
+    def _render_install_error(self, msg: str) -> None:
+        self._install_status.setStyleSheet("font-size: 12px; color: #EF4444;")
+        self._install_status.setText(msg)
+        self._install_status.setVisible(True)
+        self._install_btn.setEnabled(True)
+
+    # ── i18n ────────────────────────────────────────────────────────────────
+
+    def retranslate_ui(self) -> None:
+        self._hdr_engine.setText(tr("hdr_ocr_engine"))
+        self._engine_hint.setText(tr("hint_ocr_engine"))
+        self._engine_combo.setItemText(0, tr("ocr_engine_rapid"))
+        self._engine_combo.setItemText(1, tr("ocr_engine_easy"))
+        self._hdr_src.setText(tr("hdr_source_pdf"))
+        self._src_inp.setPlaceholderText(tr("ph_pdf_source"))
+        self._src_btn.setText(tr("btn_browse"))
+        self._hdr_opts.setText(tr("hdr_ocr_options"))
+        self._mode_searchable_btn.setText(tr("ocr_mode_searchable"))
+        self._mode_text_btn.setText(tr("ocr_mode_text"))
+        self._lang_lbl.setText(tr("lbl_ocr_lang"))
+        self._dpi_lbl.setText(tr("lbl_ocr_dpi"))
+        self._hdr_out.setText(tr("hdr_output_file"))
+        self._out_inp.setPlaceholderText(tr("ph_ocr_output_auto"))
+        self._out_btn.setText(tr("btn_browse"))
+        self._install_title.setText(f"⚠  {tr('lbl_ocr_engine_not_installed')}")
+        self._install_btn.setText(tr("btn_install_engine"))
+        # Re-render engine state to refresh status colour text + lang labels.
+        self._populate_langs(self._current_engine())
+        self._refresh_engine_state()
+
+    # ── Run ─────────────────────────────────────────────────────────────────
+
+    def trigger_primary_action(self) -> None:
+        if self._worker and self._worker.isRunning():
+            self._worker.cancel()
+            self._set_busy(False)
+            self.status_message.emit(tr("status_cancelled"), False)
+            return
+
+        engine = self._current_engine()
+        cid = self._engine_component_id(engine)
+        if not model_manager.is_installed(cid):
+            self.status_message.emit(tr("err_ocr_engine_missing"), True)
+            return
+
+        src = self._src_inp.text().strip()
+        if not src:
+            self.status_message.emit(tr("err_select_pdf"), True)
+            return
+        if not os.path.exists(src):
+            self.status_message.emit(tr("err_file_not_found"), True)
+            return
+
+        lang = self._lang_combo.currentData() or "en"
+        searchable = (self._output_mode == "searchable")
+        dpi = self._dpi_spin.value()
+
+        out_path = self._out_inp.text().strip()
+        if not out_path:
+            base = os.path.splitext(src)[0]
+            out_path = f"{base}_ocr.pdf" if searchable else f"{base}_ocr.txt"
+
+        # Use GPU for EasyOCR iff the CUDA variant is the one installed.
+        use_gpu = False
+        if engine == "easy":
+            state = model_manager.read_state(cid)
+            use_gpu = (state.variant == "cuda")
+
+        self._set_busy(True)
+        self.status_message.emit(tr("status_pdf_ocr"), False)
+
+        def _do():
+            from core.ocr import ocr_pdf
+            ok, result = ocr_pdf(
+                src, out_path,
+                engine=engine,
+                lang=lang,
+                searchable=searchable,
+                dpi=dpi,
+                use_gpu=use_gpu,
+            )
+            return {"success": ok, "path": result if ok else None,
+                    "error": result if not ok else None}
+
+        self._worker = Worker(_do)
+        self._worker.signals.result.connect(self._on_result)
+        self._worker.signals.error.connect(self._on_error)
+        self._worker.start()
+
+    def _set_busy(self, busy: bool) -> None:
+        self._progress.setVisible(busy)
+        self._progress_lbl.setVisible(busy)
+        if busy:
+            self._progress.setRange(0, 0)
+            self._progress_lbl.setText(tr("status_pdf_ocr"))
+        self.busy_changed.emit(busy)
+
+    def _on_result(self, result: dict) -> None:
+        self._set_busy(False)
+        self._worker = None
+        if result["success"]:
+            fp = result["path"]
+            fn = os.path.basename(fp)
+            get_history_manager().add_item(
+                HistoryItem(task_type="pdf_ocr", file_name=fn, file_path=fp, status="success")
+            )
+            self.status_message.emit(f"Done → {fn}", False)
+        else:
+            self.status_message.emit(f"Error: {result['error']}", True)
+
+    def _on_error(self, err_tuple: tuple) -> None:
+        self._set_busy(False)
+        self._worker = None
+        _, msg, _ = err_tuple
+        self.status_message.emit(f"Error: {msg}", True)
+
+
 class PdfToolkitSection(QScrollArea):
-    """PDF Toolkit — Compress, Merge, Split, Extract Images."""
+    """PDF Toolkit — Compress, Merge, Split, Extract Images, OCR."""
 
     status_message = Signal(str, bool)
     busy_changed = Signal(bool)
@@ -895,6 +1414,7 @@ class PdfToolkitSection(QScrollArea):
             _MergePane(settings),
             _SplitPane(settings),
             _ExtractPane(settings),
+            _OcrPane(settings),
         ]
         self._stack = QStackedWidget()
         for pane in self._panes:
@@ -926,6 +1446,7 @@ class PdfToolkitSection(QScrollArea):
             "pdf_mode_merge",
             "pdf_mode_split",
             "pdf_mode_extract",
+            "pdf_mode_ocr",
         ]
         for i, key in enumerate(mode_keys):
             btn = QPushButton(tr(key))
@@ -954,7 +1475,7 @@ class PdfToolkitSection(QScrollArea):
 
     def retranslate_ui(self):
         self._mode_hdr.setText(tr("hdr_pdf_toolkit_mode"))
-        mode_keys = ["pdf_mode_compress", "pdf_mode_merge", "pdf_mode_split", "pdf_mode_extract"]
+        mode_keys = ["pdf_mode_compress", "pdf_mode_merge", "pdf_mode_split", "pdf_mode_extract", "pdf_mode_ocr"]
         for btn, key in zip(self._mode_btns, mode_keys):
             btn.setText(tr(key))
         for pane in self._panes:

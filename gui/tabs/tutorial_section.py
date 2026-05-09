@@ -408,16 +408,19 @@ _TUTORIAL_DATA_EN = [
             "Compress, merge, split, and extract images from PDFs."
         ),
         "steps": [
-            "Pick an operation: Compress, Merge, Split, or Extract Images.",
+            "Pick an operation: Compress, Merge, Split, Extract Images, or OCR.",
             "Compress — pick a preset (Screen 72 / Web 150 / Print 300 dpi). Click Apply.",
             "Merge — add 2+ PDFs. Drag rows to reorder. Set output path. Click Apply.",
             "Split — All Pages, or Custom Range (e.g. 1-3, 5, 7-9).",
             "Extract Images — Embedded Images, or Pages as JPEG (set DPI).",
+            "OCR — pick an engine (RapidOCR or EasyOCR), language, and output mode (Searchable PDF or Text File). First run prompts to install the engine; weights are stored offline.",
         ],
         "tips": [
             "Compress shines on image-heavy PDFs; text-only see smaller gains.",
             "Custom Range accepts comma-separated pages and ranges: '1, 3-5, 8'.",
             "Pages as JPEG at 150 dpi balances quality and size.",
+            "OCR — RapidOCR (~120 MB) is the fast pick for English and CJK scripts. For Arabic and 80+ other languages use EasyOCR (~350 MB CPU; uses GPU when available).",
+            "Searchable PDF preserves the original page image and adds an invisible text layer — Ctrl+F just works in any reader.",
         ],
     },
     {
@@ -431,11 +434,14 @@ _TUTORIAL_DATA_EN = [
             "Set Silence sensitivity (-20 dB = strict, -40 dB = aggressive).",
             "Set Minimum silence duration — gaps shorter than this are kept.",
             "Optional: Edge padding leaves a margin of silence around each cut so speech does not clip.",
+            "Optional: Protected Ranges — preview the file in the inline player, scrub to the moment you want to keep, then click Mark In / Mark Out (or the Set buttons on a row) to capture timestamps. Silence inside any protected range is preserved.",
             "Click Cut Silences. Output is saved as <name>_jumpcut.<ext>.",
         ],
         "tips": [
             "-30 dB and 0.5 s are sane defaults for a podcast or talking-head video.",
             "Increase padding (e.g. 100 ms) if cuts feel abrupt or chop syllables.",
+            "Use the player's Mark In / Mark Out buttons while watching to grab protected ranges in seconds.",
+            "Add multiple protected ranges with the Add Range button — green bands on the mini-timeline show what will be kept.",
             "Re-encodes with H.264 / AAC for video, native codec for audio.",
         ],
     },
@@ -900,16 +906,19 @@ _TUTORIAL_DATA_AR = [
             "اضغط ودمّج وقسّم واستخرج الصور من ملفات PDF."
         ),
         "steps": [
-            "اختر العملية: ضغط، دمج، تقسيم، أو استخراج صور.",
+            "اختر العملية: ضغط، دمج، تقسيم، استخراج صور، أو تعرّف ضوئي (OCR).",
             "ضغط — اختر إعداداً مسبقاً (شاشة 72 / ويب 150 / طباعة 300 نقطة). انقر 'تطبيق'.",
             "دمج — أضف ملفَين أو أكثر. أعد ترتيبهم بالسحب. حدد مسار الإخراج. انقر 'تطبيق'.",
             "تقسيم — جميع الصفحات أو نطاق مخصص (مثل 1-3، 5، 7-9).",
             "استخراج صور — صور مضمّنة، أو صفحات بصيغة JPEG (حدد الدقة).",
+            "تعرّف ضوئي (OCR) — اختر المحرّك (RapidOCR أو EasyOCR) واللغة ونوع الإخراج (PDF قابل للبحث أو ملف نصّي). سيُطلب منك تثبيت المحرّك في أوّل تشغيل وتُحفظ الأوزان للعمل دون إنترنت.",
         ],
         "tips": [
             "الضغط أفضل للملفات الغنية بالصور؛ الملفات النصية تستفيد أقل.",
             "النطاق المخصص يقبل صفحات وفترات مفصولة بفواصل: '1، 3-5، 8'.",
             "150 نقطة لـ JPEG توازن جيد بين الجودة والحجم.",
+            "OCR — RapidOCR (نحو 120 ميغابايت) خيار سريع للإنجليزية ولغات شرق آسيا. للعربية وأكثر من 80 لغة أخرى استخدم EasyOCR (نحو 350 ميغابايت CPU، يستخدم GPU عند توفّره).",
+            "PDF قابل للبحث يحتفظ بصورة الصفحة الأصلية ويضيف طبقة نصّ غير مرئية — يعمل البحث Ctrl+F في أيّ قارئ.",
         ],
     },
     {
@@ -923,11 +932,14 @@ _TUTORIAL_DATA_AR = [
             "حدّد حساسية الصمت (-20 ديسيبل = صارم، -40 ديسيبل = قوي).",
             "حدّد أدنى مدة للصمت — الفجوات الأقصر يتم الإبقاء عليها.",
             "اختياري: هامش الحواف يترك مسافة قبل وبعد كل قص حتى لا يُقطع الكلام.",
+            "اختياري: نطاقات محمية — شاهد/استمع إلى الملف في المشغّل المدمج، تنقّل إلى اللحظة التي تريد الإبقاء عليها، ثم اضغط 'بداية' / 'نهاية' (أو أزرار التعيين على كل سطر) لالتقاط التوقيت. يُحفظ الصمت داخل أي نطاق محمي.",
             "انقر 'قص الصمت'. سيُحفظ الناتج باسم <name>_jumpcut.<ext>.",
         ],
         "tips": [
             "-30 ديسيبل و0.5 ثانية إعدادات افتراضية جيدة للبودكاست أو فيديو الحديث المباشر.",
             "زد الهامش (مثلاً 100 م.ث) إن بدت القصات قاسية أو تقطع المقاطع الصوتية.",
+            "استخدم أزرار 'بداية / نهاية' في المشغّل أثناء المشاهدة لالتقاط النطاقات المحمية بدقة.",
+            "أضف نطاقات متعددة عبر زر 'إضافة نطاق' — الأشرطة الخضراء على الخط الزمني المصغّر تعرض ما سيُحفظ.",
             "تتم إعادة الترميز بـ H.264 / AAC للفيديو، وبالكوديك الأصلي للصوت.",
         ],
     },
