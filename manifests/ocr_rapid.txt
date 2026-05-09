@@ -1,0 +1,12 @@
+# RapidOCR — ONNX-based OCR. Lightweight, English + Arabic + many CJK scripts.
+# CPU only (onnxruntime auto-uses GPU at runtime if onnxruntime-gpu is present
+# elsewhere, but we ship CPU-only here to keep the install small).
+rapidocr-onnxruntime==1.4.4
+onnxruntime==1.19.2
+numpy==1.26.4
+pillow==10.4.0
+opencv-python-headless==4.10.0.84
+pyclipper==1.3.0.post6
+shapely==2.0.6
+pyyaml==6.0.2
+six==1.16.0

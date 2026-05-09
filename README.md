@@ -145,6 +145,11 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 - **Merge** — combine multiple PDFs into one; drag rows to set page order before merging
 - **Split** — export every page as its own PDF, or extract a custom range (e.g. `1-3, 5, 7-9`)
 - **Extract Images** — pull embedded images out of a PDF as JPEGs, or render every page as a high-res JPEG at a chosen DPI
+- **OCR** — turn scanned PDFs into searchable PDFs (invisible text layer, Ctrl+F works) or plain `.txt` files
+  - Two pluggable engines, installed on demand:
+    - **RapidOCR** (~120 MB) — ONNX-based, lightweight, English + CJK (bundled models)
+    - **EasyOCR** (~350 MB CPU; CUDA build reuses Vocal Isolator's PyTorch) — 80+ languages, optional GPU
+  - Adjustable render DPI (72–600); language picker per engine
 - Powered by PyMuPDF — no external tools required
 
 ### Jump-Cutter (Auto-Silence Removal)

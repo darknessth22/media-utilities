@@ -408,16 +408,19 @@ _TUTORIAL_DATA_EN = [
             "Compress, merge, split, and extract images from PDFs."
         ),
         "steps": [
-            "Pick an operation: Compress, Merge, Split, or Extract Images.",
+            "Pick an operation: Compress, Merge, Split, Extract Images, or OCR.",
             "Compress — pick a preset (Screen 72 / Web 150 / Print 300 dpi). Click Apply.",
             "Merge — add 2+ PDFs. Drag rows to reorder. Set output path. Click Apply.",
             "Split — All Pages, or Custom Range (e.g. 1-3, 5, 7-9).",
             "Extract Images — Embedded Images, or Pages as JPEG (set DPI).",
+            "OCR — pick an engine (RapidOCR or EasyOCR), language, and output mode (Searchable PDF or Text File). First run prompts to install the engine; weights are stored offline.",
         ],
         "tips": [
             "Compress shines on image-heavy PDFs; text-only see smaller gains.",
             "Custom Range accepts comma-separated pages and ranges: '1, 3-5, 8'.",
             "Pages as JPEG at 150 dpi balances quality and size.",
+            "OCR — RapidOCR (~120 MB) is the fast pick for English and CJK scripts. For Arabic and 80+ other languages use EasyOCR (~350 MB CPU; uses GPU when available).",
+            "Searchable PDF preserves the original page image and adds an invisible text layer — Ctrl+F just works in any reader.",
         ],
     },
     {
@@ -903,16 +906,19 @@ _TUTORIAL_DATA_AR = [
             "اضغط ودمّج وقسّم واستخرج الصور من ملفات PDF."
         ),
         "steps": [
-            "اختر العملية: ضغط، دمج، تقسيم، أو استخراج صور.",
+            "اختر العملية: ضغط، دمج، تقسيم، استخراج صور، أو تعرّف ضوئي (OCR).",
             "ضغط — اختر إعداداً مسبقاً (شاشة 72 / ويب 150 / طباعة 300 نقطة). انقر 'تطبيق'.",
             "دمج — أضف ملفَين أو أكثر. أعد ترتيبهم بالسحب. حدد مسار الإخراج. انقر 'تطبيق'.",
             "تقسيم — جميع الصفحات أو نطاق مخصص (مثل 1-3، 5، 7-9).",
             "استخراج صور — صور مضمّنة، أو صفحات بصيغة JPEG (حدد الدقة).",
+            "تعرّف ضوئي (OCR) — اختر المحرّك (RapidOCR أو EasyOCR) واللغة ونوع الإخراج (PDF قابل للبحث أو ملف نصّي). سيُطلب منك تثبيت المحرّك في أوّل تشغيل وتُحفظ الأوزان للعمل دون إنترنت.",
         ],
         "tips": [
             "الضغط أفضل للملفات الغنية بالصور؛ الملفات النصية تستفيد أقل.",
             "النطاق المخصص يقبل صفحات وفترات مفصولة بفواصل: '1، 3-5، 8'.",
             "150 نقطة لـ JPEG توازن جيد بين الجودة والحجم.",
+            "OCR — RapidOCR (نحو 120 ميغابايت) خيار سريع للإنجليزية ولغات شرق آسيا. للعربية وأكثر من 80 لغة أخرى استخدم EasyOCR (نحو 350 ميغابايت CPU، يستخدم GPU عند توفّره).",
+            "PDF قابل للبحث يحتفظ بصورة الصفحة الأصلية ويضيف طبقة نصّ غير مرئية — يعمل البحث Ctrl+F في أيّ قارئ.",
         ],
     },
     {
