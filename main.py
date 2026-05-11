@@ -13,9 +13,15 @@ if os.path.isfile(_env_path):
     with open(_env_path, encoding="utf-8") as _f:
         for _line in _f:
             _line = _line.strip()
-            if _line and not _line.startswith("#") and "=" in _line:
-                _k, _v = _line.split("=", 1)
-                os.environ.setdefault(_k.strip(), _v.strip())
+            if not _line or _line.startswith("#") or "=" not in _line:
+                continue
+            _k, _v = _line.split("=", 1)
+            _k = _k.strip()
+            _v = _v.strip()
+            # Strip optional surrounding quotes (KEY="value" / KEY='value').
+            if len(_v) >= 2 and _v[0] == _v[-1] and _v[0] in ("'", '"'):
+                _v = _v[1:-1]
+            os.environ.setdefault(_k, _v)
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtCore import Qt, QThread, QTimer, Signal, qInstallMessageHandler, QtMsgType
@@ -42,10 +48,15 @@ model_manager.ensure_ai_packages_on_path()
 # Single-instance mutex — installer uses this name to detect a running instance.
 # If the mutex already exists, another Videl is running: bail out before any UI
 # (incl. splash) is created so a second instance cannot spawn a duplicate splash.
-if sys.platform == "win32" and getattr(sys, "frozen", False):
+if sys.platform == "win32":
     import ctypes
     _ERROR_ALREADY_EXISTS = 183
-    _mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "VidelAppMutex")
+    # Frozen builds and dev runs both honour the single-instance lock, but
+    # use distinct mutex names so a running installed Videl doesn't block a
+    # developer launch (and vice-versa). Session-local namespace prevents
+    # another process in a different session from squatting the name.
+    _mutex_name = "Local\\VidelAppMutex" if getattr(sys, "frozen", False) else "Local\\VidelAppMutex.dev"
+    _mutex = ctypes.windll.kernel32.CreateMutexW(None, False, _mutex_name)
     if ctypes.windll.kernel32.GetLastError() == _ERROR_ALREADY_EXISTS:
         sys.exit(0)
 
@@ -108,6 +119,20 @@ def main() -> None:
         splash.close()
         win = MainWindow(settings, theme_manager)
         win.show()
+        # Surface corrupt-config recovery from SettingsManager.load(), if any.
+        from core.settings import LAST_LOAD_ERROR, LAST_LOAD_BACKUP_PATH
+        if LAST_LOAD_ERROR:
+            from core.i18n import tr
+            if LAST_LOAD_BACKUP_PATH:
+                win.update_status(
+                    tr("settings_corrupt_backed_up").format(path=LAST_LOAD_BACKUP_PATH),
+                    is_error=True,
+                )
+            else:
+                win.update_status(
+                    tr("settings_load_error").format(error=LAST_LOAD_ERROR),
+                    is_error=True,
+                )
         _apply_reconcile(win, _RECONCILE_RESULT)
         checker = _DepsChecker(win)
         checker.done.connect(lambda err: _on_deps_checked(err, win))

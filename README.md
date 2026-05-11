@@ -16,6 +16,13 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 
 ## Features
 
+### Home & Navigation
+- **Drop-zone hero** — drag any media file onto the welcome banner on Home and Videl auto-routes it to the matching tool (video → Convert, `.pdf` → PDF Toolkit, `.gif` → GIF Creator, etc.).
+- **Recent strip** — your last few opened tools surface at the top of Home for one-click return; replaces the old duplicate Quick Access row.
+- **Command palette (Ctrl+K)** — fuzzy-search every tool by name or description from anywhere in the app; ↑/↓ navigate, Enter opens, Esc closes.
+- **Category filters** — on the Tools page, filter the grid by All / Video / Audio / Image / Document.
+- **Accent-tinted icon tiles** — each tool's icon sits on a tinted square in its own brand color, with a hover lift on every card.
+
 ### Browser Extension (Download with Videl)
 - One-click downloads from any website. The Videl browser extension overlays a small "Videl" button on the top-right of every `<video>` on the web.
 - Click the button → Videl jumps to the foreground with the URL pre-loaded in the Downloader tab.
@@ -152,6 +159,14 @@ A desktop application for downloading, converting, trimming, compressing, mergin
   - Adjustable render DPI (72–600); language picker per engine
 - Powered by PyMuPDF — no external tools required
 
+### Subtitles (Burn-In)
+- Hardcode an SRT/VTT/ASS subtitle file into a video so captions render on every player and platform
+- Adjustable font size, color, and outline thickness; rendered with libass for accurate styling
+- CRF quality (14–32) and hardware encoder (NVIDIA NVENC / AMD AMF / Intel QuickSync / CPU) — same GPU support as Compress
+- Audio stream-copied (no re-encode); video re-encoded once with the burned-in caption track
+- Output saved as `<name>_subbed.<ext>` alongside the source or in a chosen folder
+- Companion: in the **Downloader** tab, tick **Download subtitles** to fetch `.srt` files alongside the video (yt-dlp `--write-subs` / `--write-auto-subs`, comma-separated languages, optional auto-generated tracks)
+
 ### Jump-Cutter (Auto-Silence Removal)
 - Detects silent gaps with FFmpeg `silencedetect`, then re-encodes keeping only the loud parts
 - **Silence sensitivity** slider (-20 dB strict → -40 dB aggressive)
@@ -188,6 +203,11 @@ A desktop application for downloading, converting, trimming, compressing, mergin
 | `Ctrl + Enter` | Trigger the primary action for the current section |
 | `Esc` | Cancel an in-progress operation |
 | `Ctrl + V` | Paste clipboard URL → Download section (when no text field is focused) |
+| `Ctrl + K` | Open the command palette to fuzzy-jump to any tool |
+| `Ctrl + H` | Go to Home |
+| `Ctrl + T` | Go to Tools |
+| `Ctrl + ,` | Open Settings |
+| `F1` | Open How to Use |
 
 ---
 

@@ -41,11 +41,18 @@ def convert_images(file_paths: list[str], target_format: str, output_dir: str | 
                 output_path = os.path.join(out_dir, f"{base_name}.{target_format.lower()}")
                 
                 if pil_format == "HEIF":
-                    image.save(
-                        output_path, format="HEIF", exif=exif_data,
-                        quality=90, compression="hevc", bit_depth=8,
-                        chroma_subsampling="420", save_all=False,
-                    )
+                    exif_data = image.info.get("exif")
+                    save_kwargs = {
+                        "format": "HEIF",
+                        "quality": 90,
+                        "compression": "hevc",
+                        "bit_depth": 8,
+                        "chroma_subsampling": "420",
+                        "save_all": False,
+                    }
+                    if exif_data:
+                        save_kwargs["exif"] = exif_data
+                    image.save(output_path, **save_kwargs)
                 else:
                     save_image = image
                     if pil_format == "JPEG" and image.mode not in ("RGB", "L"):

@@ -1,47 +1,100 @@
-"""Home Dashboard and Tools Grid pages — Phase 2 UI overhaul."""
+"""Home Dashboard and Tools Grid pages — Phase 3 UX overhaul.
+
+Notable Phase-3 additions:
+- HeroBanner accepts drag-and-drop; dropped media files are routed to a tool
+  via the ``file_dropped`` signal on HomePage.
+- The old Quick Access duplicate row is replaced by a Recent strip backed by
+  ``core.recent_jobs``.
+- ToolCard renders an IconTile (rounded square tinted with the tool's accent)
+  and gains a hover-lift drop shadow.
+- ToolsPage adds a category filter chip row.
+"""
 from __future__ import annotations
 
 import os
 from typing import Callable
 
 from core.i18n import tr
+from core import recent_jobs
 
-from PySide6.QtCore import Qt, QPoint, QRectF
+from PySide6.QtCore import Qt, QPoint, QRectF, Signal
 from PySide6.QtGui import (
     QColor, QLinearGradient, QRadialGradient,
     QPainter, QPainterPath, QPen, QBrush, QPixmap, QFont,
+    QDragEnterEvent, QDropEvent,
 )
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
-    QWidget, QFrame, QLabel,
+    QWidget, QFrame, QLabel, QPushButton,
     QVBoxLayout, QHBoxLayout, QGridLayout, QScrollArea,
-    QSizePolicy,
+    QSizePolicy, QGraphicsDropShadowEffect,
 )
 
 _ICONS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "icons")
 _APP_LOGO  = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "videl_logo.png")
 
 _TOOL_COLOR: dict[str, str] = {
-    "download":  "#3B82F6",  # blue
-    "convert":   "#22D3EE",  # cyan
-    "compress":  "#22C55E",  # green
-    "merge":     "#A855F7",  # purple
-    "trim":      "#F97316",  # orange
-    "mux":       "#EC4899",  # pink
-    "gif":       "#FACC15",  # yellow
-    "spatial":   "#FB923C",  # orange-400 — warm, distinct from trim
-    "document":  "#38BDF8",  # sky-400 — light cyan-blue
-    "scrub":     "#7C3AED",  # violet-600 — deep purple, distinct from merge
-    "chunk":     "#06B6D4",  # cyan-500 — pure cyan
-    "watermark":     "#0E7490",  # cyan-700 — deep teal
-    "frame_grabber": "#8B5CF6",  # violet-500
-    "palette":       "#F43F5E",  # rose-500
-    "bg_eraser":        "#10B981",  # emerald-500
-    "vocal_isolator":   "#A855F7",  # purple-500
-    "upscaler":         "#0EA5E9",  # sky-500
-    "pdf_toolkit":      "#EF4444",  # red-500
-    "jumpcut":          "#F59E0B",  # amber-500
-    "history":          "#6B7280",  # gray
+    "download":  "#3B82F6",
+    "convert":   "#22D3EE",
+    "compress":  "#22C55E",
+    "merge":     "#A855F7",
+    "trim":      "#F97316",
+    "mux":       "#EC4899",
+    "gif":       "#FACC15",
+    "spatial":   "#FB923C",
+    "document":  "#38BDF8",
+    "scrub":     "#7C3AED",
+    "chunk":     "#06B6D4",
+    "watermark":     "#0E7490",
+    "frame_grabber": "#8B5CF6",
+    "palette":       "#F43F5E",
+    "bg_eraser":        "#10B981",
+    "vocal_isolator":   "#A855F7",
+    "upscaler":         "#0EA5E9",
+    "pdf_toolkit":      "#EF4444",
+    "jumpcut":          "#F59E0B",
+    "subtitles":        "#14B8A6",
+    "history":          "#6B7280",
+}
+
+# Category for filter chips. Keep keys aligned with locale `filter_*` strings.
+_TOOL_CATEGORY: dict[str, str] = {
+    "download": "video",
+    "convert": "video",
+    "compress": "video",
+    "merge": "video",
+    "trim": "video",
+    "mux": "audio",
+    "gif": "video",
+    "spatial": "video",
+    "document": "document",
+    "scrub": "video",
+    "chunk": "video",
+    "watermark": "video",
+    "frame_grabber": "image",
+    "palette": "image",
+    "bg_eraser": "image",
+    "vocal_isolator": "audio",
+    "upscaler": "image",
+    "pdf_toolkit": "document",
+    "jumpcut": "video",
+    "subtitles": "video",
+}
+
+# File-extension → tool routing for the home drop-zone. Picked so the most
+# common creator workflow lands in the right tool: drop a video → Convert,
+# drop a PDF → PDF toolkit, drop an image → Convert (still a media op).
+_DROP_EXT_TO_TOOL: dict[str, str] = {
+    ".mp4": "convert", ".mov": "convert", ".mkv": "convert", ".webm": "convert",
+    ".avi": "convert", ".m4v": "convert",
+    ".mp3": "convert", ".wav": "convert", ".flac": "convert", ".m4a": "convert",
+    ".aac": "convert", ".ogg": "convert",
+    ".png": "convert", ".jpg": "convert", ".jpeg": "convert", ".webp": "convert",
+    ".gif": "gif", ".heic": "convert", ".bmp": "convert", ".tif": "convert",
+    ".pdf": "pdf_toolkit",
+    ".srt": "subtitles", ".vtt": "subtitles", ".ass": "subtitles", ".ssa": "subtitles",
+    ".docx": "document", ".doc": "document", ".pptx": "document",
+    ".xlsx": "document", ".txt": "document",
 }
 
 # Static icon/id/index data — labels come from i18n at runtime.
@@ -65,14 +118,8 @@ _ALL_TOOLS_META: list[tuple[str, str, str, str, int]] = [
     ("upscaler",        "upscaler.svg",        "tool_upscaler_name",        "tool_upscaler_desc",       16),
     ("pdf_toolkit",     "document.svg",        "tool_pdf_toolkit_name",     "tool_pdf_toolkit_desc",    17),
     ("jumpcut",         "jumpcut.svg",         "tool_jumpcut_name",         "tool_jumpcut_desc",        18),
-    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        19),
-]
-
-_QUICK_TOOLS_META: list[tuple[str, str, str, str, int]] = [
-    ("download", "download.svg", "quick_download_name", "quick_download_desc", 0),
-    ("compress", "compress.svg", "quick_compress_name", "quick_compress_desc", 5),
-    ("convert",  "convert.svg",  "quick_convert_name",  "quick_convert_desc",  1),
-    ("merge",    "merge.svg",    "quick_merge_name",    "quick_merge_desc",    6),
+    ("subtitles",       "subtitles.svg",       "tool_subtitles_name",       "tool_subtitles_desc",      19),
+    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        20),
 ]
 
 
@@ -89,8 +136,11 @@ def _home_tools() -> list[tuple[str, str, str, str, int]]:
     return _resolved_tools(_ALL_TOOLS_META[:7])
 
 
-def _quick_tools() -> list[tuple[str, str, str, str, int]]:
-    return _resolved_tools(_QUICK_TOOLS_META)
+def _meta_for_tool(tool_id: str) -> tuple[str, str, str, str, int] | None:
+    for entry in _ALL_TOOLS_META:
+        if entry[0] == tool_id:
+            return entry
+    return None
 
 
 # ── Icon loader ───────────────────────────────────────────────────────────────
@@ -117,17 +167,75 @@ def _load_icon(filename: str, size: int = 32, color: str = "#8B949E") -> QPixmap
     return pixmap
 
 
-# ── Clickable base ────────────────────────────────────────────────────────────
+# ── Icon tile (tinted accent square behind icon) ──────────────────────────────
+
+class IconTile(QWidget):
+    """Rounded square tinted with the tool accent (~14% alpha) hosting the icon.
+
+    Replaces the previous flat icon-only treatment so the tool color reads at
+    a glance, without changing the global card background.
+    """
+
+    def __init__(
+        self,
+        icon_file: str,
+        accent_hex: str,
+        tile_size: int = 48,
+        icon_size: int = 26,
+        parent=None,
+    ) -> None:
+        super().__init__(parent)
+        self._tile = tile_size
+        self._icon_size = icon_size
+        self._accent = QColor(accent_hex)
+        self._pixmap = _load_icon(icon_file, icon_size, accent_hex)
+        self.setFixedSize(tile_size, tile_size)
+
+    def paintEvent(self, _event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        bg = QColor(self._accent)
+        bg.setAlpha(36)  # ~14%
+        p.setBrush(QBrush(bg))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(0, 0, self._tile, self._tile, 12, 12)
+        if not self._pixmap.isNull():
+            ix = (self._tile - self._pixmap.width()) // 2
+            iy = (self._tile - self._pixmap.height()) // 2
+            p.drawPixmap(ix, iy, self._pixmap)
+        p.end()
+
+
+# ── Clickable base with hover-lift drop shadow ────────────────────────────────
 
 class _ClickableFrame(QFrame):
     def __init__(self, callback: Callable[[], None], parent=None) -> None:
         super().__init__(parent)
         self._cb = callback
+        # Hover-lift effect — disabled until enterEvent fires so idle cards
+        # don't all carry shadow children (cheaper on long grids).
+        self._shadow = QGraphicsDropShadowEffect(self)
+        self._shadow.setBlurRadius(0)
+        self._shadow.setOffset(0, 0)
+        self._shadow.setColor(QColor(0, 0, 0, 0))
+        self.setGraphicsEffect(self._shadow)
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self._cb()
         super().mousePressEvent(event)
+
+    def enterEvent(self, event) -> None:  # type: ignore[override]
+        self._shadow.setBlurRadius(24)
+        self._shadow.setOffset(0, 6)
+        self._shadow.setColor(QColor(59, 130, 246, 110))
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:  # type: ignore[override]
+        self._shadow.setBlurRadius(0)
+        self._shadow.setOffset(0, 0)
+        self._shadow.setColor(QColor(0, 0, 0, 0))
+        super().leaveEvent(event)
 
 
 # ── Gradient title label ──────────────────────────────────────────────────────
@@ -138,10 +246,6 @@ class _GradientTitleLabel(QWidget):
     def __init__(self, text: str, parent=None) -> None:
         super().__init__(parent)
         self._text = text
-
-    def set_text(self, text: str) -> None:
-        self._text = text
-        self.update()
         font = QFont()
         font.setPointSize(20)
         font.setBold(True)
@@ -149,6 +253,10 @@ class _GradientTitleLabel(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setFixedHeight(36)
+
+    def set_text(self, text: str) -> None:
+        self._text = text
+        self.update()
 
     def paintEvent(self, _event) -> None:
         painter = QPainter(self)
@@ -165,17 +273,16 @@ class _GradientTitleLabel(QWidget):
         painter.end()
 
 
-# ── Hero Banner (fully custom painted) ───────────────────────────────────────
+# ── Hero Banner with drop-zone ───────────────────────────────────────────────
 
 class HeroBanner(QFrame):
+    """Painted welcome banner that doubles as a drop target.
+
+    Emits ``file_dropped(path, tool_id, section_idx)`` so the parent page can
+    forward it to the main window for routing.
     """
-    Layered hero widget:
-      1. Deep navy base gradient (135° linear)
-      2. Right-side radial blue glow
-      3. Subtle wave / flow line
-      4. Logo with soft halo (right side, vertically centred)
-      5. Text content on left (gradient title + subtitle)
-    """
+
+    file_dropped = Signal(str, str, int)
 
     _LOGO_W = 200
     _LOGO_H = 150
@@ -183,10 +290,11 @@ class HeroBanner(QFrame):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("HeroBanner")
-        self.setMinimumHeight(200)
+        self.setMinimumHeight(170)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        self.setAcceptDrops(True)
+        self._drag_active = False
 
-        # Load logo once
         raw = QPixmap(_APP_LOGO)
         self._logo_px = (
             raw.scaled(
@@ -197,23 +305,57 @@ class HeroBanner(QFrame):
             if not raw.isNull() else QPixmap()
         )
 
-        # Content layout (painted bg, children on top)
         outer = QHBoxLayout(self)
-        outer.setContentsMargins(44, 36, self._LOGO_W + 32, 36)
+        outer.setContentsMargins(44, 28, self._LOGO_W + 32, 28)
         outer.setSpacing(0)
 
         left = QVBoxLayout()
-        left.setSpacing(12)
+        left.setSpacing(8)
 
         self._title_lbl = _GradientTitleLabel(tr("welcome_title"))
         self._sub_lbl = QLabel(tr("hero_subtitle"))
         self._sub_lbl.setObjectName("HeroSubtitle")
-        sub = self._sub_lbl
+        self._drop_hint = QLabel(tr("hero_drop_hint"))
+        self._drop_hint.setObjectName("HeroDropHint")
+
         left.addWidget(self._title_lbl)
         left.addWidget(self._sub_lbl)
+        left.addSpacing(4)
+        left.addWidget(self._drop_hint)
         left.addStretch()
 
         outer.addLayout(left)
+
+    # ── Drag & drop ────────────────────────────────────────────────────────
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:  # type: ignore[override]
+        if event.mimeData().hasUrls():
+            self._drag_active = True
+            self.update()
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event) -> None:  # type: ignore[override]
+        self._drag_active = False
+        self.update()
+        super().dragLeaveEvent(event)
+
+    def dropEvent(self, event: QDropEvent) -> None:  # type: ignore[override]
+        self._drag_active = False
+        self.update()
+        urls = event.mimeData().urls()
+        if not urls:
+            return
+        path = urls[0].toLocalFile()
+        if not path:
+            return
+        ext = os.path.splitext(path)[1].lower()
+        tool_id = _DROP_EXT_TO_TOOL.get(ext, "convert")
+        meta = _meta_for_tool(tool_id)
+        if meta is None:
+            return
+        self.file_dropped.emit(path, tool_id, meta[4])
+        event.acceptProposedAction()
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
@@ -221,7 +363,6 @@ class HeroBanner(QFrame):
 
         w, h = self.width(), self.height()
 
-        # 1. Base gradient — deep navy 135°
         base = QLinearGradient(0, 0, w, h)
         base.setColorAt(0.00, QColor("#0D1530"))
         base.setColorAt(0.40, QColor("#0A1020"))
@@ -230,7 +371,6 @@ class HeroBanner(QFrame):
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(0, 0, w, h, 16, 16)
 
-        # 2. Right-side radial blue glow
         glow_cx = w * 0.75
         glow_cy = h * 0.40
         glow_r  = max(w, h) * 0.70
@@ -242,7 +382,6 @@ class HeroBanner(QFrame):
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRect(0, 0, w, h)
 
-        # 3. Subtle wave / flow line
         wave = QPainterPath()
         wave.moveTo(0, h * 0.65)
         wave.cubicTo(
@@ -255,7 +394,6 @@ class HeroBanner(QFrame):
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(wave)
 
-        # 4. Logo halo (soft radial behind logo position)
         logo_cx = w - self._LOGO_W // 2 - 20
         logo_cy = h // 2
         halo = QRadialGradient(logo_cx, logo_cy, 130)
@@ -263,23 +401,22 @@ class HeroBanner(QFrame):
         halo.setColorAt(1.00, QColor(0,   0,   0,  0))
         painter.setBrush(QBrush(halo))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(
-            int(logo_cx - 130), int(logo_cy - 130), 260, 260
-        )
+        painter.drawEllipse(int(logo_cx - 130), int(logo_cy - 130), 260, 260)
 
-        # 5. Rounded border
-        border_pen = QPen(QColor(30, 58, 138, 120), 1)
+        # Border — emphasised when a drag is hovering over the banner.
+        if self._drag_active:
+            border_pen = QPen(QColor(96, 165, 250, 220), 2)
+        else:
+            border_pen = QPen(QColor(30, 58, 138, 120), 1)
         painter.setPen(border_pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRoundedRect(0, 0, w - 1, h - 1, 16, 16)
 
         painter.end()
 
-        # 6. Draw logo centred in right zone, on top of glow
         if not self._logo_px.isNull():
             lx = w - self._logo_px.width() - 20
             ly = (h - self._logo_px.height()) // 2
-            # Use a fresh painter scoped to logo draw
             p2 = QPainter(self)
             p2.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
             p2.drawPixmap(lx, ly, self._logo_px)
@@ -299,19 +436,21 @@ class ToolCard(_ClickableFrame):
         navigate_cb: Callable[[int], None],
         parent=None,
     ) -> None:
-        super().__init__(lambda: navigate_cb(section_idx), parent)
+        # Wrap nav so opening a tool also records into recents.
+        def _navigate() -> None:
+            recent_jobs.record_open(tool_id, section_idx)
+            navigate_cb(section_idx)
+
+        super().__init__(_navigate, parent)
         self.setObjectName("ToolCard")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         color = _TOOL_COLOR.get(tool_id, "#6B7280")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(10)
+        layout.setSpacing(12)
 
-        icon_lbl = QLabel()
-        icon_lbl.setFixedSize(40, 40)
-        icon_lbl.setPixmap(_load_icon(icon_file, 40, color))
-        layout.addWidget(icon_lbl)
+        layout.addWidget(IconTile(icon_file, color, tile_size=48, icon_size=26))
 
         self._title_lbl = QLabel(title)
         self._title_lbl.setObjectName("ToolCardTitle")
@@ -349,7 +488,7 @@ class MoreToolsCard(_ClickableFrame):
         icon_lbl.setFixedSize(40, 40)
         icon_lbl.setPixmap(_load_icon("dashboard.svg", 40, "#6B7280"))
         icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(icon_lbl)
+        layout.addWidget(icon_lbl, alignment=Qt.AlignmentFlag.AlignCenter)
 
         self._title_lbl = QLabel(tr("home_more_tools"))
         self._title_lbl.setObjectName("ToolCardTitle")
@@ -364,65 +503,94 @@ class MoreToolsCard(_ClickableFrame):
         layout.addStretch()
 
 
-# ── Quick Access cards ────────────────────────────────────────────────────────
+# ── Recent strip card ────────────────────────────────────────────────────────
 
-class QuickAccessCard(_ClickableFrame):
+class RecentJobCard(_ClickableFrame):
+    """Compact card used in the home Recent strip."""
+
     def __init__(
         self,
         tool_id: str,
         icon_file: str,
         title: str,
-        subtitle: str,
         section_idx: int,
         navigate_cb: Callable[[int], None],
         parent=None,
     ) -> None:
         super().__init__(lambda: navigate_cb(section_idx), parent)
-        self.setObjectName("QuickCard")
+        self.setObjectName("RecentJobCard")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         color = _TOOL_COLOR.get(tool_id, "#6B7280")
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setContentsMargins(12, 10, 14, 10)
         layout.setSpacing(10)
 
-        icon_lbl = QLabel()
-        icon_lbl.setFixedSize(28, 28)
-        icon_lbl.setPixmap(_load_icon(icon_file, 28, color))
-        layout.addWidget(icon_lbl)
+        layout.addWidget(IconTile(icon_file, color, tile_size=34, icon_size=18))
 
-        text_col = QVBoxLayout()
-        text_col.setSpacing(2)
         self._title_lbl = QLabel(title)
-        self._title_lbl.setObjectName("QuickCardTitle")
-        self._sub_lbl = QLabel(subtitle)
-        self._sub_lbl.setObjectName("QuickCardSub")
-        text_col.addWidget(self._title_lbl)
-        text_col.addWidget(self._sub_lbl)
-        layout.addLayout(text_col)
+        self._title_lbl.setObjectName("RecentJobTitle")
+        layout.addWidget(self._title_lbl)
         layout.addStretch()
 
-    def update_text(self, title: str, subtitle: str) -> None:
-        self._title_lbl.setText(title)
-        self._sub_lbl.setText(subtitle)
 
+# ── Filter chips ──────────────────────────────────────────────────────────────
 
-class ViewAllCard(_ClickableFrame):
-    def update_text(self) -> None:
-        self._lbl.setText(tr("home_view_all"))
+class FilterChipBar(QWidget):
+    """Pill buttons for filtering the Tools grid by category.
 
-    def __init__(self, show_tools_cb: Callable[[], None], parent=None) -> None:
-        super().__init__(show_tools_cb, parent)
-        self.setObjectName("ViewAllCard")
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
+    Emits ``filter_changed(category_id)`` where ``category_id`` is one of
+    ``all|video|audio|image|document``.
+    """
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(14, 12, 14, 12)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    filter_changed = Signal(str)
 
-        self._lbl = QLabel(tr("home_view_all"))
-        self._lbl.setObjectName("ViewAllLabel")
-        layout.addWidget(self._lbl)
+    _CATEGORIES: list[tuple[str, str]] = [
+        ("all", "filter_all"),
+        ("video", "filter_video"),
+        ("audio", "filter_audio"),
+        ("image", "filter_image"),
+        ("document", "filter_document"),
+    ]
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._active = "all"
+        self._buttons: list[tuple[str, QPushButton]] = []
+
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
+
+        for cat_id, key in self._CATEGORIES:
+            btn = QPushButton(tr(key))
+            btn.setObjectName("FilterChipActive" if cat_id == self._active else "FilterChip")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setCheckable(True)
+            btn.setChecked(cat_id == self._active)
+            btn.clicked.connect(lambda _checked=False, c=cat_id: self._select(c))
+            self._buttons.append((cat_id, btn))
+            row.addWidget(btn)
+        row.addStretch()
+
+    def _select(self, cat_id: str) -> None:
+        if cat_id == self._active:
+            # Re-affirm checked state since QPushButton toggles on click.
+            for c, b in self._buttons:
+                b.setChecked(c == self._active)
+            return
+        self._active = cat_id
+        for c, b in self._buttons:
+            b.setChecked(c == cat_id)
+            b.setObjectName("FilterChipActive" if c == cat_id else "FilterChip")
+            # Force re-style after objectName change.
+            b.style().unpolish(b)
+            b.style().polish(b)
+        self.filter_changed.emit(cat_id)
+
+    def retranslate_ui(self) -> None:
+        for (cat_id, key), (_c, btn) in zip(self._CATEGORIES, self._buttons):
+            btn.setText(tr(key))
 
 
 # ── Grid builder ──────────────────────────────────────────────────────────────
@@ -452,7 +620,9 @@ def _build_tools_grid(
 # ── Pages ─────────────────────────────────────────────────────────────────────
 
 class HomePage(QScrollArea):
-    """Landing screen: painted hero + quick access + 7-tool grid + More Tools."""
+    """Landing screen: hero (drop target) + Recent strip + 7-tool grid."""
+
+    file_dropped = Signal(str, str, int)
 
     def __init__(
         self,
@@ -469,31 +639,30 @@ class HomePage(QScrollArea):
         content = QWidget()
         self._root = QVBoxLayout(content)
         self._root.setContentsMargins(32, 32, 32, 32)
-        self._root.setSpacing(28)
+        self._root.setSpacing(24)
 
         # Hero
         self._hero = HeroBanner()
+        self._hero.file_dropped.connect(self.file_dropped)
         self._root.addWidget(self._hero)
 
-        # Quick Access header
-        qa_hdr = QHBoxLayout()
-        self._qa_lbl = QLabel(tr("home_quick_access"))
-        self._qa_lbl.setObjectName("SectionLabel")
-        qa_hdr.addWidget(self._qa_lbl)
-        qa_hdr.addStretch()
-        self._root.addLayout(qa_hdr)
+        # Recent strip header
+        recent_hdr = QHBoxLayout()
+        self._recent_lbl = QLabel(tr("recent_jobs_title"))
+        self._recent_lbl.setObjectName("SectionLabel")
+        recent_hdr.addWidget(self._recent_lbl)
+        recent_hdr.addStretch()
+        self._root.addLayout(recent_hdr)
 
-        # Quick Access cards
-        self._quick_row = QHBoxLayout()
-        self._quick_row.setSpacing(12)
-        self._quick_cards: list[QuickAccessCard] = []
-        self._view_all_card = ViewAllCard(show_tools_cb)
-        for tool_id, icon_file, title, sub, idx in _quick_tools():
-            card = QuickAccessCard(tool_id, icon_file, title, sub, idx, navigate_cb)
-            self._quick_cards.append(card)
-            self._quick_row.addWidget(card)
-        self._quick_row.addWidget(self._view_all_card)
-        self._root.addLayout(self._quick_row)
+        # Recent strip body — populated/refreshed in _populate_recent.
+        self._recent_row = QHBoxLayout()
+        self._recent_row.setSpacing(12)
+        self._recent_empty_lbl = QLabel(tr("recent_jobs_empty"))
+        self._recent_empty_lbl.setObjectName("RecentEmptyLabel")
+        self._recent_empty_lbl.setWordWrap(True)
+        self._recent_cards: list[RecentJobCard] = []
+        self._populate_recent()
+        self._root.addLayout(self._recent_row)
 
         # Tools section header
         self._tools_lbl = QLabel(tr("home_tools_section"))
@@ -508,6 +677,36 @@ class HomePage(QScrollArea):
         self._root.addStretch()
 
         self.setWidget(content)
+
+    def _clear_recent_row(self) -> None:
+        while self._recent_row.count():
+            item = self._recent_row.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+        self._recent_cards.clear()
+
+    def _populate_recent(self) -> None:
+        self._clear_recent_row()
+        recents = recent_jobs.list_recent(limit=5)
+        if not recents:
+            self._recent_row.addWidget(self._recent_empty_lbl)
+            return
+        for tool_id, idx in recents:
+            meta = _meta_for_tool(tool_id)
+            if meta is None:
+                continue
+            _tid, icon_file, name_key, _desc_key, _idx = meta
+            card = RecentJobCard(
+                tool_id, icon_file, tr(name_key), idx, self._navigate_cb,
+            )
+            self._recent_cards.append(card)
+            self._recent_row.addWidget(card)
+        self._recent_row.addStretch()
+
+    def refresh_recent(self) -> None:
+        """Public hook so MainWindow can refresh the strip after navigation."""
+        self._populate_recent()
 
     def _build_grid(self, cols: int = 4) -> QWidget:
         grid_widget = QWidget()
@@ -529,25 +728,27 @@ class HomePage(QScrollArea):
     def retranslate_ui(self) -> None:
         self._hero._title_lbl.set_text(tr("welcome_title"))
         self._hero._sub_lbl.setText(tr("hero_subtitle"))
-        self._qa_lbl.setText(tr("home_quick_access"))
+        self._hero._drop_hint.setText(tr("hero_drop_hint"))
+        self._recent_lbl.setText(tr("recent_jobs_title"))
+        self._recent_empty_lbl.setText(tr("recent_jobs_empty"))
         self._tools_lbl.setText(tr("home_tools_section"))
-        self._view_all_card.update_text()
         if self._more_tools_card:
             self._more_tools_card.update_text()
-        for card, (_, _, title, sub, _idx) in zip(self._quick_cards, _quick_tools()):
-            card.update_text(title, sub)
         for card, (_, _, title, desc, _idx) in zip(self._tool_cards, _home_tools()):
             card.update_text(title, desc)
+        # Re-render recent labels (titles are tool names from i18n).
+        self._populate_recent()
 
 
 class ToolsPage(QScrollArea):
-    """Full tools grid page — all tools."""
+    """Full tools grid page — all tools, with category filter chips."""
 
     def __init__(self, navigate_cb: Callable[[int], None], parent=None) -> None:
         super().__init__(parent)
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
         self._navigate_cb = navigate_cb
+        self._active_filter = "all"
 
         content = QWidget()
         root = QVBoxLayout(content)
@@ -562,7 +763,12 @@ class ToolsPage(QScrollArea):
         self._sub.setObjectName("TextSecondary")
         root.addWidget(self._sub)
 
-        self._tool_cards: list[ToolCard] = []
+        # Filter chips
+        self._chip_bar = FilterChipBar()
+        self._chip_bar.filter_changed.connect(self._on_filter_changed)
+        root.addWidget(self._chip_bar)
+
+        self._tool_cards: list[tuple[str, ToolCard]] = []
         grid_widget = QWidget()
         self._grid = QGridLayout(grid_widget)
         self._grid.setSpacing(16)
@@ -573,16 +779,65 @@ class ToolsPage(QScrollArea):
 
         self.setWidget(content)
 
+    def _matches_filter(self, tool_id: str) -> bool:
+        if self._active_filter == "all":
+            return True
+        return _TOOL_CATEGORY.get(tool_id) == self._active_filter
+
+    def _clear_grid(self) -> None:
+        while self._grid.count():
+            item = self._grid.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+        self._tool_cards.clear()
+
     def _populate_grid(self) -> None:
         cols = 4
-        self._tool_cards.clear()
-        for i, (tool_id, icon_file, title, desc, idx) in enumerate(_all_tools()):
+        self._clear_grid()
+        visible = [
+            entry for entry in _all_tools()
+            if self._matches_filter(entry[0])
+        ]
+        # Reset all column stretches so a previous filter's setup doesn't leak
+        # in. The branch below picks the right policy for full vs partial rows.
+        for c in range(cols + 1):
+            self._grid.setColumnStretch(c, 0)
+
+        # Partial: any row with < cols cards. Cap card width and let a phantom
+        # trailing column eat leftover so the few cards don't blow up.
+        # Full: at least one row of `cols` cards. Let columns share width
+        # evenly so the grid spans the page instead of leaving a big right
+        # gap from the phantom column.
+        partial = len(visible) < cols
+        for i, (tool_id, icon_file, title, desc, idx) in enumerate(visible):
             card = ToolCard(tool_id, icon_file, title, desc, idx, self._navigate_cb)
-            self._tool_cards.append(card)
-            self._grid.addWidget(card, i // cols, i % cols)
+            if partial:
+                card.setMinimumWidth(220)
+                card.setMaximumWidth(280)
+                card.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+            self._tool_cards.append((tool_id, card))
+            if partial:
+                self._grid.addWidget(
+                    card, i // cols, i % cols,
+                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop,
+                )
+            else:
+                self._grid.addWidget(card, i // cols, i % cols)
+
+        if partial:
+            self._grid.setColumnStretch(cols, 1)
+        else:
+            for c in range(cols):
+                self._grid.setColumnStretch(c, 1)
+
+    def _on_filter_changed(self, cat_id: str) -> None:
+        self._active_filter = cat_id
+        self._populate_grid()
 
     def retranslate_ui(self) -> None:
         self._header.setText(tr("nav_tools"))
         self._sub.setText(tr("tools_page_subtitle"))
-        for card, (_, _, title, desc, _idx) in zip(self._tool_cards, _all_tools()):
-            card.update_text(title, desc)
+        self._chip_bar.retranslate_ui()
+        # Rebuild grid so card text updates with new locale.
+        self._populate_grid()

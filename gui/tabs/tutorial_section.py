@@ -446,6 +446,28 @@ _TUTORIAL_DATA_EN = [
         ],
     },
     {
+        "emoji": "💬",
+        "title": "Subtitles (Burn-In)",
+        "description": (
+            "Hardcode an SRT/VTT/ASS subtitle file into a video so captions "
+            "render on every player. Also: download subtitles directly with the video in the Downloader tab."
+        ),
+        "steps": [
+            "Open the Subtitles tab.",
+            "Pick the source video and the subtitle file (.srt, .vtt, .ass).",
+            "Set font size, color, and outline thickness for readability.",
+            "Pick CRF (lower = better) and Hardware encoder if available (NVIDIA/AMD/Intel).",
+            "Optional: choose an output folder — defaults to alongside the source as <name>_subbed.<ext>.",
+            "Click Burn Subtitles (or Ctrl+Enter).",
+            "Tip: in the Downloader tab, tick Download subtitles to grab .srt files alongside the video.",
+        ],
+        "tips": [
+            "Auto-generated YouTube subs require ticking Include auto-generated.",
+            "GPU encoding (NVENC/AMF/QSV) is 5–10× faster than CPU at the same CRF.",
+            "Use a higher outline (3–4) if captions sit on bright/busy footage.",
+        ],
+    },
+    {
         "emoji": "🐞",
         "title": "Bug Reporter",
         "description": (
@@ -503,6 +525,55 @@ _TUTORIAL_DATA_EN = [
         "tips": [
             "No internet → check fails silently; the app still launches normally.",
             "Because builds are PyInstaller --onefile, updates are full re-downloads (no binary patching).",
+        ],
+    },
+    {
+        "emoji": "⌘",
+        "title": "Quick Open (Ctrl+K)",
+        "description": (
+            "Press Ctrl+K anywhere in the app to open the command palette and "
+            "fuzzy-search every Videl tool by name."
+        ),
+        "steps": [
+            "Press Ctrl+K — or click the search button at the top of the sidebar.",
+            "Type a few letters of any tool: 'comp' finds Compress, 'pdf' finds PDF Toolkit.",
+            "Use ↑/↓ to highlight, Enter to open, Esc to close.",
+        ],
+        "tips": [
+            "Tool names + descriptions are both searched, so 'shrink' finds Compress.",
+            "Faster than navigating through Home → Tools for tools you already know.",
+        ],
+    },
+    {
+        "emoji": "⤓",
+        "title": "Drag & Drop on Home",
+        "description": (
+            "Drop a media file onto the welcome banner on Home and Videl routes "
+            "it to the matching tool automatically."
+        ),
+        "steps": [
+            "Open Home.",
+            "Drag a file from File Explorer onto the welcome banner.",
+            "Videl picks the right tool: video → Convert, .pdf → PDF Toolkit, .gif → GIF Creator.",
+        ],
+        "tips": [
+            "The banner glows when it accepts the drop.",
+            "If the file type is unknown, it falls back to Convert Media.",
+        ],
+    },
+    {
+        "emoji": "⊞",
+        "title": "Filter Tools by Category",
+        "description": (
+            "On the Tools page, narrow the grid to the tools you care about with the chip bar."
+        ),
+        "steps": [
+            "Open the Tools page.",
+            "Click All / Video / Audio / Image / Document above the grid.",
+            "The grid updates instantly; click All to clear the filter.",
+        ],
+        "tips": [
+            "Pair with Ctrl+K — chips reduce the list, palette jumps you in.",
         ],
     },
 ]
@@ -944,6 +1015,28 @@ _TUTORIAL_DATA_AR = [
         ],
     },
     {
+        "emoji": "💬",
+        "title": "الترجمات (دمج داخل الفيديو)",
+        "description": (
+            "ادمج ملف ترجمة SRT/VTT/ASS داخل الفيديو لتظهر الترجمة في كل مشغّل. "
+            "كذلك يمكن تنزيل الترجمات مباشرة مع الفيديو من تبويب التحميل."
+        ),
+        "steps": [
+            "افتح تبويب 'الترجمات'.",
+            "اختر فيديو المصدر وملف الترجمة (.srt أو .vtt أو .ass).",
+            "حدّد حجم الخط واللون وسماكة الحدود لتحسين الوضوح.",
+            "اختر CRF (الأقل = جودة أعلى) ومسرّع العتاد إن توفّر (NVIDIA/AMD/Intel).",
+            "اختياري: حدد مجلد الإخراج — افتراضياً يُحفظ بجوار المصدر باسم <name>_subbed.<ext>.",
+            "انقر 'دمج الترجمة' (أو Ctrl+Enter).",
+            "نصيحة: في تبويب التحميل، فعّل 'تنزيل الترجمات' لجلب ملفات .srt مع الفيديو.",
+        ],
+        "tips": [
+            "الترجمات التلقائية من يوتيوب تتطلب تفعيل 'تضمين الترجمات التلقائية'.",
+            "ترميز GPU (NVENC/AMF/QSV) أسرع 5–10 أضعاف من المعالج بنفس CRF.",
+            "ارفع سماكة الحدود (3–4) إذا كانت الترجمة فوق خلفية ساطعة أو مزدحمة.",
+        ],
+    },
+    {
         "emoji": "🐞",
         "title": "مُبلِّغ الأخطاء",
         "description": (
@@ -1031,9 +1124,13 @@ _TUTORIAL_SECTION_IDS: list[str | None] = [
     None,              # 20 Keyboard Shortcuts
     "pdf_toolkit",     # 21 PDF Toolkit
     "jumpcut",         # 22 Jump-Cutter
-    "bug_reporter",    # 23 Bug Reporter
-    None,              # 24 Browser Extension (cross-cutting, no own section)
-    None,              # 25 Smart Updater (cross-cutting, no own section)
+    "subtitles",       # 23 Subtitles (burn-in)
+    "bug_reporter",    # 24 Bug Reporter
+    None,              # 25 Browser Extension (cross-cutting, no own section)
+    None,              # 26 Smart Updater (cross-cutting, no own section)
+    None,              # 27 Quick Open (Ctrl+K) — cross-cutting
+    None,              # 28 Drag & Drop on Home — cross-cutting
+    None,              # 29 Filter Tools by Category — cross-cutting
 ]
 
 

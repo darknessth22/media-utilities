@@ -1,4 +1,6 @@
-yt-dlp>=2023.3.4
+yt-dlp>=2025.1.15
+# Bridges yt-dlp to a system Node.js runtime to solve YT n-sig challenges.
+yt-dlp-ejs
 Pillow>=9.5.0
 pillow-heif>=0.10.0
 # rembg and demucs installed on-demand via in-app button (not bundled in build)
@@ -16,3 +18,4 @@ playwright>=1.40.0
 pywin32>=306
 openpyxl>=3.1.0
 python-pptx>=0.6.21
+cryptography>=42.0.0
