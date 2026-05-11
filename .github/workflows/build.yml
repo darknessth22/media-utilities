@@ -2,7 +2,8 @@ name: Build Videl
 
 on:
   push:
-    branches: [main, phase1/security-stability]
+    branches: [master, main, phase1/security-stability]
+    tags: ['v*']
   workflow_dispatch:
 
 jobs:
