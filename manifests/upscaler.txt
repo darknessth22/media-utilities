@@ -1,18 +1,11 @@
-# AI Upscaler (Real-ESRGAN) — torch is reused from the vocal_isolator install.
-#
-# Without --no-deps, pip would resolve `torch` + `torchvision` as transitive
-# dependencies of basicsr/realesrgan and silently redownload them (~200 MB CPU
-# wheel) on top of the already-installed CUDA torch in vocal_isolator. We pin
-# every transitive dep here explicitly and pass --no-deps so pip never goes
-# fishing for torch.
-torchvision==0.19.1
+# AI Upscaler (Real-ESRGAN) — runs on shared torch_runtime.
+# torch + torchvision + numpy live in torch_runtime; --no-deps in registry.
 realesrgan==0.3.0
 basicsr==1.4.2
 facexlib==0.3.0
 gfpgan==1.3.8
 filterpy==1.4.5
 opencv-python==4.10.0.84
-numpy==1.26.4
 Pillow==10.4.0
 tqdm==4.66.5
 scipy==1.13.1

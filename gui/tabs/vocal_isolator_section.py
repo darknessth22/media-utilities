@@ -322,22 +322,35 @@ class VocalIsolatorSection(QScrollArea):
                 )
             except Exception:
                 pass
-        model_manager.finalize_install(self._component_id, exit_code, tail)
+        actual_id = (proc.property("videl_component_id") if proc else None) or self._component_id
+        target_id = (proc.property("videl_target_id") if proc else None) or self._component_id
+        model_manager.finalize_install(actual_id, exit_code, tail)
 
         if exit_code == 0:
-            self._install_status.setStyleSheet("font-size: 12px; color: #22C55E;")
-            self._install_status.setText(tr("lbl_model_install_done"))
-            self._install_btn.setEnabled(True)
             import importlib
             importlib.invalidate_caches()
             model_manager.ensure_ai_packages_on_path()
+            if actual_id != target_id and not model_manager.is_installed(target_id):
+                self._on_install_line(f"[deps] Continuing with {target_id}…")
+                variant = getattr(self, "_chosen_variant", None)
+                try:
+                    self._install_proc = model_manager.start_install(
+                        target_id, on_line=self._on_install_line, variant=variant,
+                    )
+                    self._install_proc.finished.connect(self._on_install_finished)
+                    return
+                except Exception as exc:
+                    self._render_install_error(tr("install_error_generic").format(error=str(exc)))
+                    return
+            self._install_status.setStyleSheet("font-size: 12px; color: #22C55E;")
+            self._install_status.setText(tr("lbl_model_install_done"))
+            self._install_btn.setEnabled(True)
             self._refresh_install_state()
-            # Re-probe device — initial probe ran before files existed.
             self._detect_device_async()
             return
 
-        state = model_manager.read_state(self._component_id)
-        info = model_manager.pre_install_info(self._component_id, state.variant)
+        state = model_manager.read_state(actual_id)
+        info = model_manager.pre_install_info(actual_id, state.variant)
         msg = classify_install_error(
             state.last_error or tail,
             target=info.target_dir,

@@ -1,0 +1,7 @@
+# Shared PyTorch runtime — CUDA 12.8 build (Blackwell sm_120 support).
+# Installed once on demand by the first AI tool that requests CUDA.
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.7.0+cu128
+torchvision==0.22.0+cu128
+torchaudio==2.7.0+cu128
+numpy==1.26.4

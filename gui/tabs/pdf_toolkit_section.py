@@ -1241,8 +1241,9 @@ class _OcrPane(QWidget):
     def _on_install_finished(self, exit_code: int, _status) -> None:
         proc = self._install_proc
         self._install_proc = None
-        cid = self._installing_id or self._engine_component_id(self._current_engine())
-        self._installing_id = None
+        target_id = self._installing_id or self._engine_component_id(self._current_engine())
+        actual_id = (proc.property("videl_component_id") if proc else None) or target_id
+        proc_target = (proc.property("videl_target_id") if proc else None) or target_id
 
         tail = "\n".join(self._install_tail)
         if proc is not None:
@@ -1250,19 +1251,33 @@ class _OcrPane(QWidget):
                 tail += bytes(proc.readAllStandardOutput()).decode("utf-8", errors="replace")
             except Exception:
                 pass
-        model_manager.finalize_install(cid, exit_code, tail)
+        model_manager.finalize_install(actual_id, exit_code, tail)
 
         if exit_code == 0:
-            self._install_status.setStyleSheet("font-size: 12px; color: #22C55E;")
-            self._install_status.setText(tr("lbl_ocr_install_done"))
             import importlib
             importlib.invalidate_caches()
             model_manager.ensure_ai_packages_on_path()
+            if actual_id != proc_target and not model_manager.is_installed(proc_target):
+                # Continue dep chain.
+                try:
+                    self._install_proc = model_manager.start_install(
+                        proc_target, on_line=self._on_install_line,
+                    )
+                    self._installing_id = proc_target
+                    self._install_proc.finished.connect(self._on_install_finished)
+                    return
+                except Exception as exc:
+                    self._render_install_error(tr("install_error_generic").format(error=str(exc)))
+                    return
+            self._installing_id = None
+            self._install_status.setStyleSheet("font-size: 12px; color: #22C55E;")
+            self._install_status.setText(tr("lbl_ocr_install_done"))
             self._refresh_engine_state()
             return
 
-        state = model_manager.read_state(cid)
-        info = model_manager.pre_install_info(cid, state.variant)
+        self._installing_id = None
+        state = model_manager.read_state(actual_id)
+        info = model_manager.pre_install_info(actual_id, state.variant)
         msg = classify_install_error(
             state.last_error or tail,
             target=info.target_dir,

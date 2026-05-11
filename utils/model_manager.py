@@ -163,7 +163,96 @@ def is_installed(component_id: str) -> bool:
     return os.path.isdir(pkg) or os.path.isfile(pkg + ".py")
 
 
+def _migrate_torch_to_runtime_dir() -> None:
+    """One-time migration: lift torch/torchvision/torchaudio/numpy/nvidia* out
+    of `vocal_isolator/` (legacy install layout) into the new shared
+    `torch_runtime/` dir, then mark torch_runtime installed with the variant
+    inherited from vocal_isolator. Does nothing if torch_runtime already
+    exists or vocal_isolator was never installed.
+    """
+    if read_state("torch_runtime").status == "installed":
+        return
+    vocal_state = read_state("vocal_isolator")
+    if vocal_state.status != "installed":
+        return
+    src = _component_dir("vocal_isolator")
+    dst = _component_dir("torch_runtime")
+    if not os.path.isdir(src):
+        return
+
+    moved_any = False
+    os.makedirs(dst, exist_ok=True)
+    for name in os.listdir(src):
+        if name == "state.json":
+            continue
+        # Heuristic: torch / torchvision / torchaudio / numpy / nvidia-* / functorch
+        # plus dist-info siblings for any of those.
+        low = name.lower()
+        if (low.startswith("torch") or low.startswith("numpy")
+                or low.startswith("nvidia") or low.startswith("functorch")
+                or low.startswith("triton")):
+            src_p = os.path.join(src, name)
+            dst_p = os.path.join(dst, name)
+            if os.path.exists(dst_p):
+                continue
+            try:
+                shutil.move(src_p, dst_p)
+                moved_any = True
+            except OSError:
+                pass
+
+    if moved_any:
+        try:
+            comp = ai_components.get("torch_runtime")
+            variant = vocal_state.variant or "cpu"
+            manifest = comp.manifest_cuda if (variant == "cuda" and comp.manifest_cuda) else comp.manifest_cpu
+            _write_state("torch_runtime", ComponentState(
+                status="installed",
+                variant=variant,
+                manifest_sha256=_manifest_sha256(manifest) if os.path.isfile(manifest) else None,
+                installed_at=_dt.datetime.utcnow().isoformat() + "Z",
+                app_version=VERSION,
+            ))
+            # Bless the new (slimmer) vocal_isolator manifest hash so reconcile
+            # doesn't force a reinstall purely because torch lines were stripped.
+            try:
+                _, vocal_manifest, _ = _manifest_for("vocal_isolator", vocal_state.variant)
+                if os.path.isfile(vocal_manifest):
+                    _write_state("vocal_isolator", ComponentState(
+                        status="installed",
+                        variant=vocal_state.variant,
+                        manifest_sha256=_manifest_sha256(vocal_manifest),
+                        installed_at=vocal_state.installed_at,
+                        last_error=None,
+                        app_version=VERSION,
+                    ))
+            except Exception:
+                pass
+            # Same blessing for upscaler / ocr_easy if they were installed
+            # against the old torch-in-vocal layout.
+            for legacy_id in ("upscaler", "ocr_easy"):
+                legacy_state = read_state(legacy_id)
+                if legacy_state.status != "installed":
+                    continue
+                try:
+                    _, legacy_manifest, _ = _manifest_for(legacy_id, legacy_state.variant)
+                    if os.path.isfile(legacy_manifest):
+                        _write_state(legacy_id, ComponentState(
+                            status="installed",
+                            variant=legacy_state.variant,
+                            manifest_sha256=_manifest_sha256(legacy_manifest),
+                            installed_at=legacy_state.installed_at,
+                            last_error=None,
+                            app_version=VERSION,
+                        ))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+
 def reconcile_on_launch() -> ReconcileResult:
+    _migrate_torch_to_runtime_dir()
     result = ReconcileResult()
     for cid in ai_components.all_ids():
         state = read_state(cid)
@@ -185,8 +274,21 @@ def reconcile_on_launch() -> ReconcileResult:
     return result
 
 
+_RUNTIME_DEP_IDS = ("torch_runtime",)
+
+
 def ensure_ai_packages_on_path() -> None:
+    """Add installed component dirs to sys.path. Runtimes (torch_runtime) go
+    first so consumers (demucs/realesrgan/easyocr) import them on `import torch`.
+    """
+    for cid in _RUNTIME_DEP_IDS:
+        if read_state(cid).status == "installed":
+            d = _component_dir(cid)
+            if os.path.isdir(d) and d not in sys.path:
+                sys.path.insert(0, d)
     for cid in ai_components.all_ids():
+        if cid in _RUNTIME_DEP_IDS:
+            continue
         if read_state(cid).status == "installed":
             d = _component_dir(cid)
             if os.path.isdir(d) and d not in sys.path:
@@ -203,13 +305,63 @@ def pre_install_info(component_id: str, variant: Optional[str] = None) -> PreIns
     )
 
 
+def missing_requirements(component_id: str, variant: Optional[str] = None) -> list[str]:
+    """Return ordered list of unmet `requires` IDs that must install first."""
+    comp = ai_components.get(component_id)
+    out: list[str] = []
+    for req_id in comp.requires:
+        if not is_installed(req_id):
+            out.append(req_id)
+    return out
+
+
+def aggregate_install_size_mb(component_id: str, variant: Optional[str] = None) -> int:
+    """Total MB to download = component itself + any missing required deps.
+
+    Variant of each missing dep follows the requester's variant.
+    """
+    info = pre_install_info(component_id, variant)
+    total = info.approx_size_mb
+    for req_id in missing_requirements(component_id, variant):
+        req_variant = info.variant if ai_components.get(req_id).manifest_cuda else "cpu"
+        total += pre_install_info(req_id, req_variant).approx_size_mb
+    return total
+
+
 def start_install(component_id: str, on_line: Callable[[str], None],
                   variant: Optional[str] = None):
     """Launch pip install via QProcess against the bundled Python.
 
+    If the component declares `requires` and any are missing, the FIRST
+    missing requirement is installed instead. Caller's finalize handler
+    must check `missing_requirements()` and re-call start_install for the
+    actual component once each dep finishes. The DependencyChainInstaller
+    in UI sections wraps this loop.
+
     Returns the running QProcess. Caller connects `finished` to call
     `finalize_install`.
     """
+    missing = missing_requirements(component_id, variant)
+    if missing:
+        next_id = missing[0]
+        # Variant for runtime deps mirrors requester (CUDA→CUDA if dep has CUDA).
+        req_comp = ai_components.get(next_id)
+        next_variant = variant if (variant and req_comp.manifest_cuda) else \
+                       (variant if req_comp.manifest_cuda else "cpu")
+        on_line(f"[deps] Installing required component: {next_id} ({next_variant})")
+        proc = _start_install_single(next_id, on_line, next_variant)
+        proc.setProperty("videl_component_id", next_id)
+        proc.setProperty("videl_target_id", component_id)
+        return proc
+    proc = _start_install_single(component_id, on_line, variant)
+    proc.setProperty("videl_component_id", component_id)
+    proc.setProperty("videl_target_id", component_id)
+    return proc
+
+
+def _start_install_single(component_id: str, on_line: Callable[[str], None],
+                          variant: Optional[str] = None):
+    """Run pip install for ONE component (no dep chaining)."""
     info = pre_install_info(component_id, variant)
     target_dir = info.target_dir
 

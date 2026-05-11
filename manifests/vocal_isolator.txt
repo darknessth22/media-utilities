@@ -1,8 +1,6 @@
-# Vocal isolator (demucs) — CPU torch (Windows pypi default is CPU build).
-torch==2.4.1
-torchaudio==2.4.1
+# Vocal isolator (demucs) — runs on shared torch_runtime (CPU variant).
+# torch + torchaudio + numpy live in torch_runtime; --no-deps in registry.
 demucs==4.0.1
-numpy==1.26.4
 einops==0.8.0
 julius==0.2.7
 lameenc==1.7.0

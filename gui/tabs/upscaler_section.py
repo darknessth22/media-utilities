@@ -82,7 +82,7 @@ class UpscalerSection(QScrollArea):
 
     def showEvent(self, event) -> None:  # noqa: N802 — Qt API
         super().showEvent(event)
-        # Re-check vocal_isolator state in case the user just installed it.
+        # Re-check install state in case shared runtime / component changed.
         self._refresh_install_state()
 
     # ── Install banner (mirrors vocal_isolator) ───────────────────────────────
@@ -185,21 +185,13 @@ class UpscalerSection(QScrollArea):
 
     def _refresh_install_state(self) -> None:
         installed = model_manager.is_installed(self._component_id)
-        torch_host = model_manager.is_installed("vocal_isolator")
         self._install_banner.setVisible(not installed)
         self._tools_container.setVisible(installed)
-
-        # Upscaler reuses torch from the vocal_isolator install. Block the install
-        # button until vocal_isolator is present — otherwise pip would skip torch
-        # (it's not in our manifest) and the child process would crash on import.
-        if not torch_host and not installed:
-            self._install_desc.setText(tr("lbl_model_upscaler_needs_demucs"))
-            self._install_btn.setEnabled(False)
-            self._install_btn.setToolTip(tr("lbl_model_upscaler_needs_demucs"))
-        else:
-            self._install_desc.setText(tr("lbl_model_upscaler_desc"))
-            self._install_btn.setEnabled(True)
-            self._install_btn.setToolTip("")
+        # torch_runtime is auto-installed as a dependency by model_manager
+        # if missing; no need to gate the install button anymore.
+        self._install_desc.setText(tr("lbl_model_upscaler_desc"))
+        self._install_btn.setEnabled(True)
+        self._install_btn.setToolTip("")
 
     def _show_pre_install_panel(self) -> None:
         try:
@@ -315,21 +307,36 @@ class UpscalerSection(QScrollArea):
                 tail += bytes(proc.readAllStandardOutput()).decode("utf-8", errors="replace")
             except Exception:
                 pass
-        model_manager.finalize_install(self._component_id, exit_code, tail)
+        actual_id = (proc.property("videl_component_id") if proc else None) or self._component_id
+        target_id = (proc.property("videl_target_id") if proc else None) or self._component_id
+        model_manager.finalize_install(actual_id, exit_code, tail)
 
         if exit_code == 0:
-            self._install_status.setStyleSheet("font-size: 12px; color: #22C55E;")
-            self._install_status.setText(tr("lbl_model_install_done"))
-            self._install_btn.setEnabled(True)
             import importlib
             importlib.invalidate_caches()
             model_manager.ensure_ai_packages_on_path()
+            # Dep chain: still missing requirements? Kick the next install.
+            if actual_id != target_id and not model_manager.is_installed(target_id):
+                self._on_install_line(f"[deps] Continuing with {target_id}…")
+                variant = getattr(self, "_chosen_variant", None)
+                try:
+                    self._install_proc = model_manager.start_install(
+                        target_id, on_line=self._on_install_line, variant=variant,
+                    )
+                    self._install_proc.finished.connect(self._on_install_finished)
+                    return
+                except Exception as exc:
+                    self._render_install_error(tr("install_error_generic").format(error=str(exc)))
+                    return
+            self._install_status.setStyleSheet("font-size: 12px; color: #22C55E;")
+            self._install_status.setText(tr("lbl_model_install_done"))
+            self._install_btn.setEnabled(True)
             self._refresh_install_state()
             self._detect_device_async()
             return
 
-        state = model_manager.read_state(self._component_id)
-        info = model_manager.pre_install_info(self._component_id, state.variant)
+        state = model_manager.read_state(actual_id)
+        info = model_manager.pre_install_info(actual_id, state.variant)
         msg = classify_install_error(
             state.last_error or tail,
             target=info.target_dir,
@@ -503,10 +510,9 @@ class UpscalerSection(QScrollArea):
         self._warn_lbl.setVisible(device == "cpu")
         self._detected_device = device
         cuda_usable = device == "cuda"
-        # Upscaler's own component is CPU-only (no .cuda manifest) — torch comes
-        # from vocal_isolator. Check that component's variant for CUDA gating.
+        # CUDA gating now keyed off the shared torch_runtime variant.
         try:
-            cuda_installed = model_manager.read_state("vocal_isolator").variant == "cuda"
+            cuda_installed = model_manager.read_state("torch_runtime").variant == "cuda"
         except Exception:
             cuda_installed = False
         self._device_rb_cuda.setEnabled(cuda_usable and cuda_installed)

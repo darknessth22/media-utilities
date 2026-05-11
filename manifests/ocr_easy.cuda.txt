@@ -1,10 +1,7 @@
-# EasyOCR (CUDA) — reuses torch 2.7.0+cu128 from vocal_isolator. torchvision
-# matches the CUDA ABI here.
---extra-index-url https://download.pytorch.org/whl/cu128
+# EasyOCR (CUDA) — runs on shared torch_runtime (CUDA variant).
+# torch + torchvision + numpy live in torch_runtime; --no-deps in registry.
 easyocr==1.7.2
-torchvision==0.22.0+cu128
 opencv-python-headless==4.10.0.84
-numpy==1.26.4
 Pillow==10.4.0
 scipy==1.13.1
 scikit-image==0.24.0

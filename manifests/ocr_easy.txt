@@ -1,9 +1,7 @@
-# EasyOCR (CPU) — torch-based OCR. ~80 supported languages.
-# torch is reused from vocal_isolator/upscaler when present (--no-deps in registry).
+# EasyOCR (CPU) — runs on shared torch_runtime. ~80 supported languages.
+# torch + torchvision + numpy live in torch_runtime; --no-deps in registry.
 easyocr==1.7.2
-torchvision==0.19.1
 opencv-python-headless==4.10.0.84
-numpy==1.26.4
 Pillow==10.4.0
 scipy==1.13.1
 scikit-image==0.24.0
