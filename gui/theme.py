@@ -142,6 +142,34 @@ QMenu::separator { height: 1px; margin: 4px 8px; }
 #ToolCardTitle  { font-size: 14px; font-weight: bold; }
 #ToolCardDesc   { font-size: 12px; }
 
+/* Hero drop-zone hint */
+#HeroDropHint { font-size: 12px; font-weight: bold; letter-spacing: 0.5px; }
+
+/* Recent strip */
+#RecentJobCard { border-width: 1px; border-style: solid; border-radius: 10px; min-height: 50px; }
+#RecentJobTitle { font-size: 12px; font-weight: bold; }
+#RecentEmptyLabel { font-size: 12px; }
+
+/* Filter chips (Tools page) */
+QPushButton#FilterChip,
+QPushButton#FilterChipActive {
+    border-width: 1px; border-style: solid; border-radius: 14px;
+    padding: 5px 14px; font-size: 12px; font-weight: bold;
+}
+
+/* Sidebar quick-search button (Ctrl+K) */
+QPushButton#SearchSidebarBtn {
+    border-width: 1px; border-style: solid; border-radius: 8px;
+    padding: 6px 10px; font-size: 12px; text-align: left;
+}
+
+/* Command palette */
+#CommandPaletteFrame { border-width: 1px; border-style: solid; border-radius: 12px; }
+#CommandPaletteInput { font-size: 14px; }
+#CommandPaletteList { border: none; font-size: 13px; }
+#CommandPaletteList::item { padding: 8px 10px; border-radius: 6px; }
+#CommandPaletteEmpty { font-size: 12px; }
+
 /* Dark mode label */
 #DarkModeLabel { font-size: 13px; }
 
@@ -287,6 +315,23 @@ QMenu::separator { background-color: #1B2F4C; }
 #ToolCard { background-color: #0F1B35; border-color: #1B2F4C; }
 #ToolCard:hover { background-color: #111C38; border-color: rgba(59,130,246,102); }
 #ToolCardTitle { color: #E6EDF3; }
+
+/* Hero drop hint, recent strip, filters, palette — dark */
+#HeroDropHint { color: rgba(96,165,250,200); }
+#RecentJobCard { background-color: #0F1B35; border-color: #1B2F4C; }
+#RecentJobCard:hover { background-color: #162040; border-color: rgba(59,130,246,140); }
+#RecentJobTitle { color: #E6EDF3; }
+#RecentEmptyLabel { color: #8B949E; }
+QPushButton#FilterChip { background-color: transparent; color: #8B949E; border-color: #1B2F4C; }
+QPushButton#FilterChip:hover { color: #E6EDF3; border-color: rgba(59,130,246,140); }
+QPushButton#FilterChipActive { background-color: rgba(59,130,246,40); color: #3B82F6; border-color: rgba(59,130,246,160); }
+QPushButton#SearchSidebarBtn { background-color: rgba(15,27,53,180); color: #8B949E; border-color: #1B2F4C; }
+QPushButton#SearchSidebarBtn:hover { background-color: #162040; color: #E6EDF3; border-color: rgba(59,130,246,140); }
+#CommandPaletteFrame { background-color: #0D1830; border-color: #1B2F4C; }
+#CommandPaletteInput { background-color: #0A1020; color: #E6EDF3; border: 1px solid #1B2F4C; border-radius: 8px; padding: 8px 12px; }
+#CommandPaletteList { background-color: transparent; color: #E6EDF3; }
+#CommandPaletteList::item:selected { background-color: rgba(59,130,246,40); color: #3B82F6; }
+#CommandPaletteEmpty { color: #8B949E; }
 #ToolCardDesc { color: #8B949E; }
 
 /* Dark mode toggle row */
@@ -435,6 +480,23 @@ QMenu::separator { background-color: #D0D7DE; }
 #ToolCard:hover { background-color: #EFF6FF; border-color: rgba(37,99,235,89); }
 #ToolCardTitle { color: #0A1020; }
 #ToolCardDesc { color: #57606A; }
+
+/* Hero drop hint, recent strip, filters, palette — light */
+#HeroDropHint { color: rgba(37,99,235,220); }
+#RecentJobCard { background-color: #FFFFFF; border-color: #D0D7DE; }
+#RecentJobCard:hover { background-color: #EFF6FF; border-color: rgba(37,99,235,140); }
+#RecentJobTitle { color: #0A1020; }
+#RecentEmptyLabel { color: #57606A; }
+QPushButton#FilterChip { background-color: transparent; color: #57606A; border-color: #D0D7DE; }
+QPushButton#FilterChip:hover { color: #0A1020; border-color: rgba(37,99,235,140); }
+QPushButton#FilterChipActive { background-color: rgba(37,99,235,30); color: #2563EB; border-color: rgba(37,99,235,160); }
+QPushButton#SearchSidebarBtn { background-color: #F6F8FA; color: #57606A; border-color: #D0D7DE; }
+QPushButton#SearchSidebarBtn:hover { background-color: #EFF6FF; color: #0A1020; border-color: rgba(37,99,235,140); }
+#CommandPaletteFrame { background-color: #FFFFFF; border-color: #D0D7DE; }
+#CommandPaletteInput { background-color: #F6F8FA; color: #0A1020; border: 1px solid #D0D7DE; border-radius: 8px; padding: 8px 12px; }
+#CommandPaletteList { background-color: transparent; color: #0A1020; }
+#CommandPaletteList::item:selected { background-color: rgba(37,99,235,30); color: #2563EB; }
+#CommandPaletteEmpty { color: #57606A; }
 
 /* Dark mode toggle row */
 #DarkModeRow { background-color: #FFFFFF; }

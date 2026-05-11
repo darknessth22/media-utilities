@@ -302,6 +302,88 @@ def _reencode_video_audio(filepath: str, audio_codec: str) -> str:
     return filepath
 
 
+def get_available_subtitles(url: str) -> list[dict]:
+    """Return [{lang, name, auto}] of subtitle tracks the URL exposes.
+
+    Combines manual subtitles and automatic captions (auto-generated). Each
+    entry can be selected on its own from the UI.
+    """
+    url = normalize_url(url)
+    opts: dict = {"quiet": True, "playlist_items": "1", "skip_download": True}
+    try:
+        from core.settings import SettingsManager as _SM
+        _s = _SM.load()
+        if _s.cookies_file and os.path.exists(_s.cookies_file):
+            opts["cookiefile"] = _s.cookies_file
+        elif _s.cookies_browser.strip():
+            opts["cookiesfrombrowser"] = (_s.cookies_browser.strip().lower(),)
+    except Exception:
+        pass
+
+    with YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+    if info.get("_type") == "playlist":
+        entries = [e for e in (info.get("entries") or []) if e]
+        if not entries:
+            return []
+        info = entries[0]
+
+    out: list[dict] = []
+    for lang, tracks in (info.get("subtitles") or {}).items():
+        name = (tracks[0].get("name") if tracks else None) or lang
+        out.append({"lang": lang, "name": name, "auto": False})
+    for lang, tracks in (info.get("automatic_captions") or {}).items():
+        name = (tracks[0].get("name") if tracks else None) or lang
+        out.append({"lang": lang, "name": f"{name} (auto)", "auto": True})
+    return out
+
+
+def _fetch_single_sub(
+    url: str,
+    video_path: str,
+    lang: str,
+    auto_only: bool,
+    cookie_file: str | None,
+    cookie_browser: str | None,
+    status_cb,
+) -> str | None:
+    """Download one subtitle language via a dedicated yt-dlp call.
+
+    `auto_only` picks between auto-generated vs manual track for the lang.
+    Returns warning string or None.
+    """
+    base, _ = os.path.splitext(video_path)
+    out_dir = os.path.dirname(video_path) or "."
+    base_name = os.path.basename(base)
+    out_template = os.path.join(out_dir, f"{base_name}.%(ext)s")
+
+    opts: dict = {
+        "skip_download": True,
+        "writesubtitles": not auto_only,
+        "writeautomaticsub": auto_only,
+        "subtitleslangs": [lang],
+        "subtitlesformat": "srt/vtt/best",
+        "outtmpl": out_template,
+        "cookiefile": cookie_file,
+        "ffmpeg_location": os.path.dirname(ffmpeg_path),
+        "quiet": True,
+        "retries": 5,
+        "fragment_retries": 5,
+        "postprocessors": [{"key": "FFmpegSubtitlesConvertor", "format": "srt"}],
+    }
+    if cookie_browser:
+        opts["cookiesfrombrowser"] = (cookie_browser,)
+    try:
+        if status_cb:
+            status_cb(f"[subs] fetching {lang}{' (auto)' if auto_only else ''}…")
+        with YoutubeDL(opts) as ydl:
+            ydl.download([url])
+        return None
+    except Exception as e:
+        _log.warning("Subtitle fetch failed for %s: %s", lang, e)
+        return f"Subtitle fetch failed for {lang}: {e}"
+
+
 def download_media(
     url: str,
     platform: str,
@@ -319,6 +401,9 @@ def download_media(
     cancel_check=None,
     status_cb=None,
     progress_cb=None,
+    subtitles: bool = False,
+    subtitle_lang: str = "",
+    subtitle_auto: bool = False,
 ) -> dict:
     """Download media from a URL.
 
@@ -389,6 +474,7 @@ def download_media(
         "force_keyframes_at_cuts": True,
         "progress_hooks": [_make_progress_hook(cancel_check, progress_cb)],
         "post_hooks": [_post_hook],
+        "ffmpeg_location": os.path.dirname(ffmpeg_path),
     }
     if _cookie_browser:
         ydl_opts["cookiesfrombrowser"] = (_cookie_browser,)
@@ -467,7 +553,16 @@ def download_media(
             downloaded_file = _reencode_video_audio(downloaded_file, audio_codec)
             final_size = os.path.getsize(downloaded_file) if os.path.exists(downloaded_file) else final_size
 
-        return {"success": True, "file_path": downloaded_file, "file_size": final_size, "error_code": None, "warning": None}
+        sub_warning: str | None = None
+        if subtitles and subtitle_lang and media_type != "audio" \
+                and downloaded_file and os.path.exists(downloaded_file):
+            sub_warning = _fetch_single_sub(
+                url, downloaded_file, subtitle_lang, subtitle_auto,
+                _cookie_file, _cookie_browser, status_cb,
+            )
+
+        return {"success": True, "file_path": downloaded_file, "file_size": final_size,
+                "error_code": None, "warning": sub_warning}
     except Exception as e:
         _log.error("Download error: %s", e)
         return {"success": False, "file_path": None, "file_size": None, "error_code": None, "warning": None}

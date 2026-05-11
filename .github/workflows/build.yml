@@ -113,6 +113,20 @@ jobs:
           "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "Detected version: $v"
 
+      - name: Sign installer (Ed25519 manifest)
+        env:
+          VIDEL_PRIV_KEY_PEM: ${{ secrets.VIDEL_PRIV_KEY_PEM }}
+        shell: pwsh
+        run: |
+          if (-not $env:VIDEL_PRIV_KEY_PEM) {
+            Write-Error "Missing secret VIDEL_PRIV_KEY_PEM — set it to the Ed25519 PEM that matches core/_signing.py PUBLIC_KEY_B64."
+            exit 1
+          }
+          python tools/sign_installer.py artifacts/clean/Videl_Setup.exe `
+            --version "${{ steps.version.outputs.version }}" `
+            --priv-key "$env:VIDEL_PRIV_KEY_PEM" `
+            --out artifacts/clean/Videl_Setup.exe.sig.json
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -123,5 +137,8 @@ jobs:
             Built from `${{ github.ref_name }}` @ `${{ github.sha }}`.
 
             **Installer:** `Videl_Setup.exe`
-          files: artifacts/clean/Videl_Setup.exe
+            **Signed manifest:** `Videl_Setup.exe.sig.json` (Ed25519, verified by in-app updater)
+          files: |
+            artifacts/clean/Videl_Setup.exe
+            artifacts/clean/Videl_Setup.exe.sig.json
           fail_on_unmatched_files: true

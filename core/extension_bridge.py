@@ -31,12 +31,17 @@ class _Handler(BaseHTTPRequestHandler):
         return
 
     def _cors_headers(self) -> None:
+        # Only emit ACAO for trusted extension origins. Wildcard "*" let any
+        # webpage fetch() into the loopback bridge and inject download URLs.
+        # Requests without an Origin (native clients, tests) still work — the
+        # browser-only CORS layer just won't be advertised to them.
         origin = self.headers.get("Origin", "")
-        allow = origin if any(origin.startswith(p) for p in ALLOWED_ORIGIN_PREFIXES) else "*"
-        self.send_header("Access-Control-Allow-Origin", allow)
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.send_header("Access-Control-Max-Age", "600")
+        if origin and any(origin.startswith(p) for p in ALLOWED_ORIGIN_PREFIXES):
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+            self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header("Access-Control-Max-Age", "600")
 
     def do_OPTIONS(self) -> None:
         self.send_response(204)
@@ -56,6 +61,13 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self) -> None:
+        # Reject browser POSTs from origins we don't trust. Native clients
+        # (no Origin header) are still allowed.
+        origin = self.headers.get("Origin", "")
+        if origin and not any(origin.startswith(p) for p in ALLOWED_ORIGIN_PREFIXES):
+            self.send_response(403)
+            self.end_headers()
+            return
         if self.path != "/url":
             self.send_response(404)
             self._cors_headers()

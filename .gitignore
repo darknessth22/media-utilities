@@ -89,3 +89,9 @@ gui.html
 
 # Bundled Python runtime (build output, never checked in)
 runtime/
+
+# Installer signing key - NEVER commit
+tools/private_key.pem
+
+# OpenWolf local context — per-machine, not for sharing
+.wolf/

@@ -38,7 +38,7 @@ except Exception as _mm_exc:  # ImportError or DLL load failure (OSError)
     _MULTIMEDIA_AVAILABLE = False
 
 from core.i18n import tr
-from core.downloader import download_media, fetch_playlist_entries, get_available_formats, get_platform, get_preview_stream_url
+from core.downloader import download_media, fetch_playlist_entries, get_available_formats, get_available_subtitles, get_platform, get_preview_stream_url
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 from gui.presets_bar import PresetsBar
@@ -54,6 +54,14 @@ _GENERIC_ERROR_MESSAGES: dict[str, str] = {
     "download_failed": "Download failed. Check the URL or your network.",
     "cancelled": "Download cancelled.",
     "unsupported_platform": "This site is not supported. Supported: YouTube, YouTube Music, Spotify, Facebook, Instagram, TikTok, Twitter/X, LinkedIn, Twitch.",
+    # Codes emitted by core.downloader._classify_download_error
+    "geo_blocked": "This video is not available in your region. Try a VPN or different cookies.",
+    "paywall": "This video requires login, subscription, or age confirmation. Set cookies in Settings.",
+    "unavailable": "This video has been removed or is no longer available.",
+    "rate_limited": "The site is rate-limiting downloads. Wait a few minutes and try again.",
+    "ffmpeg": "Post-processing failed. The downloaded file may be corrupt or in an unsupported format.",
+    "network": "Network error. Check your connection and try again.",
+    "generic": "Download failed. Check the URL or try again later.",
 }
 
 
@@ -444,6 +452,36 @@ class DownloadSection(QScrollArea):
         layout.addWidget(self._video_audio_fmt_container)
         self._video_audio_fmt_container.setVisible(True)
         self._select_video_audio_fmt("Original")
+
+        self._subs_container = QWidget()
+        self._subs_container.setStyleSheet("background: transparent;")
+        sub_layout = QVBoxLayout(self._subs_container)
+        sub_layout.setContentsMargins(0, 6, 0, 0)
+        sub_layout.setSpacing(4)
+        self._subs_check = QCheckBox(tr("lbl_dl_subtitles"))
+        self._subs_check.toggled.connect(self._on_subs_toggled)
+        sub_layout.addWidget(self._subs_check)
+        sub_row = QHBoxLayout()
+        sub_row.setContentsMargins(16, 0, 0, 0)
+        sub_row.setSpacing(8)
+        self._lbl_subs_lang = QLabel(tr("lbl_dl_sub_track"))
+        self._lbl_subs_lang.setObjectName("TextMuted")
+        self._lbl_subs_lang.setStyleSheet("font-size: 11px;")
+        sub_row.addWidget(self._lbl_subs_lang)
+        self._subs_combo = QComboBox()
+        self._subs_combo.setMinimumWidth(220)
+        self._subs_combo.addItem(tr("lbl_dl_sub_load_first"), None)
+        self._subs_combo.setEnabled(False)
+        sub_row.addWidget(self._subs_combo)
+        self._subs_check_btn = QPushButton(tr("btn_dl_check_subs"))
+        self._subs_check_btn.setObjectName("BrowseBtn")
+        self._subs_check_btn.setFixedWidth(110)
+        self._subs_check_btn.setEnabled(False)
+        self._subs_check_btn.clicked.connect(self._check_subs)
+        sub_row.addWidget(self._subs_check_btn)
+        sub_row.addStretch()
+        sub_layout.addLayout(sub_row)
+        layout.addWidget(self._subs_container)
         return card
 
     def _build_quality_card(self) -> QFrame:
@@ -670,6 +708,9 @@ class DownloadSection(QScrollArea):
         self._video_radio.setText(tr("lbl_video"))
         self._audio_radio.setText(tr("lbl_audio_only"))
         self._lbl_audio_in_video.setText(tr("lbl_audio_fmt_in_video"))
+        self._subs_check.setText(tr("lbl_dl_subtitles"))
+        self._lbl_subs_lang.setText(tr("lbl_dl_sub_track"))
+        self._subs_check_btn.setText(tr("btn_dl_check_subs"))
         self._hdr_quality.setText(tr("hdr_video_quality"))
         self._check_fmt_btn.setText(tr("btn_check_formats"))
         if self._quality_combo.count():
@@ -746,9 +787,49 @@ class DownloadSection(QScrollArea):
             self._start_input.clear()
             self._end_input.clear()
 
+    def _on_subs_toggled(self, checked: bool) -> None:
+        self._subs_combo.setEnabled(checked and self._subs_combo.count() > 1)
+        self._subs_check_btn.setEnabled(checked)
+
+    def _check_subs(self) -> None:
+        url = self._url_input.text().strip()
+        if not url:
+            self.status_message.emit("Enter a URL first.", True)
+            return
+        self._subs_check_btn.setEnabled(False)
+        self._subs_check_btn.setText(tr("dyn_checking"))
+        self.status_message.emit("Fetching available subtitles…", False)
+        worker = Worker(lambda: get_available_subtitles(url))
+        worker.signals.result.connect(self._on_subs_fetched)
+        worker.signals.error.connect(self._on_subs_error)
+        worker.start()
+        self._subs_worker = worker
+
+    def _on_subs_fetched(self, subs: list) -> None:
+        self._subs_check_btn.setEnabled(True)
+        self._subs_check_btn.setText(tr("btn_dl_check_subs"))
+        self._subs_combo.clear()
+        if not subs:
+            self._subs_combo.addItem(tr("lbl_dl_sub_none"), None)
+            self._subs_combo.setEnabled(False)
+            self.status_message.emit("No subtitles available for this URL.", True)
+            return
+        for s in subs:
+            label = f"{s['name']} [{s['lang']}]"
+            self._subs_combo.addItem(label, {"lang": s["lang"], "auto": s["auto"]})
+        self._subs_combo.setEnabled(True)
+        self.status_message.emit(f"{len(subs)} subtitle track(s) loaded.", False)
+
+    def _on_subs_error(self, err_tuple: tuple) -> None:
+        self._subs_check_btn.setEnabled(True)
+        self._subs_check_btn.setText(tr("btn_dl_check_subs"))
+        _, msg, _ = err_tuple
+        self.status_message.emit(f"Subtitle check failed: {msg}", True)
+
     def _on_type_toggled(self, is_video: bool) -> None:
         self._audio_fmt_container.setVisible(not is_video)
         self._video_audio_fmt_container.setVisible(is_video)
+        self._subs_container.setVisible(is_video)
         self._quality_combo.setEnabled(is_video)
         self._check_fmt_btn.setEnabled(is_video)
         if _MULTIMEDIA_AVAILABLE:
@@ -1013,6 +1094,7 @@ class DownloadSection(QScrollArea):
                 if isinstance(data, dict):
                     quality_height = data.get("height") or None
 
+        _sub_data = self._subs_combo.currentData() if self._subs_combo.isEnabled() else None
         queued = 0
         for row in range(self._playlist_table.rowCount()):
             container = self._playlist_table.cellWidget(row, 0)
@@ -1046,6 +1128,9 @@ class DownloadSection(QScrollArea):
                 "end_time": None,
                 "out_dir": out_dir,
                 "video_codec": video_codec,
+                "subtitles": (not is_audio) and self._subs_check.isChecked() and bool(_sub_data),
+                "subtitle_lang": (_sub_data or {}).get("lang", ""),
+                "subtitle_auto": (_sub_data or {}).get("auto", False),
                 "status": "pending",
             }
             self._queue.append(job)
@@ -1183,6 +1268,7 @@ class DownloadSection(QScrollArea):
 
         job_id = uuid.uuid4().hex[:8]
         display_name = url if len(url) <= 60 else url[:57] + "…"
+        _sub_data = self._subs_combo.currentData() if self._subs_combo.isEnabled() else None
         job = {
             "job_id": job_id,
             "url": url,
@@ -1198,6 +1284,9 @@ class DownloadSection(QScrollArea):
             "end_time": end_time,
             "out_dir": out_dir,
             "video_codec": video_codec,
+            "subtitles": (not is_audio) and self._subs_check.isChecked() and bool(_sub_data),
+            "subtitle_lang": (_sub_data or {}).get("lang", ""),
+            "subtitle_auto": (_sub_data or {}).get("auto", False),
             "status": "pending",
         }
 
@@ -1256,6 +1345,9 @@ class DownloadSection(QScrollArea):
         _end = pending["end_time"]
         _out_dir = pending["out_dir"]
         _video_codec = pending["video_codec"]
+        _subs = pending.get("subtitles", False)
+        _sub_lang = pending.get("subtitle_lang", "")
+        _sub_auto = pending.get("subtitle_auto", False)
 
         def do_download():
             def cancel_fn():
@@ -1284,6 +1376,9 @@ class DownloadSection(QScrollArea):
                     self._worker.signals.intercept_status.emit(msg) if self._worker else None
                 ),
                 progress_cb=p_cb,
+                subtitles=_subs,
+                subtitle_lang=_sub_lang,
+                subtitle_auto=_sub_auto,
             )
 
         self._worker = Worker(do_download)
@@ -1334,8 +1429,11 @@ class DownloadSection(QScrollArea):
         if self._active_job is None or self._active_job["job_id"] != job_id:
             return
         job = next((j for j in self._queue if j["job_id"] == job_id), None)
+        _old = self._worker
         self._worker = None
         self._active_job = None
+        if _old is not None:
+            _old.wait(5000)
 
         row = self._job_rows.get(job_id)
 
@@ -1429,8 +1527,11 @@ class DownloadSection(QScrollArea):
         if self._active_job is None or self._active_job["job_id"] != job_id:
             return
         job = next((j for j in self._queue if j["job_id"] == job_id), None)
+        _old = self._worker
         self._worker = None
         self._active_job = None
+        if _old is not None:
+            _old.wait(5000)
 
         row = self._job_rows.get(job_id)
         _, msg, _ = err_tuple
@@ -1447,8 +1548,11 @@ class DownloadSection(QScrollArea):
             return
         job = next((j for j in self._queue if j["job_id"] == job_id), None)
         if job and job["status"] == "cancelled":
+            _old = self._worker
             self._worker = None
             self._active_job = None
+            if _old is not None:
+                _old.wait(5000)
             self._do_cleanup_partial_files(job.get("out_dir"))
             QTimer.singleShot(1000, lambda: self._remove_job(job_id))
             self._run_next()

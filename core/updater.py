@@ -12,6 +12,7 @@ Falls back to opening the storefront in the browser when:
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -39,6 +40,12 @@ from utils.app_logger import get_logger
 RELEASES_API_URL = "https://api.github.com/repos/darknessth22/media-utilities/releases/latest"
 INSTALLER_DOWNLOAD_URL = (
     "https://github.com/darknessth22/media-utilities/releases/latest/download/Videl_Setup.exe"
+)
+# Signed manifest published alongside the installer. Format (one .sig.json):
+#   {"sha256": "<hex>", "size": <int>, "version": "x.y.z",
+#    "sig": "<urlsafe-b64 ed25519 sig over compact JSON of {sha256,size,version}>"}
+INSTALLER_MANIFEST_URL = (
+    "https://github.com/darknessth22/media-utilities/releases/latest/download/Videl_Setup.exe.sig.json"
 )
 STOREFRONT_URL = "https://darknessth22.github.io/media-utilities/"
 
@@ -153,6 +160,82 @@ QProgressBar::chunk { background-color: #2563eb; border-radius: 5px; }
 """
 
 
+def _fetch_manifest() -> dict | None:
+    try:
+        req = urllib.request.Request(
+            INSTALLER_MANIFEST_URL,
+            headers={"User-Agent": _USER_AGENT, "Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        if not isinstance(data, dict):
+            return None
+        return data
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
+        _log.warning("Manifest fetch failed: %s", exc)
+        return None
+
+
+def _verify_manifest_signature(manifest: dict) -> bool:
+    """Verify Ed25519 signature on the {sha256,size,version} payload."""
+    try:
+        import base64
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+        from core._signing import PUBLIC_KEY_B64
+    except Exception as exc:
+        _log.error("Crypto import failed: %s", exc)
+        return False
+
+    sig_b64 = manifest.get("sig")
+    if not sig_b64:
+        return False
+    payload = {
+        "sha256": manifest.get("sha256"),
+        "size": manifest.get("size"),
+        "version": manifest.get("version"),
+    }
+    if not all(payload.values()):
+        return False
+    try:
+        payload_bytes = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        pad = "=" * (-len(PUBLIC_KEY_B64) % 4)
+        pub_raw = base64.urlsafe_b64decode(PUBLIC_KEY_B64 + pad)
+        pad2 = "=" * (-len(sig_b64) % 4)
+        sig = base64.urlsafe_b64decode(sig_b64 + pad2)
+        Ed25519PublicKey.from_public_bytes(pub_raw).verify(sig, payload_bytes)
+        return True
+    except Exception as exc:
+        _log.warning("Manifest signature invalid: %s", exc)
+        return False
+
+
+def _verify_installer(path: str, manifest: dict) -> bool:
+    expected_sha = (manifest.get("sha256") or "").lower()
+    expected_size = int(manifest.get("size") or 0)
+    if not expected_sha or expected_size <= 0:
+        return False
+    try:
+        actual_size = os.path.getsize(path)
+    except OSError:
+        return False
+    if actual_size != expected_size:
+        _log.warning("Installer size mismatch: got %d, want %d", actual_size, expected_size)
+        return False
+    h = hashlib.sha256()
+    try:
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+    except OSError as exc:
+        _log.warning("Installer hash read failed: %s", exc)
+        return False
+    actual_sha = h.hexdigest().lower()
+    if actual_sha != expected_sha:
+        _log.warning("Installer sha256 mismatch")
+        return False
+    return True
+
+
 def _open_storefront() -> None:
     try:
         webbrowser.open(STOREFRONT_URL, new=2)
@@ -186,6 +269,27 @@ def _launch_installer_and_quit(installer_path: str) -> bool:
 
 def _run_in_app_update(parent: QWidget | None, latest: str) -> None:
     from core.i18n import tr
+
+    # Fetch + verify signed manifest BEFORE downloading the installer. If the
+    # manifest is missing or its signature doesn't validate against the bundled
+    # Ed25519 public key, abort: a compromised release pipeline shouldn't be
+    # able to ship arbitrary installers to users.
+    manifest = _fetch_manifest()
+    if manifest is None or not _verify_manifest_signature(manifest):
+        box = QMessageBox(parent)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle(tr("update_failed_title"))
+        box.setText(tr("update_failed_body").format(error="signature verification failed"))
+        box.setStyleSheet(_DARK_QSS)
+        open_btn = QPushButton(tr("update_open_browser"))
+        open_btn.setProperty("primary", True)
+        close_btn = QPushButton(tr("update_skip"))
+        box.addButton(open_btn, QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(close_btn, QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        if box.clickedButton() is open_btn:
+            _open_storefront()
+        return
 
     dest = os.path.join(tempfile.gettempdir(), f"Videl_Setup_{latest}.exe")
 
@@ -237,6 +341,13 @@ def _run_in_app_update(parent: QWidget | None, latest: str) -> None:
 
     def on_ok(path: str) -> None:
         progress.close()
+        if not _verify_installer(path, manifest):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+            on_failed("installer integrity check failed")
+            return
         if not _launch_installer_and_quit(path):
             on_failed("launch failed")
 

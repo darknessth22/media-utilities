@@ -1,8 +1,16 @@
 import os
 import json
 import platform
+import shutil
+import time
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
+
+# Last-load diagnostic. Cleared on successful loads; populated when a corrupt
+# or unreadable config triggered a fallback to defaults. The GUI reads this
+# right after `SettingsManager.load()` to toast the user.
+LAST_LOAD_ERROR: str | None = None
+LAST_LOAD_BACKUP_PATH: str | None = None
 
 
 @dataclass
@@ -64,11 +72,37 @@ class SettingsManager:
         return UserSettings()
 
     @classmethod
+    def _backup_corrupt(cls, config_path: Path, reason: str) -> str | None:
+        """Move a corrupt config file aside before defaults overwrite it.
+
+        Returns the backup path (or None if the move itself failed). Records
+        diagnostic info in module globals so the GUI can show a toast.
+        """
+        global LAST_LOAD_ERROR, LAST_LOAD_BACKUP_PATH
+        LAST_LOAD_ERROR = reason
+        if not config_path.exists():
+            LAST_LOAD_BACKUP_PATH = None
+            return None
+        ts = time.strftime("%Y%m%d-%H%M%S")
+        backup = config_path.with_name(f"{config_path.name}.corrupt-{ts}")
+        try:
+            shutil.move(str(config_path), str(backup))
+            LAST_LOAD_BACKUP_PATH = str(backup)
+            return str(backup)
+        except OSError:
+            LAST_LOAD_BACKUP_PATH = None
+            return None
+
+    @classmethod
     def load(cls) -> UserSettings:
         """Load settings from disk and merge with defaults if necessary."""
+        global LAST_LOAD_ERROR, LAST_LOAD_BACKUP_PATH
+        LAST_LOAD_ERROR = None
+        LAST_LOAD_BACKUP_PATH = None
+
         config_path = cls.get_config_path()
         default_settings = cls.get_default_settings()
-        
+
         if not config_path.exists():
             return default_settings
 
@@ -120,8 +154,18 @@ class SettingsManager:
                 merged_data["version"] = 11
 
             return UserSettings(**merged_data)
-        except (json.JSONDecodeError, OSError, TypeError):
-            # Fallback to defaults on error
+        except json.JSONDecodeError as exc:
+            cls._backup_corrupt(config_path, f"config JSON parse error: {exc}")
+            return default_settings
+        except TypeError as exc:
+            # Schema mismatch — keys present that UserSettings can't accept.
+            cls._backup_corrupt(config_path, f"config schema mismatch: {exc}")
+            return default_settings
+        except OSError as exc:
+            # Read failure (permissions, locked file, disk error). Don't move
+            # the file aside — we couldn't even read it; preserve user data.
+            LAST_LOAD_ERROR = f"config read error: {exc}"
+            LAST_LOAD_BACKUP_PATH = None
             return default_settings
 
     @classmethod

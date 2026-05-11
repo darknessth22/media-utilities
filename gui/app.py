@@ -63,6 +63,7 @@ from gui.tabs.vocal_isolator_section import VocalIsolatorSection
 from gui.tabs.upscaler_section import UpscalerSection
 from gui.tabs.pdf_toolkit_section import PdfToolkitSection
 from gui.tabs.jumpcut_section import JumpcutSection
+from gui.tabs.subtitles_section import SubtitlesSection
 from gui.tabs.bug_reporter import BugReporterSection
 from gui.pages.home_page import HomePage, ToolsPage
 
@@ -279,6 +280,13 @@ _SECTIONS_META = [
         "icon": "jumpcut.svg",
         "tab_keys": ["tab_jumpcut"],
         "action_key": "action_jumpcut",
+    },
+    {
+        "id": "subtitles",
+        "label_key": "section_subtitles",
+        "icon": "subtitles.svg",
+        "tab_keys": ["tab_subtitles"],
+        "action_key": "action_burn_subtitles",
     },
     {
         "id": "history",
@@ -1161,24 +1169,43 @@ class SettingsSection(QScrollArea):
         from gui.worker import Worker
         import sys
 
+        # Frozen --onefile builds ship a pinned yt-dlp inside the bundle.
+        # `python -m yt_dlp -U` errors out with "you installed yt-dlp with pip
+        # or wheels from pypi use that to update", and pip isn't reachable from
+        # inside the bundle either. Surface that clearly instead of crashing.
+        if getattr(sys, "frozen", False):
+            self._ytdlp_status.setText(
+                "yt-dlp ships with Videl. Update Videl to get the latest yt-dlp."
+            )
+            return
+
         self._ytdlp_btn.setEnabled(False)
         self._ytdlp_status.setText("Updating…")
 
         def _run_update():
             import subprocess
+            # Source / venv install: yt-dlp came from pip, so `-U` refuses.
+            # Run `pip install --upgrade yt-dlp` which is the supported path.
             result = subprocess.run(
-                [sys.executable, "-m", "yt_dlp", "-U"],
-                capture_output=True, text=True, timeout=120,
+                [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"],
+                capture_output=True, text=True, timeout=180,
             )
-            return result.stdout + result.stderr
+            return result.returncode, result.stdout + result.stderr
 
-        def _on_done(output: str) -> None:
+        def _on_done(payload) -> None:
             self._ytdlp_btn.setEnabled(True)
-            if "up-to-date" in output.lower() or "updated" in output.lower() or output.strip():
-                last_line = [l for l in output.strip().splitlines() if l.strip()]
-                self._ytdlp_status.setText((last_line[-1] if last_line else "Done.").strip())
+            rc, output = payload
+            lines = [l for l in output.strip().splitlines() if l.strip()]
+            tail = lines[-1] if lines else ""
+            if rc == 0:
+                if "already satisfied" in output.lower():
+                    self._ytdlp_status.setText("yt-dlp is already up to date.")
+                elif "successfully installed" in output.lower():
+                    self._ytdlp_status.setText(tail or "yt-dlp updated.")
+                else:
+                    self._ytdlp_status.setText(tail or "Update complete.")
             else:
-                self._ytdlp_status.setText("Update complete.")
+                self._ytdlp_status.setText(f"Update failed: {tail or 'pip exit ' + str(rc)}")
 
         def _on_error(exc_tuple) -> None:
             self._ytdlp_btn.setEnabled(True)
@@ -1625,6 +1652,7 @@ class MainWindow(QMainWindow):
             lambda: self._navigate_to(_section_index("tutorial"))
         )
         QShortcut(QKeySequence("Ctrl+Q"), self).activated.connect(_QApp.quit)
+        QShortcut(QKeySequence("Ctrl+K"), self).activated.connect(self._open_command_palette)
 
         # Always keep the How to Use icon glowing so it's easy to find
         self._help_nav_btn.start_glow()
@@ -1692,6 +1720,22 @@ class MainWindow(QMainWindow):
         sep.setFixedHeight(1)
         layout.addWidget(sep)
 
+        # ── Quick search (Ctrl+K) ────────────────────────────────────────────
+        # Above nav so it competes with the brand for the user's first glance,
+        # which is exactly the priority "promote search" recommendation calls
+        # for. Same handler the Ctrl+K shortcut uses.
+        search_row = QWidget()
+        search_layout = QHBoxLayout(search_row)
+        search_layout.setContentsMargins(12, 10, 12, 8)
+        search_layout.setSpacing(0)
+        self._search_btn = QPushButton(f"  ⌕  {tr('search_btn_label')}   Ctrl+K")
+        self._search_btn.setObjectName("SearchSidebarBtn")
+        self._search_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._search_btn.setFixedHeight(32)
+        self._search_btn.clicked.connect(self._open_command_palette)
+        search_layout.addWidget(self._search_btn)
+        layout.addWidget(search_row)
+
         # ── Four primary nav buttons ──────────────────────────────────────────
         self._home_nav_btn         = NavButton(tr("nav_home"),         "dashboard.svg")
         self._tools_nav_btn        = NavButton(tr("nav_tools"),        "convert.svg")
@@ -1751,7 +1795,13 @@ class MainWindow(QMainWindow):
         self._dm_toggle.setChecked(self.theme_manager.is_dark_mode())
         self._dm_toggle.toggled.connect(self._on_dm_toggle)
         dm_layout.addWidget(self._dm_toggle)
-        layout.addWidget(dm_row)
+        # Demoted from the sidebar: the bright blue pill out-shouted primary
+        # CTAs. Still added to the layout (then hidden) so the QWidget keeps
+        # a live Qt parent — without it dm_row + its children get GC'd and
+        # later retranslate_ui / theme-change calls hit "already deleted".
+        self._dm_row = dm_row
+        layout.addWidget(self._dm_row)
+        self._dm_row.hide()
 
         # ── Language toggle (EN / AR) ─────────────────────────────────────────
         lang_sep = QFrame()
@@ -1825,6 +1875,8 @@ class MainWindow(QMainWindow):
         self._help_nav_btn._text_label.setText(tr("nav_how_to_use"))
         self._bug_reporter_nav_btn._text_label.setText(tr("nav_bug_reporter"))
         self._dm_label.setText(tr("dark_mode"))
+        if hasattr(self, "_search_btn"):
+            self._search_btn.setText(f"  ⌕  {tr('search_btn_label')}   Ctrl+K")
 
         # Language toggle button checked state
         self._lang_en_btn.blockSignals(True)
@@ -1902,6 +1954,7 @@ class MainWindow(QMainWindow):
             self._upscaler_section,
             self._pdf_toolkit_section,
             self._jumpcut_section,
+            self._subtitles_section,
             self._history_section,
             self._tutorial_section,
         ):
@@ -1996,6 +2049,7 @@ class MainWindow(QMainWindow):
         self._upscaler_section = UpscalerSection(self.settings)
         self._pdf_toolkit_section = PdfToolkitSection(self.settings)
         self._jumpcut_section = JumpcutSection(self.settings)
+        self._subtitles_section = SubtitlesSection(self.settings)
         self._history_section = HistorySection()
         self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
@@ -2022,10 +2076,11 @@ class MainWindow(QMainWindow):
             self._upscaler_section,         # index 16 — ai upscaler
             self._pdf_toolkit_section,      # index 17 — pdf toolkit
             self._jumpcut_section,          # index 18 — jump-cutter
-            self._history_section,          # index 19 — history
-            self._settings_section_widget,  # index 20 — settings
-            self._tutorial_section,         # index 21 — how to use
-            self._bug_reporter_section,     # index 22 — bug reporter
+            self._subtitles_section,        # index 19 — subtitles
+            self._history_section,          # index 20 — history
+            self._settings_section_widget,  # index 21 — settings
+            self._tutorial_section,         # index 22 — how to use
+            self._bug_reporter_section,     # index 23 — bug reporter
         ]
 
         # Connect status signals from all operation sections.
@@ -2050,6 +2105,7 @@ class MainWindow(QMainWindow):
             self._upscaler_section,       # index 16
             self._pdf_toolkit_section,    # index 17
             self._jumpcut_section,        # index 18
+            self._subtitles_section,      # index 19
         )
         for section in _op_sections:
             section.status_message.connect(self._on_status_message)
@@ -2075,6 +2131,7 @@ class MainWindow(QMainWindow):
             navigate_cb=self._navigate_from_card,
             show_tools_cb=self._go_tools,
         )
+        self._home_page.file_dropped.connect(self._on_home_file_dropped)
         self._tools_page = ToolsPage(navigate_cb=self._navigate_from_card)
         self._content_stack.addWidget(self._home_page)
         self._content_stack.addWidget(self._tools_page)
@@ -2179,6 +2236,34 @@ class MainWindow(QMainWindow):
         """Navigate to a tool section when a card is clicked from Home/Tools page."""
         self._set_sidebar_active(None)
         self._navigate_to(section_index)
+        # Refresh the home Recent strip so the next return to Home reflects
+        # the just-opened tool. Cheap — single JSON read.
+        if hasattr(self, "_home_page"):
+            self._home_page.refresh_recent()
+
+    def _open_command_palette(self) -> None:
+        """Show Ctrl+K command palette to fuzzy-jump into any tool."""
+        from gui.command_palette import CommandPalette
+        dlg = CommandPalette(self._navigate_from_card, parent=self)
+        # Center within main window.
+        geo = self.geometry()
+        dlg.move(
+            geo.x() + (geo.width() - dlg.width()) // 2,
+            geo.y() + max(60, (geo.height() - dlg.height()) // 3),
+        )
+        dlg.exec()
+
+    def _on_home_file_dropped(self, path: str, tool_id: str, section_idx: int) -> None:
+        """File dropped on the home hero — route to matching tool."""
+        from core import recent_jobs as _recent_jobs
+        _recent_jobs.record_open(tool_id, section_idx)
+        self._navigate_from_card(section_idx)
+        # Surface the routed file in the status bar so the user gets feedback
+        # even if the destination tool can't auto-load yet.
+        try:
+            self.update_status(tr("install_progress").format(line=path[:120]))
+        except Exception:
+            pass
 
     def _set_sidebar_active(self, active_btn) -> None:
         """Mark one sidebar button active, clear the rest."""
