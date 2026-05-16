@@ -6,9 +6,29 @@ Run with:
 import os
 import signal
 import sys
+import tempfile
 import faulthandler
 
-faulthandler.enable()
+# PyInstaller --windowed sets sys.stdout/stderr=None. Anything writing to them
+# (faulthandler, library prints, warnings) then crashes. Swap in /dev/null
+# sinks before any further imports, then route faulthandler to a logfile so we
+# can still diagnose crashes in frozen builds.
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w", buffering=1)
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w", buffering=1)
+
+if getattr(sys, "frozen", False):
+    try:
+        _fh_log = open(
+            os.path.join(tempfile.gettempdir(), "videl_faulthandler.log"),
+            "w", buffering=1,
+        )
+        faulthandler.enable(_fh_log)
+    except Exception:
+        pass
+else:
+    faulthandler.enable()
 
 # Load .env before any package imports that read secrets at import time (e.g. bug reporter).
 _env_path = os.path.join(os.path.dirname(__file__), ".env")
