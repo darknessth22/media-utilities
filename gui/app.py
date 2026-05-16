@@ -64,6 +64,7 @@ from gui.tabs.upscaler_section import UpscalerSection
 from gui.tabs.pdf_toolkit_section import PdfToolkitSection
 from gui.tabs.jumpcut_section import JumpcutSection
 from gui.tabs.subtitles_section import SubtitlesSection
+from gui.tabs.transcript_section import TranscriptSection
 from gui.tabs.bug_reporter import BugReporterSection
 from gui.pages.home_page import HomePage, ToolsPage
 
@@ -287,6 +288,13 @@ _SECTIONS_META = [
         "icon": "subtitles.svg",
         "tab_keys": ["tab_subtitles"],
         "action_key": "action_burn_subtitles",
+    },
+    {
+        "id": "transcript",
+        "label_key": "section_transcript",
+        "icon": "transcript.svg",
+        "tab_keys": ["tab_transcript"],
+        "action_key": "action_transcribe",
     },
     {
         "id": "history",
@@ -1955,6 +1963,7 @@ class MainWindow(QMainWindow):
             self._pdf_toolkit_section,
             self._jumpcut_section,
             self._subtitles_section,
+            self._transcript_section,
             self._history_section,
             self._tutorial_section,
         ):
@@ -2050,6 +2059,7 @@ class MainWindow(QMainWindow):
         self._pdf_toolkit_section = PdfToolkitSection(self.settings)
         self._jumpcut_section = JumpcutSection(self.settings)
         self._subtitles_section = SubtitlesSection(self.settings)
+        self._transcript_section = TranscriptSection(self.settings)
         self._history_section = HistorySection()
         self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
@@ -2077,10 +2087,11 @@ class MainWindow(QMainWindow):
             self._pdf_toolkit_section,      # index 17 — pdf toolkit
             self._jumpcut_section,          # index 18 — jump-cutter
             self._subtitles_section,        # index 19 — subtitles
-            self._history_section,          # index 20 — history
-            self._settings_section_widget,  # index 21 — settings
-            self._tutorial_section,         # index 22 — how to use
-            self._bug_reporter_section,     # index 23 — bug reporter
+            self._transcript_section,       # index 20 — transcript
+            self._history_section,          # index 21 — history
+            self._settings_section_widget,  # index 22 — settings
+            self._tutorial_section,         # index 23 — how to use
+            self._bug_reporter_section,     # index 24 — bug reporter
         ]
 
         # Connect status signals from all operation sections.
@@ -2106,6 +2117,7 @@ class MainWindow(QMainWindow):
             self._pdf_toolkit_section,    # index 17
             self._jumpcut_section,        # index 18
             self._subtitles_section,      # index 19
+            self._transcript_section,     # index 20
         )
         for section in _op_sections:
             section.status_message.connect(self._on_status_message)

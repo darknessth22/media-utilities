@@ -454,17 +454,45 @@ _TUTORIAL_DATA_EN = [
         ),
         "steps": [
             "Open the Subtitles tab.",
-            "Pick the source video and the subtitle file (.srt, .vtt, .ass).",
-            "Set font size, color, and outline thickness for readability.",
-            "Pick CRF (lower = better) and Hardware encoder if available (NVIDIA/AMD/Intel).",
-            "Optional: choose an output folder — defaults to alongside the source as <name>_subbed.<ext>.",
-            "Click Burn Subtitles (or Ctrl+Enter).",
-            "Tip: in the Downloader tab, tick Download subtitles to grab .srt files alongside the video.",
+            "Drag a video into the tab — or pick it via Browse. Sibling .srt files auto-fill.",
+            "If the video has embedded sub tracks, pick one and click Use this track.",
+            "Set font, size, primary/outline/box colors via the swatch pickers; toggle Bold/Italic.",
+            "Adjust the bottom margin to lift captions off the frame edge.",
+            "If captions look like ??? boxes, change Encoding (Windows-1256 for Arabic).",
+            "Use Time offset to nudge out-of-sync subs (±seconds).",
+            "Pick a Preset (Fast / Balanced / High Quality) or fine-tune CRF + Hardware encoder.",
+            "Optional: edit Filename template ({name}_subbed by default) and Output folder.",
+            "Click Burn Subtitles (Ctrl+Enter). Cancel anytime; progress shows % and ETA.",
+            "When done, use Open folder / Play to verify the result.",
         ],
         "tips": [
-            "Auto-generated YouTube subs require ticking Include auto-generated.",
+            "Drag & drop a video or subtitle anywhere on the tab to populate the field.",
+            "Background box (BorderStyle=3) works better than thick outline on busy footage.",
             "GPU encoding (NVENC/AMF/QSV) is 5–10× faster than CPU at the same CRF.",
-            "Use a higher outline (3–4) if captions sit on bright/busy footage.",
+            "Auto-generated YouTube subs require ticking Include auto-generated in the Downloader.",
+        ],
+    },
+    {
+        "emoji": "🎙",
+        "title": "AI Transcript",
+        "description": (
+            "Offline speech-to-text via whisper.cpp. Supports English and Arabic, "
+            "auto-detect, and an optional translate-to-English mode. Outputs an SRT "
+            "subtitle file alongside the source media. Fully local — no cloud."
+        ),
+        "steps": [
+            "Open the Transcript tab.",
+            "On first run, click Install Model to fetch the pywhispercpp engine (~80 MB).",
+            "Pick a source audio or video file (mp3, wav, mp4, mkv, …).",
+            "Choose language: Auto-detect, English, or Arabic.",
+            "Click Transcribe (or Ctrl+Enter). First transcribe also downloads the ~500 MB Whisper model.",
+            "Output is saved as <input>.<lang>.srt next to the source by default.",
+        ],
+        "tips": [
+            "The Whisper model lives in %LOCALAPPDATA%\\Videl\\whisper_models — delete to free space.",
+            "Auto-detect is reliable for clean speech; for noisy clips, pick the language explicitly.",
+            "Translate only outputs English — Whisper does not translate between arbitrary pairs.",
+            "Generated SRT can be fed straight into the Subtitles tab to burn captions into the video.",
         ],
     },
     {
@@ -1023,17 +1051,44 @@ _TUTORIAL_DATA_AR = [
         ),
         "steps": [
             "افتح تبويب 'الترجمات'.",
-            "اختر فيديو المصدر وملف الترجمة (.srt أو .vtt أو .ass).",
-            "حدّد حجم الخط واللون وسماكة الحدود لتحسين الوضوح.",
-            "اختر CRF (الأقل = جودة أعلى) ومسرّع العتاد إن توفّر (NVIDIA/AMD/Intel).",
-            "اختياري: حدد مجلد الإخراج — افتراضياً يُحفظ بجوار المصدر باسم <name>_subbed.<ext>.",
-            "انقر 'دمج الترجمة' (أو Ctrl+Enter).",
-            "نصيحة: في تبويب التحميل، فعّل 'تنزيل الترجمات' لجلب ملفات .srt مع الفيديو.",
+            "اسحب الفيديو إلى التبويب أو اختره عبر 'استعراض'. ملفات .srt المجاورة تُملأ تلقائياً.",
+            "إن كان الفيديو يحوي ترجمات مدمجة، اختر واحدة وانقر 'استخدم هذا المسار'.",
+            "حدّد الخط والحجم وألوان النص/الحدود/الصندوق من أدوات الألوان؛ فعّل 'عريض' أو 'مائل'.",
+            "اضبط الهامش السفلي لرفع الترجمة عن حافة الفيديو.",
+            "إذا ظهرت الحروف كصناديق ؟؟؟، غيّر الترميز (Windows-1256 للعربية).",
+            "استخدم 'إزاحة الوقت' لمزامنة الترجمات (±ثواني).",
+            "اختر إعداداً مسبقاً (سريع / متوازن / جودة عالية) أو اضبط CRF والعتاد يدوياً.",
+            "اختياري: عدّل قالب اسم الملف ({name}_subbed افتراضياً) ومجلد الإخراج.",
+            "انقر 'دمج الترجمة' (Ctrl+Enter). يمكن الإلغاء أثناء التقدم، ويظهر النسبة والوقت المتبقي.",
+            "بعد الانتهاء، استخدم 'فتح المجلد' / 'تشغيل' للتحقق من النتيجة.",
         ],
         "tips": [
-            "الترجمات التلقائية من يوتيوب تتطلب تفعيل 'تضمين الترجمات التلقائية'.",
+            "السحب والإفلات يعمل في أي مكان داخل التبويب لتعبئة الحقول.",
+            "صندوق الخلفية أفضل من الحدود السميكة على الخلفيات المزدحمة.",
             "ترميز GPU (NVENC/AMF/QSV) أسرع 5–10 أضعاف من المعالج بنفس CRF.",
-            "ارفع سماكة الحدود (3–4) إذا كانت الترجمة فوق خلفية ساطعة أو مزدحمة.",
+            "الترجمات التلقائية من يوتيوب تتطلب تفعيل 'تضمين الترجمات التلقائية' في تبويب التحميل.",
+        ],
+    },
+    {
+        "emoji": "🎙",
+        "title": "تفريغ صوتي بالذكاء الاصطناعي",
+        "description": (
+            "تحويل الكلام إلى نص محلياً عبر whisper.cpp. يدعم الإنجليزية والعربية مع "
+            "كشف اللغة تلقائياً. يُخرج ملف SRT بجوار المصدر. بدون إنترنت بالكامل."
+        ),
+        "steps": [
+            "افتح تبويب التفريغ.",
+            "في أول استخدام، انقر 'تثبيت النموذج' لجلب محرك pywhispercpp (~80 ميجابايت).",
+            "اختر ملف صوت أو فيديو (mp3, wav, mp4, mkv …).",
+            "اختر اللغة: كشف تلقائي، إنجليزي، أو عربي.",
+            "انقر 'تفريغ' (أو Ctrl+Enter). أول تفريغ يُنزّل نموذج Whisper (~500 ميجابايت).",
+            "الإخراج يُحفظ افتراضياً بصيغة <input>.<lang>.srt بجوار المصدر.",
+        ],
+        "tips": [
+            "نموذج Whisper يُخزَّن في %LOCALAPPDATA%\\Videl\\whisper_models — احذفه لتوفير المساحة.",
+            "الكشف التلقائي موثوق للكلام النظيف؛ للملفات الصاخبة اختر اللغة يدوياً.",
+            "الترجمة تُنتج الإنجليزية فقط — Whisper لا يترجم بين أي زوج لغات.",
+            "ملف SRT الناتج يمكن تمريره مباشرة إلى تبويب الترجمات لدمجه في الفيديو.",
         ],
     },
     {
@@ -1125,12 +1180,13 @@ _TUTORIAL_SECTION_IDS: list[str | None] = [
     "pdf_toolkit",     # 21 PDF Toolkit
     "jumpcut",         # 22 Jump-Cutter
     "subtitles",       # 23 Subtitles (burn-in)
-    "bug_reporter",    # 24 Bug Reporter
-    None,              # 25 Browser Extension (cross-cutting, no own section)
-    None,              # 26 Smart Updater (cross-cutting, no own section)
-    None,              # 27 Quick Open (Ctrl+K) — cross-cutting
-    None,              # 28 Drag & Drop on Home — cross-cutting
-    None,              # 29 Filter Tools by Category — cross-cutting
+    "transcript",      # 24 AI Transcript
+    "bug_reporter",    # 25 Bug Reporter
+    None,              # 26 Browser Extension (cross-cutting, no own section)
+    None,              # 27 Smart Updater (cross-cutting, no own section)
+    None,              # 28 Quick Open (Ctrl+K) — cross-cutting
+    None,              # 29 Drag & Drop on Home — cross-cutting
+    None,              # 30 Filter Tools by Category — cross-cutting
 ]
 
 

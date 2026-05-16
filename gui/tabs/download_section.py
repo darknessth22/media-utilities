@@ -1319,7 +1319,9 @@ class DownloadSection(QScrollArea):
     def _emit_queue_count(self) -> None:
         count = sum(1 for j in self._queue if j["status"] in ("pending", "downloading"))
         self.queue_changed.emit(count)
-        self.busy_changed.emit(count > 0)
+        # Don't flip primary button to "Cancel" — Download tab uses a queue:
+        # the primary button always means "Add to queue". Per-row × cancels.
+        self.busy_changed.emit(False)
 
     def _run_next(self) -> None:
         pending = next((j for j in self._queue if j["status"] == "pending"), None)
@@ -1568,7 +1570,10 @@ class DownloadSection(QScrollArea):
             if row:
                 row.set_cancelled()
             self._worker.cancel()
-            # _on_worker_finished handles cleanup when worker stops
+            # Watchdog — if worker stuck in ffmpeg postproc and doesn't honor
+            # the cancel flag within 5s, force-remove the row and reclaim the
+            # worker slot so the queue can advance.
+            QTimer.singleShot(5000, lambda: self._force_finalize_cancel(job_id))
         elif job["status"] == "pending":
             job["status"] = "cancelled"
             if row:
@@ -1576,6 +1581,26 @@ class DownloadSection(QScrollArea):
             QTimer.singleShot(500, lambda: self._remove_job(job_id))
 
         self._emit_queue_count()
+
+    def _force_finalize_cancel(self, job_id: str) -> None:
+        """Kill stuck worker after cancel grace period."""
+        job = next((j for j in self._queue if j["job_id"] == job_id), None)
+        if job is None or job["status"] != "cancelled":
+            return
+        # Worker still running → terminate it. QThread.terminate is unsafe
+        # but here it's the only way to release a yt-dlp post-process that
+        # ignored cancel_check (e.g. mid-ffmpeg merge).
+        if self._worker and self._worker.isRunning():
+            try:
+                self._worker.terminate()
+                self._worker.wait(2000)
+            except Exception:
+                pass
+            self._worker = None
+        self._active_job = None
+        self._remove_job(job_id)
+        if self._worker is None:
+            self._run_next()
 
     def _remove_job(self, job_id: str) -> None:
         self._queue = [j for j in self._queue if j["job_id"] != job_id]

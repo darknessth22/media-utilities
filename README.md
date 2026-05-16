@@ -154,11 +154,25 @@ Offline media workstation for Windows — download, convert, trim, compress, mer
 
 ### Subtitles (Burn-In)
 - Hardcode an SRT/VTT/ASS subtitle file into a video so captions render on every player and platform
-- Adjustable font size, color, and outline thickness; rendered with libass for accurate styling
-- CRF quality (14–32) and hardware encoder (NVIDIA NVENC / AMD AMF / Intel QuickSync / CPU) — same GPU support as Compress
-- Audio stream-copied (no re-encode); video re-encoded once with the burned-in caption track
-- Output saved as `<name>_subbed.<ext>` alongside the source or in a chosen folder
+- **Drag-and-drop** video or subtitle files; sibling `.srt` files are auto-detected when a video is loaded
+- **Embedded sub tracks** — `ffprobe` lists every subtitle stream in the source MKV/MP4; pick one and Videl extracts it to SRT for burning
+- **Full libass styling** — font, size, bold/italic, primary/outline/box colors (swatch pickers with alpha for transparent outline/box), outline + shadow thickness, optional background box (BorderStyle 3), and bottom-margin spinner. Captions are rendered bottom-center (industry standard); use bottom-margin to lift off the frame edge
+- **Encoding picker** — UTF-8 / UTF-8 BOM / Windows-1256 (Arabic) / Windows-1252 / Latin-1 / auto. Out-of-sync subs can be nudged via **time-offset** (seconds, applied to SRT/VTT)
+- **Live subtitle preview** of the first few cues right under the file picker — confirms the right file and encoding before burning
+- **Encoding presets** — Fast / Balanced / High Quality auto-set CRF + libx264 preset; CRF (14–32) and hardware encoder (NVIDIA NVENC / AMD AMF / Intel QuickSync / CPU) remain tunable
+- **Real progress** — % bar, elapsed and ETA parsed from `ffmpeg -progress`, with a Cancel button that terminates ffmpeg cleanly
+- **Filename template** — `{name}_subbed` by default; overwrite confirmation if the file already exists
+- Audio stream-copied; **Open folder** / **Play** buttons appear after a successful burn
 - Companion: in the **Downloader** tab, tick **Download subtitles** to fetch `.srt` files alongside the video (yt-dlp `--write-subs` / `--write-auto-subs`, comma-separated languages, optional auto-generated tracks)
+
+### AI Transcript (Speech-to-Text)
+- Fully offline transcription via [whisper.cpp](https://github.com/ggerganov/whisper.cpp) — Videl downloads the upstream prebuilt binary, no pip install needed
+- **Backend picker** — choose **CPU** (~80 MB, works on any machine) or **NVIDIA CUDA** (~600 MB, 10–20× faster on RTX cards). Auto-detected NVIDIA GPUs get CUDA recommended.
+- **Model picker** — install any Whisper model: tiny / base / small / medium / large-v3 / large-v3-turbo, in either Q5_0 quantized (~⅓ size) or full f16. Multiple models coexist; install/delete per model from the tab
+- **English + Arabic** plus auto-detect — transcribes in the source language (Arabic audio → Arabic SRT, English audio → English SRT)
+- Outputs an SRT subtitle file (timestamps + text) next to the source — drop straight into the Subtitles tab to burn into video
+- Backends live in `%LOCALAPPDATA%\Videl\whisper_bin\{cpu,cuda}\`; models in `%LOCALAPPDATA%\Videl\whisper_models\`
+- Accepts audio (mp3, wav, flac, m4a, aac, ogg, opus) or video (mp4, mkv, mov, webm, …); ffmpeg auto-extracts a 16 kHz mono WAV internally
 
 ### Jump-Cutter (Auto-Silence Removal)
 - Detects silent gaps with FFmpeg `silencedetect`, re-encodes keeping only loud parts

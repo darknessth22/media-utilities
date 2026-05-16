@@ -54,6 +54,7 @@ _TOOL_COLOR: dict[str, str] = {
     "pdf_toolkit":      "#EF4444",
     "jumpcut":          "#F59E0B",
     "subtitles":        "#14B8A6",
+    "transcript":       "#0891B2",
     "history":          "#6B7280",
 }
 
@@ -79,6 +80,7 @@ _TOOL_CATEGORY: dict[str, str] = {
     "pdf_toolkit": "document",
     "jumpcut": "video",
     "subtitles": "video",
+    "transcript": "audio",
 }
 
 # File-extension → tool routing for the home drop-zone. Picked so the most
@@ -119,7 +121,8 @@ _ALL_TOOLS_META: list[tuple[str, str, str, str, int]] = [
     ("pdf_toolkit",     "document.svg",        "tool_pdf_toolkit_name",     "tool_pdf_toolkit_desc",    17),
     ("jumpcut",         "jumpcut.svg",         "tool_jumpcut_name",         "tool_jumpcut_desc",        18),
     ("subtitles",       "subtitles.svg",       "tool_subtitles_name",       "tool_subtitles_desc",      19),
-    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        20),
+    ("transcript",      "transcript.svg",      "tool_transcript_name",      "tool_transcript_desc",     20),
+    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        21),
 ]
 
 

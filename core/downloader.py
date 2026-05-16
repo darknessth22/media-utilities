@@ -107,7 +107,7 @@ def _make_progress_hook(cancel_check, progress_cb) -> callable:
     def _progress_hook(d):
         if cancel_check and cancel_check():
             raise Exception("Download cancelled by user")
-        
+
         if progress_cb and d["status"] == "downloading":
             downloaded = d.get("downloaded_bytes", 0)
             total = d.get("total_bytes") or d.get("total_bytes_estimate")
@@ -115,8 +115,16 @@ def _make_progress_hook(cancel_check, progress_cb) -> callable:
             eta = d.get("eta", -1)
             speed = d.get("speed")
             progress_cb(pct, eta, _fmt_speed(speed))
-            
+
     return _progress_hook
+
+
+def _make_postproc_hook(cancel_check) -> callable:
+    """yt-dlp postprocessor hook — lets us bail during ffmpeg merge/convert."""
+    def _hook(d):
+        if cancel_check and cancel_check():
+            raise Exception("Download cancelled by user")
+    return _hook
 
 
 def _finalize_downloaded_file(
@@ -473,6 +481,7 @@ def download_media(
         "postprocessor_args": ["-loglevel", "error"],
         "force_keyframes_at_cuts": True,
         "progress_hooks": [_make_progress_hook(cancel_check, progress_cb)],
+        "postprocessor_hooks": [_make_postproc_hook(cancel_check)],
         "post_hooks": [_post_hook],
         "ffmpeg_location": os.path.dirname(ffmpeg_path),
     }

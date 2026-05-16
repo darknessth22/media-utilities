@@ -6,6 +6,7 @@ from core.settings import SettingsManager
 
 class HistoryManager:
     FILENAME = "history.json"
+    MAX_ITEMS = 50  # cap; oldest evicted FIFO on each add_item()
 
     def __init__(self):
         self.items = []
@@ -28,9 +29,12 @@ class HistoryManager:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, list):
-                    # Sort by timestamp descending so newest is first
+                    # Sort by timestamp descending so newest is first.
+                    # Also trim to MAX_ITEMS in case an older build wrote more.
                     self.items = [HistoryItem.from_dict(item) for item in data]
                     self.items.sort(key=lambda x: x.timestamp, reverse=True)
+                    if len(self.items) > self.MAX_ITEMS:
+                        self.items = self.items[: self.MAX_ITEMS]
         except Exception as e:
             print(f"Error loading history: {e}")
 
@@ -45,6 +49,9 @@ class HistoryManager:
 
     def add_item(self, item: HistoryItem):
         self.items.insert(0, item)
+        # FIFO eviction — drop oldest until under cap. Slice is O(n) but n<=50.
+        if len(self.items) > self.MAX_ITEMS:
+            del self.items[self.MAX_ITEMS:]
         self._save()
 
     def get_items(self) -> list[HistoryItem]:

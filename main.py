@@ -6,6 +6,9 @@ Run with:
 import os
 import signal
 import sys
+import faulthandler
+
+faulthandler.enable()
 
 # Load .env before any package imports that read secrets at import time (e.g. bug reporter).
 _env_path = os.path.join(os.path.dirname(__file__), ".env")
