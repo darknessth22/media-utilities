@@ -112,35 +112,22 @@ cp "$ICON_SRC" "$APPDIR/Videl.png"
 # ---------------------------------------------------------------------------
 # 4) linuxdeploy + qt plugin → AppImage
 # ---------------------------------------------------------------------------
-if [[ ! -x "$LINUXDEPLOY" || ! -x "$LINUXDEPLOY_QT" ]]; then
-    echo "ERROR: linuxdeploy AppImages missing under tools/ (see quickstart.md §A.3)." >&2
+if [[ ! -x "$LINUXDEPLOY" ]]; then
+    echo "ERROR: $LINUXDEPLOY missing or not executable (see quickstart.md §A.3)." >&2
     exit 1
 fi
 
 mkdir -p "$DIST"
 
-# linuxdeploy needs to find the python binary PySide6 was built against so the
-# qt plugin can resolve Qt6 .so files. PyInstaller already bundled them into
-# usr/bin/_internal/ — point QML_SOURCES_PATHS / LD_LIBRARY_PATH there.
-export LD_LIBRARY_PATH="$APPDIR/usr/bin/_internal:${LD_LIBRARY_PATH:-}"
-
-# linuxdeploy-plugin-qt needs qmake to discover Qt install paths.
-if [[ -z "${QMAKE:-}" ]]; then
-    if command -v qmake6 >/dev/null 2>&1; then
-        export QMAKE="$(command -v qmake6)"
-    elif command -v qmake >/dev/null 2>&1; then
-        export QMAKE="$(command -v qmake)"
-    else
-        echo "ERROR: qmake/qmake6 not found. apt-get install -y qmake6 qt6-base-dev" >&2
-        exit 1
-    fi
-fi
-echo "Using QMAKE=$QMAKE"
-
-echo "Running linuxdeploy ..."
+# NOTE: --plugin qt deliberately omitted. PyInstaller's PySide6 hook already
+# bundles Qt6 libs + plugins + qml into dist/Videl/_internal/PySide6/Qt/.
+# Invoking linuxdeploy-plugin-qt would deploy a *second* Qt (system qt6-base
+# 6.2 on ubuntu-22.04) alongside the bundled PySide6 Qt 6.11 — version split
+# breaks loading. linuxdeploy without the plugin still scans the ELF for
+# NEEDED entries and bundles non-Qt deps (libxcb*, libpulse, libxkbcommon*).
+echo "Running linuxdeploy (no qt plugin — PyInstaller handles Qt) ..."
 "$LINUXDEPLOY" \
     --appdir "$APPDIR" \
-    --plugin qt \
     --desktop-file "$APPDIR/Videl.desktop" \
     --icon-file "$APPDIR/Videl.png" \
     --output appimage
