@@ -3,17 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache">
 <title>Videl | The All-in-One Media Workstation</title>
-<meta name="description" content="Offline media workstation. AI vocal isolation, video downloader, image upscaler, jump-cutter, PDF suite — 20+ tools, 100% local.">
-<link rel="icon" type="image/png" href="assets/videl_icon.png">
+<meta name="description" content="Offline media workstation for Windows &amp; Linux. AI vocal isolation, video downloader, image upscaler, jump-cutter, PDF suite — 25+ tools, 100% local.">
+<link rel="icon" type="image/png" href="assets/videl_icon.png?v=2026-05-18">
 <meta property="og:title" content="Videl — The All-in-One Media Workstation">
-<meta property="og:description" content="20+ integrated media tools. Demucs v4 vocals, Real-ESRGAN upscaling, jump-cut auto-silence removal, PDF suite. 100% offline.">
+<meta property="og:description" content="25+ integrated media tools for Windows &amp; Linux. Demucs v4 vocals, Real-ESRGAN upscaling, jump-cut auto-silence removal, PDF suite. 100% offline.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="assets/videl_logo.png">
+<meta property="og:image" content="assets/videl_logo.png?v=2026-05-18">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@500&amp;display=swap&amp;v=2026-05-18" rel="stylesheet">
 
 <style>
 :root{
@@ -140,13 +141,31 @@ nav{
 .download-wrap{
   display:flex; flex-direction:column; align-items:center; gap:14px; margin-bottom:60px;
 }
+.btn-row{
+  display:flex; flex-direction:row; flex-wrap:wrap; justify-content:center;
+  align-items:stretch; gap:14px;
+}
 .btn-download{
-  position:relative; display:inline-flex; align-items:center; gap:12px;
+  position:relative; display:inline-flex; align-items:center; justify-content:center; gap:12px;
   background:linear-gradient(135deg,var(--blue) 0%, #2563eb 100%);
-  color:#fff; text-decoration:none; padding:18px 44px; border-radius:50px;
-  font-size:1.1rem; font-weight:700; letter-spacing:.3px; overflow:hidden;
+  color:#fff; text-decoration:none; padding:18px 36px; border-radius:50px;
+  font-size:1.05rem; font-weight:700; letter-spacing:.3px; overflow:hidden;
+  min-height:52px; min-width:240px;
   transition:transform .25s, box-shadow .25s;
   box-shadow:0 4px 24px rgba(13,110,253,.45);
+}
+.btn-download.btn-linux{
+  background:linear-gradient(135deg,#7c3aed 0%, #a855f7 100%);
+  box-shadow:0 4px 24px rgba(124,58,237,.45);
+}
+.btn-download.btn-linux:hover{box-shadow:0 12px 36px rgba(124,58,237,.6)}
+.supported-platforms{
+  font-size:.82rem; color:var(--muted-2); margin-top:4px; letter-spacing:.3px;
+  font-family:'JetBrains Mono',monospace;
+}
+@media (max-width:520px){
+  .btn-row{flex-direction:column; width:100%; max-width:320px}
+  .btn-download{width:100%; min-height:48px}
 }
 .btn-download::before{
   content:''; position:absolute; top:0; left:-100%; width:100%; height:100%;
@@ -369,15 +388,22 @@ footer a:hover{color:var(--text)}
 
 <section class="hero" id="download">
   <img src="assets/videl_logo.png" alt="Videl Logo" class="hero-logo">
-  <div class="hero-badge"><span class="live"></span>Free &amp; Open Source · Windows 64-bit</div>
+  <div class="hero-badge"><span class="live"></span>Free &amp; Open Source · Windows &amp; Linux</div>
   <h1>The All-in-One<br>Media Workstation</h1>
-  <p>20+ integrated tools for video, audio, image, and PDF — powered by Demucs v4, Real-ESRGAN, FFmpeg, and PyMuPDF. Runs entirely on your machine.</p>
+  <p>25+ integrated tools for video, audio, image, and PDF — powered by Demucs v4, Real-ESRGAN, FFmpeg, and PyMuPDF. Runs entirely on your machine.</p>
 
   <div class="download-wrap">
-    <a href="https://github.com/darknessth22/media-utilities/releases/latest/download/Videl_Setup.exe" id="download-btn" class="btn-download">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-13.051-1.851"/></svg>
-      Download for Windows
-    </a>
+    <div class="btn-row">
+      <a href="https://github.com/darknessth22/media-utilities/releases/latest/download/Videl_Setup.exe" id="download-btn" class="btn-download btn-windows" aria-label="Download Videl for Windows">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-13.051-1.851"/></svg>
+        Download for Windows
+      </a>
+      <a href="https://github.com/darknessth22/media-utilities/releases/latest/download/Videl-x86_64.AppImage" id="download-btn-linux" class="btn-download btn-linux" aria-label="Download Videl for Linux">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.077 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.93.93 0 00-.45.343c-.224.327-.295.668-.232 1.073.072.388.234.85.434 1.395.139.396.226.92.291 1.395.064.475.117.872.318 1.071.6.6 1.435.62 2.106.488.553-.111 1.026-.336 1.342-.595.31.06.585.139.847.226.297.099.55.219.838.36.59.293 1.234.677 1.97.677.74 0 1.382-.384 1.972-.677.288-.141.541-.261.838-.36.262-.087.537-.166.847-.226.316.259.789.484 1.342.595.671.132 1.506.112 2.106-.488.201-.199.254-.596.318-1.071.065-.475.152-.999.291-1.395.2-.545.362-1.007.434-1.395.063-.405-.008-.746-.232-1.073a.93.93 0 00-.45-.343c.123-.805-.009-1.657-.287-2.489-.589-1.771-1.831-3.47-2.716-4.521-.75-1.067-.973-1.928-1.05-3.02-.065-1.491 1.056-5.965-3.17-6.298a6.05 6.05 0 00-.48-.021z"/></svg>
+        Download for Linux
+      </a>
+    </div>
+    <div class="supported-platforms">Windows 10+ · Linux x86_64 (Ubuntu 22.04+ / glibc 2.35+)</div>
     <div class="version-badge">
       <span class="version-dot" id="status-dot"></span>
       <span id="version-label" class="skeleton" style="min-width:240px;height:14px">&nbsp;</span>
@@ -402,7 +428,7 @@ footer a:hover{color:var(--text)}
 </section>
 
 <div class="stats reveal">
-  <div class="stat-item"><div class="stat-num" data-count="20" data-suffix="+">0+</div><div class="stat-label">Integrated Tools</div></div>
+  <div class="stat-item"><div class="stat-num" data-count="25" data-suffix="+">0+</div><div class="stat-label">Integrated Tools</div></div>
   <div class="stat-item"><div class="stat-num" data-count="100" data-suffix="%">0%</div><div class="stat-label">Offline</div></div>
   <div class="stat-item"><div class="stat-num">EN/AR</div><div class="stat-label">Bilingual · RTL</div></div>
   <div class="stat-item"><div class="stat-num" data-count="0">0</div><div class="stat-label">Cloud Uploads</div></div>
@@ -461,10 +487,16 @@ footer a:hover{color:var(--text)}
 <section class="cta-section reveal">
   <h2>Ready to take control of your media?</h2>
   <p>Free download. No account. No subscription. No cloud.</p>
-  <a href="https://github.com/darknessth22/media-utilities/releases/latest/download/Videl_Setup.exe" id="download-btn-2" class="btn-download">
-    <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
-    Download Videl Free
-  </a>
+  <div class="btn-row" style="justify-content:center">
+    <a href="https://github.com/darknessth22/media-utilities/releases/latest/download/Videl_Setup.exe" id="download-btn-2" class="btn-download btn-windows" aria-label="Download Videl for Windows">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-13.051-1.851"/></svg>
+      Windows
+    </a>
+    <a href="https://github.com/darknessth22/media-utilities/releases/latest/download/Videl-x86_64.AppImage" id="download-btn-2-linux" class="btn-download btn-linux" aria-label="Download Videl for Linux">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.077 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.93.93 0 00-.45.343c-.224.327-.295.668-.232 1.073.072.388.234.85.434 1.395.139.396.226.92.291 1.395.064.475.117.872.318 1.071.6.6 1.435.62 2.106.488.553-.111 1.026-.336 1.342-.595.31.06.585.139.847.226.297.099.55.219.838.36.59.293 1.234.677 1.97.677.74 0 1.382-.384 1.972-.677.288-.141.541-.261.838-.36.262-.087.537-.166.847-.226.316.259.789.484 1.342.595.671.132 1.506.112 2.106-.488.201-.199.254-.596.318-1.071.065-.475.152-.999.291-1.395.2-.545.362-1.007.434-1.395.063-.405-.008-.746-.232-1.073a.93.93 0 00-.45-.343c.123-.805-.009-1.657-.287-2.489-.589-1.771-1.831-3.47-2.716-4.521-.75-1.067-.973-1.928-1.05-3.02-.065-1.491 1.056-5.965-3.17-6.298a6.05 6.05 0 00-.48-.021z"/></svg>
+      Linux
+    </a>
+  </div>
 </section>
 
 <footer>
@@ -498,6 +530,12 @@ const TOOLS = [
   { icon:'📄', name:'PDF Toolkit',           desc:'Merge, split, compress, rotate, unlock, watermark, and convert PDFs.',              tag:'',   color:'#fb923c'},
   { icon:'📑', name:'Document Tools',        desc:'Office ↔ PDF conversion and quick text/table extraction.',                          tag:'',   color:'#fb923c'},
   { icon:'🧩', name:'Browser Extension',     desc:'Chrome / Edge bridge to send media from any tab to the local app.',                 tag:'New',color:'#fbbf24'},
+  { icon:'💬', name:'Subtitle Generator',    desc:'Whisper-powered SRT/VTT subtitles with language detection, fully offline.',         tag:'AI', color:'#a78bfa'},
+  { icon:'📝', name:'Transcript',            desc:'Speech-to-text export to plain text, JSON, or timestamped formats.',                tag:'AI', color:'#a78bfa'},
+  { icon:'🎓', name:'In-App Tutorial',       desc:'Guided walkthrough for every tool — English &amp; Arabic, with full RTL layout.',   tag:'',   color:'#34d399'},
+  { icon:'🐞', name:'Bug Reporter',          desc:'One-click in-app crash &amp; feedback form — sends logs with consent.',             tag:'',   color:'#f472b6'},
+  { icon:'🔄', name:'Smart Updater',         desc:'Ed25519-signed update manifests. In-place AppImage replace on Linux; installer on Windows.', tag:'', color:'#0ea5e9'},
+  { icon:'💾', name:'Settings &amp; History', desc:'Persistent preferences and per-tool job history across sessions.',                  tag:'',   color:'#94a3b8'},
 ];
 
 const grid = document.getElementById('tools-grid');
@@ -554,12 +592,17 @@ document.querySelectorAll('.stat-num[data-count]').forEach(el=>countIo.observe(e
 
 const REPO = 'darknessth22/media-utilities';
 const API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
-const btnPrimary   = document.getElementById('download-btn');
-const btnSecondary = document.getElementById('download-btn-2');
+const FALLBACK_WIN   = `https://github.com/${REPO}/releases/latest/download/Videl_Setup.exe`;
+const FALLBACK_LINUX = `https://github.com/${REPO}/releases/latest/download/Videl-x86_64.AppImage`;
+const btnWin    = document.getElementById('download-btn');
+const btnWin2   = document.getElementById('download-btn-2');
+const btnLinux  = document.getElementById('download-btn-linux');
+const btnLinux2 = document.getElementById('download-btn-2-linux');
 const versionLabel = document.getElementById('version-label');
 const statusDot    = document.getElementById('status-dot');
 
-function setButtons(href){ btnPrimary.href = href; btnSecondary.href = href; btnPrimary.classList.add('loaded'); }
+function setWin(href){ btnWin.href = href; btnWin2.href = href; btnWin.classList.add('loaded'); }
+function setLinux(href){ btnLinux.href = href; btnLinux2.href = href; }
 function setVersion(text, online=true){
   versionLabel.classList.remove('skeleton');
   versionLabel.style.minWidth=''; versionLabel.style.height='';
@@ -570,18 +613,18 @@ function setVersion(text, online=true){
 fetch(API_URL)
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(release=>{
-    const exe = release.assets.find(a=>a.name.endsWith('.exe')) || release.assets[0];
-    if(exe){
-      setButtons(exe.browser_download_url);
-      const mb = (exe.size/1048576).toFixed(1);
-      setVersion(`Version ${release.tag_name} · Windows 64-bit · ${mb} MB`);
-    } else {
-      setButtons(`https://github.com/${REPO}/releases/latest/download/Videl_Setup.exe`);
-      setVersion(`${release.tag_name} — see Releases page`, false);
-    }
+    const exe = release.assets.find(a=>a.name.endsWith('.exe'));
+    const appimage = release.assets.find(a=>a.name.endsWith('.AppImage'));
+    setWin(exe ? exe.browser_download_url : FALLBACK_WIN);
+    setLinux(appimage ? appimage.browser_download_url : FALLBACK_LINUX);
+    const parts = [`Version ${release.tag_name}`];
+    if(exe){ parts.push(`Win ${(exe.size/1048576).toFixed(1)} MB`); }
+    if(appimage){ parts.push(`Linux ${(appimage.size/1048576).toFixed(1)} MB`); }
+    setVersion(parts.join(' · '), true);
   })
   .catch(()=>{
-    setButtons(`https://github.com/${REPO}/releases/latest/download/Videl_Setup.exe`);
+    setWin(FALLBACK_WIN);
+    setLinux(FALLBACK_LINUX);
     setVersion('View all releases on GitHub →', false);
   });
 </script>
