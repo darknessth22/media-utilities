@@ -173,10 +173,16 @@ jobs:
           path: bin
           key: ${{ runner.os }}-ffmpeg-${{ hashFiles('build_config.json') }}
 
-      - name: Install system deps (libfuse2 for AppImage runtime)
+      - name: Install system deps (libfuse2 + Qt6 + xcb for linuxdeploy-qt)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfuse2 file desktop-file-utils
+          sudo apt-get install -y \
+            libfuse2 file desktop-file-utils \
+            qmake6 qt6-base-dev \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-sync1 \
+            libxcb-util1 libxcb-xfixes0 libxcb-xinerama0 libxcb-xkb1 \
+            libxkbcommon-x11-0 libpulse0
 
       - name: Install build-only Python dependencies
         run: pip install -r requirements-build.txt

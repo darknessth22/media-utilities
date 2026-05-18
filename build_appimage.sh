@@ -124,6 +124,19 @@ mkdir -p "$DIST"
 # usr/bin/_internal/ — point QML_SOURCES_PATHS / LD_LIBRARY_PATH there.
 export LD_LIBRARY_PATH="$APPDIR/usr/bin/_internal:${LD_LIBRARY_PATH:-}"
 
+# linuxdeploy-plugin-qt needs qmake to discover Qt install paths.
+if [[ -z "${QMAKE:-}" ]]; then
+    if command -v qmake6 >/dev/null 2>&1; then
+        export QMAKE="$(command -v qmake6)"
+    elif command -v qmake >/dev/null 2>&1; then
+        export QMAKE="$(command -v qmake)"
+    else
+        echo "ERROR: qmake/qmake6 not found. apt-get install -y qmake6 qt6-base-dev" >&2
+        exit 1
+    fi
+fi
+echo "Using QMAKE=$QMAKE"
+
 echo "Running linuxdeploy ..."
 "$LINUXDEPLOY" \
     --appdir "$APPDIR" \
