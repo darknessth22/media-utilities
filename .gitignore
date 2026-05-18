@@ -93,5 +93,8 @@ runtime/
 # Installer signing key - NEVER commit
 tools/private_key.pem
 
+# Linux AppImage build tools (linuxdeploy*, appimagetool*) — downloaded locally, not committed
+tools/*.AppImage
+
 # OpenWolf local context — per-machine, not for sharing
 .wolf/

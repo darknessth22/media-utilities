@@ -604,6 +604,25 @@ _TUTORIAL_DATA_EN = [
             "Pair with Ctrl+K — chips reduce the list, palette jumps you in.",
         ],
     },
+    {
+        "emoji": "🐧",
+        "title": "Linux & Cross-Platform",
+        "description": (
+            "Videl ships for Windows 10+ and Linux x86_64 (Ubuntu 22.04+ / glibc 2.35+). "
+            "The Linux build is a single AppImage; settings and AI packages follow XDG."
+        ),
+        "steps": [
+            "Download Videl-x86_64.AppImage from the Releases page.",
+            "Install libfuse2 once: sudo apt-get install libfuse2",
+            "chmod +x Videl-x86_64.AppImage and double-click to run.",
+            "Settings persist under ~/.config/Videl/, AI packages under ~/.local/share/Videl/ai_packages/.",
+            "To build from source: bash build_appimage.sh (see specs/001-linux-build/quickstart.md).",
+        ],
+        "tips": [
+            "The updater replaces the AppImage in place and re-launches — keep it in a writable folder.",
+            "Supported: Windows 10+ · Linux x86_64 (Ubuntu 22.04+ / glibc 2.35+).",
+        ],
+    },
 ]
 
 _TUTORIAL_DATA_AR = [
@@ -1150,6 +1169,25 @@ _TUTORIAL_DATA_AR = [
             "بما أن البناء --onefile عبر PyInstaller، التحديث تنزيل كامل (لا توجد رقع ثنائية).",
         ],
     },
+    {
+        "emoji": "🐧",
+        "title": "لينكس ودعم الأنظمة المتعددة",
+        "description": (
+            "يتوفر Videl لويندوز 10+ ولينكس x86_64 (أوبونتو 22.04+ / glibc 2.35+). "
+            "بناء لينكس عبارة عن ملف AppImage واحد، والإعدادات وحزم الذكاء الاصطناعي تتبع معيار XDG."
+        ),
+        "steps": [
+            "نزّل Videl-x86_64.AppImage من صفحة الإصدارات.",
+            "ثبّت libfuse2 مرة واحدة: sudo apt-get install libfuse2",
+            "نفّذ chmod +x Videl-x86_64.AppImage ثم انقر مرتين للتشغيل.",
+            "تُحفظ الإعدادات في ~/.config/Videl/ وحزم الذكاء الاصطناعي في ~/.local/share/Videl/ai_packages/.",
+            "للبناء من المصدر: bash build_appimage.sh (انظر specs/001-linux-build/quickstart.md).",
+        ],
+        "tips": [
+            "يستبدل المحدّث ملف AppImage في مكانه ثم يعيد التشغيل — احتفظ به في مجلد قابل للكتابة.",
+            "المنصّات المدعومة: ويندوز 10+ · لينكس x86_64 (أوبونتو 22.04+ / glibc 2.35+).",
+        ],
+    },
 ]
 
 
@@ -1187,6 +1225,7 @@ _TUTORIAL_SECTION_IDS: list[str | None] = [
     None,              # 28 Quick Open (Ctrl+K) — cross-cutting
     None,              # 29 Drag & Drop on Home — cross-cutting
     None,              # 30 Filter Tools by Category — cross-cutting
+    None,              # 31 Linux & Cross-Platform — cross-cutting
 ]
 
 

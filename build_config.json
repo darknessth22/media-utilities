@@ -4,5 +4,14 @@
     "url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.1-essentials_build.zip",
     "sha256_url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.1-essentials_build.zip.sha256",
     "strip_prefix": "ffmpeg-8.1.1-essentials_build/bin/"
+  },
+  "linux": {
+    "ffmpeg": {
+      "version": "7.0.2",
+      "url": "https://johnvansickle.com/ffmpeg/old-releases/ffmpeg-7.0.2-amd64-static.tar.xz",
+      "sha256": "",
+      "_sha256_note": "Pin before first Linux release. johnvansickle publishes .md5 only; compute via `sha256sum ffmpeg-7.0.2-amd64-static.tar.xz` and paste here. build_appimage.sh must fail on empty sha256.",
+      "strip_prefix": "ffmpeg-7.0.2-amd64-static/"
+    }
   }
 }

@@ -721,6 +721,7 @@
   "update_downloading_progress": "جارٍ التنزيل… {done} / {total} ميجابايت",
   "update_failed_title": "فشل التحديث",
   "update_failed_body": "تعذّر تنزيل التحديث.\n\n{error}\n\nهل تريد فتح الموقع لتنزيله يدويًا؟",
+  "update_failed_appimage_readonly": "فشل التحديث — موقع ملف AppImage غير قابل للكتابة.\n\nانقل Videl-x86_64.AppImage إلى مجلد قابل للكتابة (مثل مجلد المستخدم) ثم أعد المحاولة، أو نزّل الإصدار الجديد يدويًا.",
   "update_open_browser": "فتح الموقع",
   "command_palette_title": "بحث",
   "command_palette_placeholder": "ابحث عن أداة…",

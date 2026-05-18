@@ -232,9 +232,10 @@ Offline media workstation for Windows — download, convert, trim, compress, mer
 
 ## Requirements
 
-- Windows 10 / 11 (primary target — installer ships everything)
+- Windows 10+ · Linux x86_64 (Ubuntu 22.04+ / glibc 2.35+)
 - Python 3.12+ (only when running from source)
-- FFmpeg (bundled in the installer; otherwise must be on PATH)
+- FFmpeg (bundled in the installer / AppImage; otherwise must be on PATH)
+- Linux runtime libs: `libfuse2` (to run AppImages on Ubuntu 22.04+)
 
 ### Python dependencies (from-source only)
 ```bash
@@ -255,6 +256,26 @@ AI components (`rembg`, `demucs`, `torch`, `onnxruntime`, `realesrgan` …) are 
 Upgrade: run the new installer over the old one — settings, history, and AI packages are preserved.
 Uninstall: Add/Remove Programs, or `unins000.exe` in the install directory.
 App data (`%APPDATA%\Videl`) and AI packages (`%LOCALAPPDATA%\Videl\ai_packages`) are kept on uninstall.
+
+### Linux AppImage
+1. Download `Videl-x86_64.AppImage` from [Releases](https://github.com/darknessth22/media-utilities/releases/latest)
+2. `chmod +x Videl-x86_64.AppImage && ./Videl-x86_64.AppImage`
+3. Requires `libfuse2` (`sudo apt-get install libfuse2` on Ubuntu 22.04+).
+
+Settings live under `${XDG_CONFIG_HOME:-~/.config}/Videl/`, AI packages under `${XDG_DATA_HOME:-~/.local/share}/Videl/ai_packages/`. The in-app updater replaces the AppImage in place and re-launches.
+
+### Build the Linux AppImage from source
+
+Host: Ubuntu 22.04+ (glibc 2.35+). One-time setup, build flow, and AppImage tooling pins are in [`specs/001-linux-build/quickstart.md`](specs/001-linux-build/quickstart.md). Short version:
+
+```bash
+sudo apt-get install -y python3.12 python3.12-venv libfuse2 jq
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-build.txt
+# Place linuxdeploy*.AppImage + appimagetool*.AppImage under tools/ (chmod +x).
+bash build_appimage.sh
+# → dist/Videl-x86_64.AppImage
+```
 
 ### From source
 ```bash

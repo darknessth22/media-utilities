@@ -40,30 +40,32 @@ class SettingsManager:
     """Manages loading, saving, and merging of user settings."""
     
     APP_NAME = "media-utilities"
+    APP_NAME_LINUX = "Videl"
     CONFIG_FILENAME = "config.json"
-    
+
     @classmethod
     def get_config_path(cls) -> Path:
-        """Get the platform-specific path for the configuration file."""
+        """Get the platform-specific path for the configuration file.
+
+        Windows: %APPDATA%\\media-utilities\\config.json  (unchanged)
+        macOS:   ~/Library/Application Support/media-utilities/config.json
+        Linux:   $XDG_CONFIG_HOME/Videl/config.json  (fallback ~/.config/Videl)
+        """
         system = platform.system()
-        
+
         if system == "Windows":
-            # %APPDATA%\media-utilities\config.json
             appdata = os.environ.get("APPDATA")
             if not appdata:
                 appdata = os.path.expanduser("~\\AppData\\Roaming")
-            base_dir = Path(appdata)
+            config_dir = Path(appdata) / cls.APP_NAME
         elif system == "Darwin":
-            # ~/Library/Application Support/media-utilities/config.json
-            base_dir = Path.home() / "Library" / "Application Support"
+            config_dir = Path.home() / "Library" / "Application Support" / cls.APP_NAME
         else:
-            # ~/.config/media-utilities/config.json (Linux and others)
             config_home = os.environ.get("XDG_CONFIG_HOME")
             if not config_home:
                 config_home = os.path.expanduser("~/.config")
-            base_dir = Path(config_home)
-            
-        config_dir = base_dir / cls.APP_NAME
+            config_dir = Path(config_home) / cls.APP_NAME_LINUX
+
         config_dir.mkdir(parents=True, exist_ok=True)
         return config_dir / cls.CONFIG_FILENAME
 

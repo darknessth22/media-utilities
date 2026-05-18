@@ -14,6 +14,8 @@ import threading
 from pathlib import Path
 from typing import Callable
 
+from utils.paths import ai_packages_dir
+
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 
 # Real-ESRGAN x4plus weights — auto-downloaded by RealESRGANer on first run.
@@ -26,14 +28,12 @@ _PROGRESS_RE = re.compile(r"TILE\s+(\d+)/(\d+)")
 
 
 def _ai_dir() -> str:
-    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return os.path.join(base, "Videl", "ai_packages", "upscaler")
+    return str(ai_packages_dir() / "upscaler")
 
 
 def _torch_host_dir() -> str:
     """Return the ai_packages dir that owns torch — currently vocal_isolator's."""
-    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return os.path.join(base, "Videl", "ai_packages", "vocal_isolator")
+    return str(ai_packages_dir() / "vocal_isolator")
 
 
 def torch_host_installed() -> bool:

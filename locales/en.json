@@ -721,6 +721,7 @@
   "update_downloading_progress": "Downloading… {done} / {total} MB",
   "update_failed_title": "Update failed",
   "update_failed_body": "Couldn't download the update.\n\n{error}\n\nOpen the website to download manually?",
+  "update_failed_appimage_readonly": "Update failed — the AppImage location is not writable.\n\nMove Videl-x86_64.AppImage to a writable directory (e.g. your home folder) and try again, or download the new release manually.",
   "update_open_browser": "Open Website",
   "command_palette_title": "Quick Open",
   "command_palette_placeholder": "Search tools…  (Ctrl+K)",
