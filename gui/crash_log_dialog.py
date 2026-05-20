@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QFont, QGuiApplication
 from PySide6.QtWidgets import (
     QDialog,
@@ -81,6 +81,8 @@ class CrashLogDialog(QDialog):
     def _copy(self) -> None:
         QGuiApplication.clipboard().setText(self._crash.get("text", ""))
         self._copy_btn.setText(tr("crashlog_copied"))
+        # Revert the label so it stays obvious the button is still usable.
+        QTimer.singleShot(2000, lambda: self._copy_btn.setText(tr("crashlog_copy")))
 
     def _open_folder(self) -> None:
         path = self._crash.get("path")
