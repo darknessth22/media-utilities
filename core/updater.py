@@ -63,14 +63,20 @@ APPIMAGE_MANIFEST_URL = (
 STOREFRONT_URL = "https://darknessth22.github.io/media-utilities/"
 
 # Delta updates: signed per-file manifest published on the latest release, and
-# the rolling content-addressed blob store (one asset per unique file, named by
-# its sha256). See tools/gen_manifest.py and tools/upload_blobs.py.
+# the content-addressed blob store. Blobs are sharded across 16 rolling releases
+# (files-store-0 .. files-store-f) by the first hex char of the sha256 — GitHub
+# caps a release at 1000 assets. See tools/gen_manifest.py and tools/upload_blobs.py.
 FILES_MANIFEST_URL = (
     "https://github.com/darknessth22/media-utilities/releases/latest/download/videl-files.manifest.json"
 )
-BLOB_BASE_URL = (
-    "https://github.com/darknessth22/media-utilities/releases/download/files-store/"
+_BLOB_STORE_RELEASE_BASE = (
+    "https://github.com/darknessth22/media-utilities/releases/download/"
 )
+
+
+def _blob_url(sha: str) -> str:
+    """URL of a content-addressed blob in its sha-prefix shard release."""
+    return f"{_BLOB_STORE_RELEASE_BASE}files-store-{sha[0]}/{sha}"
 
 _HTTP_TIMEOUT_SEC = 3.0
 _DOWNLOAD_TIMEOUT_SEC = 60.0
@@ -198,7 +204,7 @@ class DeltaDownloader(QThread):
                     open(dest, "wb").close()
                     continue
                 req = urllib.request.Request(
-                    BLOB_BASE_URL + sha, headers={"User-Agent": _USER_AGENT}
+                    _blob_url(sha), headers={"User-Agent": _USER_AGENT}
                 )
                 h = hashlib.sha256()
                 with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT_SEC) as resp, \
