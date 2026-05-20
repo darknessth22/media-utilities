@@ -55,6 +55,7 @@ _TOOL_COLOR: dict[str, str] = {
     "jumpcut":          "#F59E0B",
     "subtitles":        "#14B8A6",
     "transcript":       "#0891B2",
+    "image_editor":     "#D946EF",
     "history":          "#6B7280",
 }
 
@@ -81,6 +82,7 @@ _TOOL_CATEGORY: dict[str, str] = {
     "jumpcut": "video",
     "subtitles": "video",
     "transcript": "audio",
+    "image_editor": "image",
 }
 
 # File-extension → tool routing for the home drop-zone. Picked so the most
@@ -122,7 +124,8 @@ _ALL_TOOLS_META: list[tuple[str, str, str, str, int]] = [
     ("jumpcut",         "jumpcut.svg",         "tool_jumpcut_name",         "tool_jumpcut_desc",        18),
     ("subtitles",       "subtitles.svg",       "tool_subtitles_name",       "tool_subtitles_desc",      19),
     ("transcript",      "transcript.svg",      "tool_transcript_name",      "tool_transcript_desc",     20),
-    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        21),
+    ("image_editor",    "image_editor.svg",    "tool_image_editor_name",    "tool_image_editor_desc",   21),
+    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        22),
 ]
 
 

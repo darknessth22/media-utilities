@@ -183,6 +183,40 @@ Offline media workstation for Windows — download, convert, trim, compress, mer
 - **Protected ranges** — visual range editor: scrub the player and tap **Mark In** / **Mark Out**, or use per-row "Set start/end" buttons; multiple ranges with a mini-timeline showing green protected bands; silence inside any protected range is preserved
 - Works for both audio and video; output: `<name>_jumpcut.<ext>`
 
+### Image Editor
+- Single-image preview or batch folder mode
+- **Aspect / monitor presets** — one-click 1:1, 16:9, 9:16, 4:5, 21:9, plus 1080p/1440p/4K **horizontal and vertical monitor** sizes; **Swap W↔H** flips a landscape canvas to portrait in one click
+- **Alignment / fit** — Cover (crop), Fill (letterbox), Center, Stretch; custom W×H + background colour for letterbox/center modes
+- **Crop & rotate** — free-rotate (-180°…+180°), quick 90° CCW / 90° CW / 180° buttons, per-side percent crop sliders (top/left/bottom/right)
+- **Flip** — horizontal / vertical toggles
+- **Filter presets** (18) — Vibrant Contrast, Vibrant Darkness, Color Boost, Shadow Boost, Moon Light, Late Night, Golden Hour, Cool Cinema, Warm Film, B&W Classic, Faded Film, Faded Polaroid, Teal & Orange, Bleach Bypass, Cyberpunk, Sepia, Lomo, Cross Process
+- **Strength slider** blends the filter over your manual edits (0–100%)
+- **Color adjustments** (optional) — brightness, contrast, saturation, hue shift, shadows, highlights, **temperature, tint, black point, white point**
+- **Effects** — sharpen, blur, grain, vignette
+- **Histogram** — live RGB histogram under the preview
+- **Hold-to-compare** — press and hold the preview (or "Hold to compare" button) to flash the original; **Reset all** to zero everything in one click
+- **User presets** — save the full recipe (geometry + filter + adjusts + effects) to JSON in your user config folder; load or delete from the dropdown; works across sessions; tolerates older preset files missing newer fields
+- **Wallpaper / multi-monitor export** — auto-detects your connected monitors (size + position via Qt), or add rows manually. Each monitor row has its own fit/flip/rotate **and its own source image** (Wallpaper-Engine style — different background per screen; rows without an override fall back to the main loaded image). Three actions:
+  - **Export per-monitor** — N independent PNGs sized to each screen
+  - **Export spanned image** — one big PNG at the desktop bounding-box for Windows Span wallpaper
+  - **Apply to monitors now** (Windows-only) — exports per-monitor then auto-assigns each file to its monitor via the `IDesktopWallpaper` COM API; bound to device paths so row reorder/deletion never misroutes
+  - **Open wallpaper settings** — jumps straight to Windows personalization
+  - **Live per-row preview thumbnails** show exactly what each monitor will get
+  - **Auto bg** button per row samples the source's edge colour for blending letterbox bars
+  - **Drag images onto a row** to set its source
+  - Setup (rows + per-row settings) persists across sessions; auto-detects monitors on first open
+  - **Per-monitor edit mode** — click **Edit ✎** on a row to bind the editor controls (filter, adjustments, effects, crop) to that monitor only. Banner shows which monitor you're editing; click **Stop editing this monitor** to return to global mode. Rows without an override use the global grade
+  - Colour grade defaults to global across monitors; only rows you've explicitly edited diverge
+  - **Wallpaper setups** — save the whole multi-monitor config (rows + edits) as a named setup ("Work", "Gaming", "Night") and switch with one click
+  - **Schedule** — auto-apply a setup at a chosen time on selected weekdays (in-app QTimer; Windows-only at apply time)
+  - **Slideshow per row** — point a row at a folder and Windows will cycle wallpapers from it (system-wide; uses `IDesktopWallpaper.SetSlideshow`)
+  - **Layout view** — Wallpaper-Engine-style schematic showing every monitor at its real (x, y) with live thumbnails
+  - **Up / Down** to reorder rows, **Smart fit** to auto-pick cover/fill per source-vs-target aspect, **Palette bg** to pull a dominant-colour letterbox from the image
+  - **Crop ▭** mode on the preview — drag a rect to set the 4 crop sliders visually
+  - **New effects** — glass blur, duotone (2-colour ramp), gradient overlay (2 colours + angle)
+  - Live / video / animated wallpapers are intentionally out of scope (still-image + slideshow only).
+- Live preview thumbnail updates as you tweak; outputs to `<name>_edited.<ext>`
+
 ### History
 - Log of all operations with status, filename, timestamp
 - Persists across restarts
