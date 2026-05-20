@@ -15,6 +15,7 @@ import os
 from typing import Callable
 
 from core.i18n import tr
+from core.paths import resource_path
 from core import recent_jobs
 
 from PySide6.QtCore import Qt, QPoint, QRectF, Signal
@@ -30,8 +31,10 @@ from PySide6.QtWidgets import (
     QSizePolicy, QGraphicsDropShadowEffect,
 )
 
-_ICONS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "icons")
-_APP_LOGO  = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "videl_logo.png")
+# resource_path → sys._MEIPASS in frozen builds; __file__ arithmetic is unreliable
+# there and made every tool-card icon vanish on the Linux AppImage.
+_ICONS_DIR = resource_path("assets", "icons")
+_APP_LOGO  = resource_path("assets", "videl_logo.png")
 
 _TOOL_COLOR: dict[str, str] = {
     "download":  "#3B82F6",

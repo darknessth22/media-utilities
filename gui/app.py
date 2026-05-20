@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.settings import SettingsManager, UserSettings
+from core.paths import resource_path
 from core.i18n import I18n, tr
 from core.tray import SystemTrayIcon
 from core.extension_bridge import ExtensionBridge
@@ -143,9 +144,13 @@ class ToggleSwitchButton(QAbstractButton):
 
 
 # ── Asset path ────────────────────────────────────────────────────────────────
-_ICONS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "icons")
-_APP_ICON = os.path.join(os.path.dirname(__file__), "..", "assets", "videl_icon.png")
-_APP_LOGO = os.path.join(os.path.dirname(__file__), "..", "assets", "videl_logo.png")
+# resource_path resolves to sys._MEIPASS in frozen builds — the only reliable
+# way to reach bundled datas. Do NOT use __file__ arithmetic: a frozen module's
+# __file__ does not reliably point next to the extracted assets (icons vanished
+# on the Linux AppImage that way, while locales loaded via resource_path fine).
+_ICONS_DIR = resource_path("assets", "icons")
+_APP_ICON = resource_path("assets", "videl_icon.png")
+_APP_LOGO = resource_path("assets", "videl_logo.png")
 
 # ── Section definitions ───────────────────────────────────────────────────────
 # Static skeleton — translation keys only. Labels/tabs resolved at runtime via tr().
@@ -301,7 +306,10 @@ _SECTIONS_META = [
         "id": "image_editor",
         "label_key": "section_image_editor",
         "icon": "image_editor.svg",
-        "tab_keys": ["tab_image_editor"],
+        "tab_keys": [
+            "tab_ie_transform", "tab_ie_color", "tab_ie_enhance",
+            "tab_ie_masks", "tab_ie_presets", "tab_ie_wallpaper",
+        ],
         "action_key": "action_apply_edits",
     },
     {

@@ -186,6 +186,8 @@ Offline media workstation for Windows — download, convert, trim, compress, mer
 
 ### Image Editor
 - Single-image preview or batch folder mode
+- Organized into sub-tabs — **Transform · Color · Enhance · Masks · Presets · Wallpaper** — with input, live preview and output pinned on every tab
+- Live preview renders at a reduced resolution for instant slider response, while exports always use full quality
 - **Aspect / monitor presets** — one-click 1:1, 16:9, 9:16, 4:5, 21:9, plus 1080p/1440p/4K **horizontal and vertical monitor** sizes; **Swap W↔H** flips a landscape canvas to portrait in one click
 - **Alignment / fit** — Cover (crop), Fill (letterbox), Center, Stretch; custom W×H + background colour for letterbox/center modes
 - **Crop & rotate** — free-rotate (-180°…+180°), quick 90° CCW / 90° CW / 180° buttons, per-side percent crop sliders (top/left/bottom/right)
@@ -193,10 +195,15 @@ Offline media workstation for Windows — download, convert, trim, compress, mer
 - **Filter presets** (18) — Vibrant Contrast, Vibrant Darkness, Color Boost, Shadow Boost, Moon Light, Late Night, Golden Hour, Cool Cinema, Warm Film, B&W Classic, Faded Film, Faded Polaroid, Teal & Orange, Bleach Bypass, Cyberpunk, Sepia, Lomo, Cross Process
 - **Strength slider** blends the filter over your manual edits (0–100%)
 - **Color adjustments** (optional) — brightness, contrast, saturation, hue shift, shadows, highlights, **temperature, tint, black point, white point**
+- **Tone Curve** — interactive master curve; drag/add/remove control points to reshape highlights, midtones and shadows
+- **Enhance** — Photoshop-style enhancing tools: **Auto enhance** (one-click per-channel autocontrast — white balance + contrast), **exposure** (stops) + **gamma**, **dehaze**, **vibrance** (smart saturation that protects skin tones), **clarity** (local-contrast punch), **noise reduction**, and a real **unsharp mask** (amount / radius / threshold)
 - **Effects** — sharpen, blur, grain, vignette
+- **Local Adjustments (Masks)** — pro-style selective editing: stack multiple **radial** (feathered ellipse), **linear gradient**, and **color-range** masks. Radial/linear are drag-placed on the preview; the color-range mask has an **eyedropper** — click the sky, grass or any color and a tolerance slider selects every matching pixel. Each mask applies a full adjustment set (brightness, contrast, saturation, hue, temperature, tint, exposure, shadows, highlights) to just its region — e.g. shift the sky's hue without touching the rest. Per-mask **feather** and **invert**; **reorder** and **duplicate** masks; outlines drawn on the preview; masks composite in order and stay non-destructive
 - **Histogram** — live RGB histogram under the preview
+- **Undo / redo** — full edit history with toolbar buttons and **Ctrl+Z / Ctrl+Y**
 - **Hold-to-compare** — press and hold the preview (or "Hold to compare" button) to flash the original; **Reset all** to zero everything in one click
-- **User presets** — save the full recipe (geometry + filter + adjusts + effects) to JSON in your user config folder; load or delete from the dropdown; works across sessions; tolerates older preset files missing newer fields
+- **EXIF-aware** — photos with an orientation tag (most phone cameras) load upright automatically
+- **User presets** — save the full recipe (geometry + enhance + filter + adjusts + effects + masks) to JSON in your user config folder; load or delete from the dropdown; works across sessions; tolerates older preset files missing newer fields
 - **Wallpaper / multi-monitor export** — auto-detects your connected monitors (size + position via Qt), or add rows manually. Each monitor row has its own fit/flip/rotate **and its own source image** (Wallpaper-Engine style — different background per screen; rows without an override fall back to the main loaded image). Three actions:
   - **Export per-monitor** — N independent PNGs sized to each screen
   - **Export spanned image** — one big PNG at the desktop bounding-box for Windows Span wallpaper

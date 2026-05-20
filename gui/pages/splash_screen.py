@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 
 from core.i18n import tr
+from core.paths import resource_path
 
 from PySide6.QtCore import Qt, Signal, QPoint
 from PySide6.QtGui import (
@@ -15,7 +16,7 @@ from PySide6.QtWidgets import (
     QGraphicsOpacityEffect, QSizePolicy,
 )
 
-_APP_LOGO = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "videl_logo.png")
+_APP_LOGO = resource_path("assets", "videl_logo.png")
 _LOGO_CY_FRAC = 0.38
 
 

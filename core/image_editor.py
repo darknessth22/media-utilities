@@ -8,10 +8,13 @@ Pipeline order:
     2. Percent crop (top/left/bottom/right)
     3. Flip (H/V)
     4. Fit into target canvas (cover/fill/center/stretch) + bg color
-    5. Color adjustments (brightness/contrast/saturation/hue/shadows/highlights
-       + temperature/tint + black-point/white-point)
-    6. Filter preset, strength-blended against the un-filtered post-adjust image
-    7. Post effects (sharpen/blur, grain, vignette)
+    5. Enhance tools (denoise, auto-enhance, exposure/gamma, dehaze, vibrance,
+       clarity, unsharp mask) — Photoshop-style enhancing pass
+    6. Color adjustments (brightness/contrast/saturation/hue/shadows/highlights
+       + temperature/tint + black-point/white-point) then the master tone curve
+    7. Filter preset, strength-blended against the un-filtered post-adjust image
+    8. Local-adjustment masks (radial / linear / color-range), composited in order
+    9. Post effects (sharpen/blur, grain, vignette)
 
 Presets stored at  user_config_dir()/image_presets.json.
 """
@@ -19,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 from dataclasses import dataclass, field, asdict
 from typing import Callable, Optional
 
@@ -159,11 +163,82 @@ class EffectsOptions:
 
 
 @dataclass
+class EnhanceOptions:
+    """Photoshop-style enhancing pass. All sliders default to a no-op."""
+    auto_enhance: bool = False     # one-click per-channel autocontrast (white balance + contrast)
+    clarity: float = 0.0           # 0..1    midtone local-contrast punch
+    dehaze: float = 0.0            # 0..1    haze removal — contrast/saturation lift
+    vibrance: float = 0.0          # -1..1   smart saturation; protects already-saturated pixels
+    exposure: float = 0.0          # -2..2   stops (multiplies linear light by 2**exposure)
+    gamma: float = 1.0             # 0.2..3.0  midtone gamma (>1 brightens)
+    denoise: float = 0.0           # 0..1    median/smooth noise reduction
+    sharpen_amount: float = 0.0    # 0..3    unsharp-mask amount
+    sharpen_radius: float = 2.0    # 0.5..20 unsharp-mask radius (px)
+    sharpen_threshold: int = 3     # 0..20   unsharp-mask threshold
+
+
+@dataclass
+class CurvesOptions:
+    """Master tone curve. `points` are (x, y) control points in 0..255, sorted
+    by x; the default identity line is a no-op."""
+    enabled: bool = False
+    points: list = field(default_factory=lambda: [[0, 0], [255, 255]])
+
+
+MASK_TYPES = ("radial", "linear", "color")
+
+
+@dataclass
+class MaskAdjust:
+    """Per-mask local adjustments. All channels default to a no-op."""
+    brightness: float = 1.0
+    contrast: float = 1.0
+    saturation: float = 1.0
+    hue: int = 0
+    temperature: int = 0
+    tint: int = 0
+    exposure: float = 0.0     # -2..2 stops
+    shadows: float = 0.0      # -1..1
+    highlights: float = 0.0   # -1..1
+
+
+@dataclass
+class MaskLayer:
+    """One local-adjustment mask. Geometry is stored as fractions (0..1) of the
+    canvas so a mask survives a target W×H change.
+
+    radial — feathered ellipse centred at (cx, cy) with radii (rx, ry).
+    linear — graduated ramp from point A (x0, y0) to point B (x1, y1).
+    color  — selects pixels near `pick_color` within `tolerance` (sky, grass…).
+    """
+    mask_type: str = "radial"
+    invert: bool = False
+    feather: float = 0.5      # 0..1 edge softness
+    # Radial geometry
+    cx: float = 0.5
+    cy: float = 0.5
+    rx: float = 0.3
+    ry: float = 0.3
+    # Linear geometry
+    x0: float = 0.5
+    y0: float = 0.0
+    x1: float = 0.5
+    y1: float = 1.0
+    # Color-range geometry
+    pick_color: str = "#808080"
+    tolerance: float = 0.12   # 0..1 — radius of colour fully selected (kept tight on purpose)
+    adjust: MaskAdjust = field(default_factory=MaskAdjust)
+
+
+@dataclass
 class EditConfig:
     fit: FitOptions = field(default_factory=FitOptions)
+    enhance: EnhanceOptions = field(default_factory=EnhanceOptions)
     filter: FilterOptions = field(default_factory=FilterOptions)
     adjust: AdjustOptions = field(default_factory=AdjustOptions)
+    curves: CurvesOptions = field(default_factory=CurvesOptions)
     effects: EffectsOptions = field(default_factory=EffectsOptions)
+    masks: list[MaskLayer] = field(default_factory=list)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -240,6 +315,19 @@ def sample_edge_color(img: Image.Image, border_px: int = 8) -> str:
     gs = sorted(p[1] for p in pixels)
     bs = sorted(p[2] for p in pixels)
     return f"#{rs[n // 2]:02X}{gs[n // 2]:02X}{bs[n // 2]:02X}"
+
+
+def load_image(path: str) -> Image.Image:
+    """Open an image, apply its EXIF orientation, return a detached copy.
+
+    Phone cameras store the photo sideways plus an orientation tag; opening with
+    plain `Image.open` ignores the tag and the image loads rotated. Always route
+    editable-image loads through here.
+    """
+    with Image.open(path) as im:
+        im.load()
+        fixed = ImageOps.exif_transpose(im)
+        return (fixed if fixed is not None else im).copy()
 
 
 def _hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
@@ -405,6 +493,41 @@ def _apply_levels(img: Image.Image, black_point: int, white_point: int) -> Image
     return img.point(full_lut)
 
 
+def _build_curve_lut(points: list) -> list[int]:
+    """Piecewise-linear 256-entry LUT from (x, y) control points (0..255)."""
+    pts = sorted(
+        (max(0, min(255, int(p[0]))), max(0, min(255, int(p[1]))))
+        for p in points if len(p) >= 2
+    )
+    if not pts:
+        return list(range(256))
+    # Anchor the ends so every input 0..255 is covered.
+    if pts[0][0] != 0:
+        pts.insert(0, (0, pts[0][1]))
+    if pts[-1][0] != 255:
+        pts.append((255, pts[-1][1]))
+    lut: list[int] = []
+    j = 0
+    for i in range(256):
+        while j < len(pts) - 2 and pts[j + 1][0] < i:
+            j += 1
+        x0, y0 = pts[j]
+        x1, y1 = pts[j + 1]
+        v = y1 if x1 == x0 else y0 + (y1 - y0) * (i - x0) / (x1 - x0)
+        lut.append(max(0, min(255, int(round(v)))))
+    return lut
+
+
+def _apply_curves(img: Image.Image, curves: "CurvesOptions") -> Image.Image:
+    """Apply the master tone curve to every channel."""
+    if not curves.enabled:
+        return img
+    lut = _build_curve_lut(curves.points)
+    if lut == list(range(256)):
+        return img
+    return img.point(lut * len(img.getbands()))
+
+
 def _apply_adjusts(img: Image.Image, adj: dict) -> Image.Image:
     """Apply a dict with the same keys as BUILTIN_FILTERS values + optional bp/wp."""
     out = img
@@ -444,6 +567,121 @@ def _blend(a: Image.Image, b: Image.Image, strength: float) -> Image.Image:
     return Image.blend(a.convert("RGB"), b.convert("RGB"), s)
 
 
+# ── Enhance tools (Photoshop-style enhancing pass) ────────────────────────────
+
+def _apply_auto_enhance(img: Image.Image) -> Image.Image:
+    """One-click fix: stretch each RGB channel independently.
+
+    Per-channel autocontrast removes a colour cast (white balance) AND expands
+    the tonal range (contrast) in a single cheap pass — the classic "auto" fix.
+    """
+    return ImageOps.autocontrast(img.convert("RGB"), cutoff=1)
+
+
+def _apply_exposure_gamma(img: Image.Image, exposure: float, gamma: float) -> Image.Image:
+    """Exposure in stops (×2**exposure) then a midtone gamma curve."""
+    if abs(exposure) < 0.001 and abs(gamma - 1.0) < 0.001:
+        return img
+    mult = 2.0 ** float(exposure)
+    inv_g = 1.0 / max(0.01, float(gamma))
+    lut = []
+    for i in range(256):
+        v = (i / 255.0) * mult
+        v = max(0.0, min(1.0, v)) ** inv_g
+        lut.append(max(0, min(255, int(round(v * 255)))))
+    return img.point(lut * len(img.getbands()))
+
+
+def _apply_dehaze(img: Image.Image, amount: float) -> Image.Image:
+    """Lift haze: punch contrast + saturation and deepen blacks. amount 0..1."""
+    if amount <= 0.001:
+        return img
+    a = max(0.0, min(1.0, amount))
+    img = img.convert("RGB")
+    out = ImageEnhance.Contrast(img).enhance(1.0 + 0.55 * a)
+    out = ImageEnhance.Color(out).enhance(1.0 + 0.45 * a)
+    out = ImageEnhance.Brightness(out).enhance(1.0 - 0.06 * a)
+    bp = int(round(8 * a))
+    if bp > 0:
+        out = _apply_levels(out, bp, 100)
+    return out
+
+
+def _apply_vibrance(img: Image.Image, amount: float) -> Image.Image:
+    """Smart saturation: boosts low-saturation pixels most, protects vivid ones.
+
+    amount -1..1. Negative desaturates. Unlike a flat saturation multiply, the
+    gain is weighted by (255 - s) so already-saturated colours (skin, skies)
+    don't clip.
+    """
+    if abs(amount) <= 0.001:
+        return img
+    a = max(-1.0, min(1.0, amount))
+    hsv = img.convert("HSV")
+    h, s, v = hsv.split()
+
+    def _f(p: int, a: float = a) -> int:
+        gain = a * (255 - p) / 255.0
+        return max(0, min(255, int(p + p * gain)))
+
+    s = s.point(_f)
+    return Image.merge("HSV", (h, s, v)).convert("RGB")
+
+
+def _apply_clarity(img: Image.Image, amount: float) -> Image.Image:
+    """Local-contrast 'clarity' — a large-radius unsharp mask. amount 0..1."""
+    if amount <= 0.001:
+        return img
+    img = img.convert("RGB")
+    w, h = img.size
+    radius = max(3, min(w, h) // 40)
+    percent = int(max(0.0, min(1.0, amount)) * 110)
+    return img.filter(ImageFilter.UnsharpMask(radius=radius, percent=percent, threshold=0))
+
+
+def _apply_denoise(img: Image.Image, amount: float) -> Image.Image:
+    """Noise reduction: a 3×3 median (plus a light blur at high amounts), blended."""
+    if amount <= 0.001:
+        return img
+    a = max(0.0, min(1.0, amount))
+    img = img.convert("RGB")
+    den = img.filter(ImageFilter.MedianFilter(size=3))
+    if a > 0.5:
+        den = den.filter(ImageFilter.GaussianBlur(radius=(a - 0.5) * 1.6))
+    return Image.blend(img, den, a)
+
+
+def _apply_unsharp(img: Image.Image, amount: float, radius: float, threshold: int) -> Image.Image:
+    """Real unsharp-mask sharpen with radius / amount / threshold control."""
+    if amount <= 0.001:
+        return img
+    return img.filter(ImageFilter.UnsharpMask(
+        radius=max(0.1, float(radius)),
+        percent=int(max(0.0, min(3.0, amount)) * 100),
+        threshold=int(max(0, threshold)),
+    ))
+
+
+def _apply_enhance(img: Image.Image, enh: "EnhanceOptions") -> Image.Image:
+    """Run the enhancing pass. Order: clean → tone → colour → detail."""
+    out = img.convert("RGB")
+    if enh.denoise > 0:
+        out = _apply_denoise(out, enh.denoise)
+    if enh.auto_enhance:
+        out = _apply_auto_enhance(out)
+    if enh.exposure != 0.0 or abs(enh.gamma - 1.0) > 0.001:
+        out = _apply_exposure_gamma(out, enh.exposure, enh.gamma)
+    if enh.dehaze > 0:
+        out = _apply_dehaze(out, enh.dehaze)
+    if enh.vibrance != 0.0:
+        out = _apply_vibrance(out, enh.vibrance)
+    if enh.clarity > 0:
+        out = _apply_clarity(out, enh.clarity)
+    if enh.sharpen_amount > 0:
+        out = _apply_unsharp(out, enh.sharpen_amount, enh.sharpen_radius, enh.sharpen_threshold)
+    return out
+
+
 # ── Effects ───────────────────────────────────────────────────────────────────
 
 def _apply_sharpen_blur(img: Image.Image, sharpen: float, blur: float) -> Image.Image:
@@ -457,13 +695,16 @@ def _apply_sharpen_blur(img: Image.Image, sharpen: float, blur: float) -> Image.
 
 
 def _apply_grain(img: Image.Image, amount: float) -> Image.Image:
-    """Gray noise overlay. amount 0..1 → blend alpha 0..~0.35."""
+    """Gray noise overlay. amount 0..1 → blend alpha 0..~0.35.
+
+    Uses a fixed-seed RNG so the grain is deterministic — the preview and the
+    exported file (and repeated renders) get the identical noise pattern.
+    """
     if amount <= 0.001:
         return img
     img = img.convert("RGB")
     w, h = img.size
-    # os.urandom is fast and cryptographically uniform — good enough as white noise.
-    noise = Image.frombytes("L", (w, h), os.urandom(w * h)).convert("RGB")
+    noise = Image.frombytes("L", (w, h), random.Random(0x5EED).randbytes(w * h)).convert("RGB")
     alpha = max(0.0, min(1.0, amount)) * 0.35
     return Image.blend(img, noise, alpha)
 
@@ -559,6 +800,123 @@ def _apply_vignette(img: Image.Image, amount: float) -> Image.Image:
     return img
 
 
+# ── Local-adjustment masks ────────────────────────────────────────────────────
+
+def _build_radial_mask(size: tuple[int, int], layer: MaskLayer) -> Image.Image:
+    """Feathered ellipse mask. 'L' image, 255 = full local effect."""
+    w, h = size
+    mask = Image.new("L", (w, h), 0)
+    cx, cy = layer.cx * w, layer.cy * h
+    rx = max(1.0, layer.rx * w)
+    ry = max(1.0, layer.ry * h)
+    ImageDraw.Draw(mask).ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=255)
+    # Feather softens the edge — blur radius scales with the smaller ellipse axis.
+    feather_px = max(0.0, min(1.0, layer.feather)) * 0.6 * min(rx, ry)
+    if feather_px > 0.5:
+        mask = mask.filter(ImageFilter.GaussianBlur(feather_px))
+    return mask
+
+
+def _build_linear_mask(size: tuple[int, int], layer: MaskLayer) -> Image.Image:
+    """Graduated ramp mask from point A→B. 'L' image, 255 = full local effect."""
+    w, h = size
+    ax, ay = layer.x0 * w, layer.y0 * h
+    bx, by = layer.x1 * w, layer.y1 * h
+    dx, dy = bx - ax, by - ay
+    length2 = dx * dx + dy * dy
+    if length2 < 1.0:
+        return Image.new("L", (w, h), 255)
+    # feather compresses the 0→1 ramp around its midpoint (0 = hard step).
+    f = max(0.05, min(1.0, layer.feather))
+    # Build on a downscaled canvas then upsample — keeps it fast.
+    sw, sh = max(64, w // 4), max(64, h // 4)
+    m = Image.new("L", (sw, sh))
+    px = m.load()
+    sx, sy = w / sw, h / sh
+    for y in range(sh):
+        for x in range(sw):
+            t = ((x * sx - ax) * dx + (y * sy - ay) * dy) / length2
+            t = (t - 0.5) / f + 0.5
+            px[x, y] = max(0, min(255, int(t * 255)))
+    return m.resize((w, h), Image.Resampling.BILINEAR)
+
+
+def _build_color_mask(img: Image.Image, layer: MaskLayer) -> Image.Image:
+    """Select pixels close to `layer.pick_color`. 'L' mask, 255 = full effect.
+
+    Distance is the **largest** per-channel absolute difference — a pixel matches
+    only when red AND green AND blue are all near the target, so a colour that
+    differs strongly in just one channel (e.g. blue) is correctly rejected.
+
+    `tolerance` is the radius that is *fully* selected (255). `feather` only adds
+    a soft fall-off **beyond** that radius — it never eats into the tolerance —
+    so the selection stays tight and predictable. Cheap, no NumPy.
+    """
+    rgb = img.convert("RGB")
+    target = _hex_to_rgb(layer.pick_color)
+    d = ImageChops.difference(rgb, Image.new("RGB", rgb.size, target))
+    r, g, b = d.split()
+    diff = ImageChops.lighter(ImageChops.lighter(r, g), b)  # per-pixel max channel diff
+    tol = max(2.0, min(1.0, layer.tolerance) * 255.0)       # fully-selected radius
+    soft = max(1.0, min(1.0, layer.feather) * 64.0)         # ramp width past `tol`
+    outer = tol + soft
+    lut = []
+    for i in range(256):
+        if i <= tol:
+            lut.append(255)
+        elif i >= outer:
+            lut.append(0)
+        else:
+            lut.append(int(round(255 * (1.0 - (i - tol) / soft))))
+    return diff.point(lut).filter(ImageFilter.GaussianBlur(1.0))
+
+
+def _apply_mask_adjust(img: Image.Image, adj: MaskAdjust) -> Image.Image:
+    """Apply a mask's local adjustments to the whole image (caller composites)."""
+    out = _apply_adjusts(img, {
+        "brightness": adj.brightness,
+        "contrast":   adj.contrast,
+        "saturation": adj.saturation,
+        "hue":        adj.hue,
+        "shadows":    adj.shadows,
+        "highlights": adj.highlights,
+        "temperature": adj.temperature,
+        "tint":       adj.tint,
+    })
+    if adj.exposure != 0.0:
+        out = _apply_exposure_gamma(out, adj.exposure, 1.0)
+    return out
+
+
+def _apply_masks(img: Image.Image, masks: list[MaskLayer]) -> Image.Image:
+    """Composite each mask's local adjustment over the image, in order."""
+    if not masks:
+        return img
+    base = img.convert("RGB")
+    for layer in masks:
+        if layer.mask_type == "linear":
+            mask = _build_linear_mask(base.size, layer)
+        elif layer.mask_type == "color":
+            mask = _build_color_mask(base, layer)
+        else:
+            mask = _build_radial_mask(base.size, layer)
+        if layer.invert:
+            mask = ImageChops.invert(mask)
+        edited = _apply_mask_adjust(base, layer.adjust)
+        base = Image.composite(edited, base, mask)
+    return base
+
+
+def clone_masks(masks: list[MaskLayer]) -> list[MaskLayer]:
+    """Deep-copy a mask list (each MaskLayer carries a nested MaskAdjust)."""
+    out: list[MaskLayer] = []
+    for m in masks:
+        nm = MaskLayer(**{k: getattr(m, k) for k in m.__dataclass_fields__ if k != "adjust"})
+        nm.adjust = MaskAdjust(**asdict(m.adjust))
+        out.append(nm)
+    return out
+
+
 # ── Public pipeline ───────────────────────────────────────────────────────────
 
 def apply_edits(img: Image.Image, cfg: EditConfig) -> Image.Image:
@@ -574,6 +932,7 @@ def apply_edits(img: Image.Image, cfg: EditConfig) -> Image.Image:
     )
     out = _apply_flip(out, cfg.fit.flip_h, cfg.fit.flip_v)
     out = _apply_fit(out, cfg.fit)
+    out = _apply_enhance(out, cfg.enhance)
 
     pre_filter = out
     if cfg.adjust.enabled:
@@ -590,6 +949,7 @@ def apply_edits(img: Image.Image, cfg: EditConfig) -> Image.Image:
             "white_point": cfg.adjust.white_point,
         }
         pre_filter = _apply_adjusts(out, adj_dict)
+    pre_filter = _apply_curves(pre_filter, cfg.curves)
 
     preset = BUILTIN_FILTERS.get(cfg.filter.preset, BUILTIN_FILTERS["none"])
     if cfg.filter.preset == "none":
@@ -597,6 +957,9 @@ def apply_edits(img: Image.Image, cfg: EditConfig) -> Image.Image:
     else:
         filtered = _apply_adjusts(pre_filter, preset)
         post_filter = _blend(pre_filter, filtered, cfg.filter.strength)
+
+    # Local-adjustment masks — applied on top of the global grade.
+    post_filter = _apply_masks(post_filter, cfg.masks)
 
     # Effects last — never wet/dry blended.
     eff = cfg.effects
@@ -612,9 +975,7 @@ def apply_edits(img: Image.Image, cfg: EditConfig) -> Image.Image:
 
 
 def process_image(in_path: str, out_path: str, cfg: EditConfig, quality: int = 92) -> str:
-    with Image.open(in_path) as im:
-        im.load()
-        result = apply_edits(im, cfg)
+    result = apply_edits(load_image(in_path), cfg)
     ext = os.path.splitext(out_path)[1].lower()
     save_kwargs: dict = {}
     if ext in (".jpg", ".jpeg"):
@@ -680,9 +1041,12 @@ def save_user_preset(name: str, cfg: EditConfig) -> None:
     presets = load_user_presets()
     presets[name] = {
         "fit":     asdict(cfg.fit),
+        "enhance": asdict(cfg.enhance),
         "filter":  asdict(cfg.filter),
         "adjust":  asdict(cfg.adjust),
+        "curves":  asdict(cfg.curves),
         "effects": asdict(cfg.effects),
+        "masks":   [asdict(m) for m in cfg.masks],
     }
     path = _presets_file()
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -781,12 +1145,16 @@ def _render_one_monitor(
             crop_bottom=chosen.fit.crop_bottom,
             crop_right=chosen.fit.crop_right,
         ),
+        enhance=EnhanceOptions(**asdict(chosen.enhance)),
         filter=FilterOptions(
             preset=chosen.filter.preset,
             strength=chosen.filter.strength,
         ),
         adjust=AdjustOptions(**asdict(chosen.adjust)),
+        curves=CurvesOptions(enabled=chosen.curves.enabled,
+                             points=[list(p) for p in chosen.curves.points]),
         effects=EffectsOptions(**asdict(chosen.effects)),
+        masks=clone_masks(chosen.masks),
     )
     return apply_edits(src, cfg)
 
@@ -800,9 +1168,7 @@ def _resolve_source(
     path = (spec.source_path or "").strip()
     if path and os.path.isfile(path):
         if path not in cache:
-            with Image.open(path) as im:
-                im.load()
-                cache[path] = im.copy()
+            cache[path] = load_image(path)
         return cache[path]
     if fallback is None:
         raise ValueError(
@@ -875,9 +1241,7 @@ def export_wallpapers(
 
     fallback: Optional[Image.Image] = None
     if src_path and os.path.isfile(src_path):
-        with Image.open(src_path) as im:
-            im.load()
-            fallback = im.copy()
+        fallback = load_image(src_path)
 
     # Validate: every spec must resolve to *some* source.
     for s in specs:
@@ -908,10 +1272,28 @@ def preset_to_config(blob: dict) -> EditConfig:
     cfg = EditConfig()
     if "fit" in blob:
         cfg.fit = _coerce(FitOptions, blob["fit"], cfg.fit)
+    if "enhance" in blob:
+        cfg.enhance = _coerce(EnhanceOptions, blob["enhance"], cfg.enhance)
     if "filter" in blob:
         cfg.filter = _coerce(FilterOptions, blob["filter"], cfg.filter)
     if "adjust" in blob:
         cfg.adjust = _coerce(AdjustOptions, blob["adjust"], cfg.adjust)
+    if "curves" in blob and isinstance(blob["curves"], dict):
+        cfg.curves = _coerce(CurvesOptions, blob["curves"], cfg.curves)
+        if not isinstance(cfg.curves.points, list) or len(cfg.curves.points) < 2:
+            cfg.curves.points = [[0, 0], [255, 255]]
     if "effects" in blob:
         cfg.effects = _coerce(EffectsOptions, blob["effects"], cfg.effects)
+    if "masks" in blob and isinstance(blob["masks"], list):
+        cfg.masks = []
+        for mblob in blob["masks"]:
+            if not isinstance(mblob, dict):
+                continue
+            ml = _coerce(MaskLayer, mblob, MaskLayer())
+            # _coerce copies the raw 'adjust' dict — rebuild it as a MaskAdjust.
+            if isinstance(mblob.get("adjust"), dict):
+                ml.adjust = _coerce(MaskAdjust, mblob["adjust"], MaskAdjust())
+            else:
+                ml.adjust = MaskAdjust()
+            cfg.masks.append(ml)
     return cfg

@@ -12,7 +12,16 @@ from typing import Optional
 
 from PIL import Image
 from PySide6.QtCore import Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication, QPainter, QPen, QPixmap
+from PySide6.QtGui import (
+    QColor,
+    QDesktopServices,
+    QGuiApplication,
+    QKeySequence,
+    QPainter,
+    QPen,
+    QPixmap,
+    QShortcut,
+)
 from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
@@ -33,6 +42,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSlider,
     QSpinBox,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -41,17 +51,23 @@ from core.i18n import tr
 from core.image_editor import (
     ASPECT_PRESETS,
     BUILTIN_FILTERS,
+    CurvesOptions,
     EditConfig,
     EffectsOptions,
+    EnhanceOptions,
     FitOptions,
     FilterOptions,
     AdjustOptions,
     FIT_MODES,
+    MASK_TYPES,
+    MaskAdjust,
+    MaskLayer,
     MonitorSpec,
     _render_one_monitor,
     apply_edits,
     delete_user_preset,
     export_wallpapers,
+    load_image,
     load_user_presets,
     preset_to_config,
     process_batch,
@@ -80,6 +96,9 @@ def _hdr(text: str) -> QLabel:
 
 
 _PREVIEW_MAX = 480
+# The preview pipeline runs at this max canvas size, NOT the real target W×H —
+# rendering a 4K canvas on every slider drag is what made the editor feel slow.
+_PREVIEW_RENDER_MAX = 640
 
 
 def _pil_to_qpixmap(img: Image.Image) -> QPixmap:
@@ -475,8 +494,7 @@ class _MonitorRow(QFrame):
         if not path or not os.path.isfile(path):
             return
         try:
-            im = Image.open(path)
-            im.load()
+            im = load_image(path)
             self._bg_color = sample_edge_color(im)
             self._apply_bg()
             self.changed.emit()
@@ -495,8 +513,7 @@ class _MonitorRow(QFrame):
         if not path or not os.path.isfile(path):
             return
         try:
-            im = Image.open(path)
-            im.load()
+            im = load_image(path)
             self._bg_color = dominant_color(im)
             self._apply_bg()
             self.changed.emit()
@@ -515,7 +532,7 @@ class _MonitorRow(QFrame):
         if not path or not os.path.isfile(path):
             return
         try:
-            im = Image.open(path)
+            im = load_image(path)
             mode = smart_fit_for(im.size, (self.w_spin.value(), self.h_spin.value()))
             idx = self.fit_combo.findData(mode)
             if idx >= 0:
@@ -627,18 +644,72 @@ class _PreviewLabel(QLabel):
     hold_pressed = Signal()
     hold_released = Signal()
     crop_set = Signal(float, float, float, float)  # top, left, bottom, right (each 0..0.49)
+    # Raw drag start/end fractions (0..1) of the displayed pixmap, for mask geometry.
+    mask_geometry_set = Signal(float, float, float, float)
+    # Sampled pixel colour for a color-range mask.
+    mask_color_picked = Signal(int, int, int)
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.crop_mode_active = False
         self._drag_origin = None
         self._drag_rect = None
+        # Mask placement mode: None | "radial" | "linear".
+        self.mask_mode: Optional[str] = None
+        self._mask_origin = None
+        self._mask_cur = None
+        # Outlines of existing masks, drawn always: list of
+        # ("radial", cx, cy, rx, ry) or ("linear", x0, y0, x1, y1) in 0..1 fractions.
+        self._mask_overlays: list = []
+
+    def set_mask_overlays(self, overlays: list) -> None:
+        self._mask_overlays = list(overlays)
+        self.update()
+
+    def _frac_to_point(self, fx: float, fy: float) -> Optional[tuple[int, int]]:
+        """Translate a 0..1 fraction of the shown pixmap into a label-space point."""
+        pm = self.pixmap()
+        if not pm or pm.isNull():
+            return None
+        pw, ph = pm.width(), pm.height()
+        ox = max(0, (self.width() - pw) // 2)
+        oy = max(0, (self.height() - ph) // 2)
+        return (int(ox + fx * pw), int(oy + fy * ph))
+
+    def _point_to_frac(self, pt) -> Optional[tuple[float, float]]:
+        """Translate a label-space point into a 0..1 fraction of the shown pixmap."""
+        pm = self.pixmap()
+        if not pm or pm.isNull():
+            return None
+        pw, ph = pm.width(), pm.height()
+        ox = max(0, (self.width() - pw) // 2)
+        oy = max(0, (self.height() - ph) // 2)
+        fx = (pt.x() - ox) / max(1, pw)
+        fy = (pt.y() - oy) / max(1, ph)
+        return (max(0.0, min(1.0, fx)), max(0.0, min(1.0, fy)))
+
+    def _sample_color(self, pt) -> None:
+        """Read the displayed pixel under *pt* and emit it for a color mask."""
+        pm = self.pixmap()
+        if not pm or pm.isNull():
+            return
+        pw, ph = pm.width(), pm.height()
+        x = pt.x() - max(0, (self.width() - pw) // 2)
+        y = pt.y() - max(0, (self.height() - ph) // 2)
+        if 0 <= x < pw and 0 <= y < ph:
+            c = pm.toImage().pixelColor(x, y)
+            self.mask_color_picked.emit(c.red(), c.green(), c.blue())
 
     def mousePressEvent(self, ev) -> None:  # type: ignore[override]
         if ev.button() == Qt.MouseButton.LeftButton:
             if self.crop_mode_active:
                 self._drag_origin = ev.position().toPoint()
                 self._drag_rect = None
+            elif self.mask_mode == "color":
+                self._sample_color(ev.position().toPoint())
+            elif self.mask_mode:
+                self._mask_origin = ev.position().toPoint()
+                self._mask_cur = None
             else:
                 self.hold_pressed.emit()
         super().mousePressEvent(ev)
@@ -647,6 +718,9 @@ class _PreviewLabel(QLabel):
         if self.crop_mode_active and self._drag_origin is not None:
             from PySide6.QtCore import QRect
             self._drag_rect = QRect(self._drag_origin, ev.position().toPoint()).normalized()
+            self.update()
+        elif self.mask_mode and self._mask_origin is not None:
+            self._mask_cur = ev.position().toPoint()
             self.update()
         super().mouseMoveEvent(ev)
 
@@ -675,20 +749,467 @@ class _PreviewLabel(QLabel):
                 self._drag_origin = None
                 self._drag_rect = None
                 self.update()
-            elif not self.crop_mode_active:
+            elif self.mask_mode and self._mask_origin is not None and self._mask_cur is not None:
+                f0 = self._point_to_frac(self._mask_origin)
+                f1 = self._point_to_frac(self._mask_cur)
+                if f0 is not None and f1 is not None:
+                    self.mask_geometry_set.emit(f0[0], f0[1], f1[0], f1[1])
+                self._mask_origin = None
+                self._mask_cur = None
+                self.update()
+            elif not self.crop_mode_active and not self.mask_mode:
                 self.hold_released.emit()
         super().mouseReleaseEvent(ev)
 
     def paintEvent(self, ev) -> None:  # type: ignore[override]
         super().paintEvent(ev)
+        from PySide6.QtGui import QPainter, QPen, QColor
         if self.crop_mode_active and self._drag_rect is not None:
-            from PySide6.QtGui import QPainter, QPen, QColor
             p = QPainter(self)
             p.setPen(QPen(QColor(59, 130, 246, 220), 2))
-            p.drawRect(self._drag_rect)
             p.setBrush(QColor(59, 130, 246, 40))
             p.drawRect(self._drag_rect)
             p.end()
+        elif self.mask_mode and self._mask_origin is not None and self._mask_cur is not None:
+            from PySide6.QtCore import QRect
+            p = QPainter(self)
+            p.setPen(QPen(QColor(34, 197, 94, 230), 2))
+            p.setBrush(QColor(34, 197, 94, 45))
+            if self.mask_mode == "radial":
+                p.drawEllipse(QRect(self._mask_origin, self._mask_cur).normalized())
+            else:
+                p.drawLine(self._mask_origin, self._mask_cur)
+            p.end()
+        # Outlines of every existing mask — drawn whenever overlays are set.
+        if self._mask_overlays:
+            from PySide6.QtCore import QRect
+            p = QPainter(self)
+            pen = QPen(QColor(34, 197, 94, 210), 1.5)
+            pen.setStyle(Qt.PenStyle.DashLine)
+            p.setPen(pen)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            for ov in self._mask_overlays:
+                if ov[0] == "radial":
+                    _, cx, cy, rx, ry = ov
+                    a = self._frac_to_point(cx - rx, cy - ry)
+                    b = self._frac_to_point(cx + rx, cy + ry)
+                    if a and b:
+                        p.drawEllipse(QRect(a[0], a[1], b[0] - a[0], b[1] - a[1]))
+                else:
+                    _, x0, y0, x1, y1 = ov
+                    a = self._frac_to_point(x0, y0)
+                    b = self._frac_to_point(x1, y1)
+                    if a and b:
+                        p.drawLine(a[0], a[1], b[0], b[1])
+                        for pt in (a, b):
+                            p.drawEllipse(pt[0] - 3, pt[1] - 3, 6, 6)
+            p.end()
+
+
+# ── Tone-curve widget ─────────────────────────────────────────────────────────
+
+class CurveWidget(QWidget):
+    """Interactive master tone curve. Drag handles, click empty space to add a
+    point, double-click a middle point to remove it. Emits `changed` on edit.
+    """
+
+    changed = Signal()
+    _MARGIN = 10
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setFixedSize(252, 200)
+        self._points: list[list[int]] = [[0, 0], [255, 255]]
+        self._drag: Optional[int] = None
+        self.setCursor(Qt.CursorShape.CrossCursor)
+
+    def points(self) -> list:
+        return [list(p) for p in self._points]
+
+    def set_points(self, pts) -> None:
+        cleaned = [
+            [max(0, min(255, int(p[0]))), max(0, min(255, int(p[1])))]
+            for p in (pts or []) if len(p) >= 2
+        ]
+        if len(cleaned) < 2:
+            cleaned = [[0, 0], [255, 255]]
+        cleaned.sort()
+        cleaned[0][0] = 0
+        cleaned[-1][0] = 255
+        self._points = cleaned
+        self.update()
+
+    def reset(self) -> None:
+        self._points = [[0, 0], [255, 255]]
+        self.update()
+        self.changed.emit()
+
+    def _plot(self) -> tuple[int, int, int, int]:
+        m = self._MARGIN
+        return (m, m, self.width() - 2 * m, self.height() - 2 * m)
+
+    def _to_widget(self, x: float, y: float) -> tuple[float, float]:
+        px0, py0, pw, ph = self._plot()
+        return (px0 + x / 255.0 * pw, py0 + (1.0 - y / 255.0) * ph)
+
+    def _from_widget(self, wx: float, wy: float) -> tuple[int, int]:
+        px0, py0, pw, ph = self._plot()
+        x = (wx - px0) / max(1, pw) * 255.0
+        y = (1.0 - (wy - py0) / max(1, ph)) * 255.0
+        return (max(0, min(255, int(round(x)))), max(0, min(255, int(round(y)))))
+
+    def _hit(self, wx: float, wy: float) -> Optional[int]:
+        for i, (x, y) in enumerate(self._points):
+            hx, hy = self._to_widget(x, y)
+            if (hx - wx) ** 2 + (hy - wy) ** 2 <= 100:
+                return i
+        return None
+
+    def paintEvent(self, _ev) -> None:  # type: ignore[override]
+        from core.image_editor import _build_curve_lut
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.fillRect(self.rect(), QColor(20, 22, 28))
+        px0, py0, pw, ph = self._plot()
+        p.setPen(QPen(QColor(55, 58, 66), 1))
+        for i in range(1, 4):
+            gx = int(px0 + pw * i / 4)
+            gy = int(py0 + ph * i / 4)
+            p.drawLine(gx, py0, gx, py0 + ph)
+            p.drawLine(px0, gy, px0 + pw, gy)
+        p.setPen(QPen(QColor(70, 74, 82), 1, Qt.PenStyle.DashLine))
+        p.drawLine(px0, py0 + ph, px0 + pw, py0)
+        lut = _build_curve_lut(self._points)
+        p.setPen(QPen(QColor(59, 130, 246), 2))
+        prev = None
+        for i in range(256):
+            wx, wy = self._to_widget(i, lut[i])
+            if prev is not None:
+                p.drawLine(int(prev[0]), int(prev[1]), int(wx), int(wy))
+            prev = (wx, wy)
+        p.setPen(QPen(QColor(59, 130, 246), 2))
+        p.setBrush(QColor(255, 255, 255))
+        for x, y in self._points:
+            wx, wy = self._to_widget(x, y)
+            p.drawEllipse(int(wx) - 4, int(wy) - 4, 8, 8)
+        p.end()
+
+    def mousePressEvent(self, ev) -> None:  # type: ignore[override]
+        if ev.button() != Qt.MouseButton.LeftButton:
+            return
+        pos = ev.position()
+        i = self._hit(pos.x(), pos.y())
+        if i is None:
+            x, y = self._from_widget(pos.x(), pos.y())
+            x = max(1, min(254, x))  # new points never collide with the locked ends
+            self._points.append([x, y])
+            self._points.sort()
+            self._points[0][0], self._points[-1][0] = 0, 255
+            self._drag = self._hit(pos.x(), pos.y())
+            self.update()
+            self.changed.emit()
+        else:
+            self._drag = i
+
+    def mouseMoveEvent(self, ev) -> None:  # type: ignore[override]
+        if self._drag is None:
+            return
+        x, y = self._from_widget(ev.position().x(), ev.position().y())
+        i = self._drag
+        last = len(self._points) - 1
+        if i == 0:
+            x = 0
+        elif i == last:
+            x = 255
+        else:
+            x = max(self._points[i - 1][0] + 1, min(self._points[i + 1][0] - 1, x))
+        self._points[i] = [x, y]
+        self.update()
+        self.changed.emit()
+
+    def mouseReleaseEvent(self, _ev) -> None:  # type: ignore[override]
+        self._drag = None
+
+    def mouseDoubleClickEvent(self, ev) -> None:  # type: ignore[override]
+        i = self._hit(ev.position().x(), ev.position().y())
+        if i is not None and 0 < i < len(self._points) - 1:
+            del self._points[i]
+            self._drag = None
+            self.update()
+            self.changed.emit()
+
+
+# ── Local-adjustment mask row ─────────────────────────────────────────────────
+
+class _MaskRow(QFrame):
+    """One stacked local-adjustment mask: type + geometry + 9 adjustment sliders.
+
+    Geometry is set by dragging on the preview (see `request_region`); the row
+    only stores the resulting fractional coords.
+    """
+
+    removed = Signal(object)         # emits self
+    changed = Signal()               # emits on any control edit
+    request_region = Signal(object)  # emits self when "Set region" is clicked
+    move_up = Signal(object)         # emits self — reorder up
+    move_down = Signal(object)       # emits self — reorder down
+    duplicate = Signal(object)       # emits self — clone this mask
+
+    # (key, lo, hi, default, label_key, scale)  — scale: slider value ÷ scale.
+    _ADJ_DEFS = [
+        ("brightness",  0,   200, 100, "lbl_ie_brightness",  100.0),
+        ("contrast",    0,   200, 100, "lbl_ie_contrast",    100.0),
+        ("saturation",  0,   200, 100, "lbl_ie_saturation",  100.0),
+        ("hue",      -180,   180,   0, "lbl_ie_hue",           1.0),
+        ("temperature",-100, 100,   0, "lbl_ie_temperature",   1.0),
+        ("tint",      -100,  100,   0, "lbl_ie_tint",          1.0),
+        ("exposure",  -200,  200,   0, "lbl_ie_exposure",    100.0),
+        ("shadows",   -100,  100,   0, "lbl_ie_shadows",     100.0),
+        ("highlights",-100,  100,   0, "lbl_ie_highlights",  100.0),
+    ]
+
+    def __init__(self, layer: MaskLayer, parent=None) -> None:
+        super().__init__(parent)
+        self.setObjectName("Card")
+        # Geometry kept as plain attributes; written by set_geometry().
+        self._cx, self._cy, self._rx, self._ry = layer.cx, layer.cy, layer.rx, layer.ry
+        self._x0, self._y0 = layer.x0, layer.y0
+        self._x1, self._y1 = layer.x1, layer.y1
+        self._pick_color = layer.pick_color
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(12, 10, 12, 10)
+        outer.setSpacing(8)
+
+        # ── Header: title + type + invert + feather + set-region + remove ─────
+        head = QHBoxLayout()
+        head.setSpacing(8)
+        self._title = QLabel("Mask")
+        self._title.setStyleSheet("font-weight: bold; color: #22C55E;")
+        head.addWidget(self._title)
+
+        self._lbl_type = QLabel(tr("lbl_ie_mask_type"))
+        head.addWidget(self._lbl_type)
+        self.type_combo = QComboBox()
+        for t in MASK_TYPES:
+            self.type_combo.addItem(tr(f"ie_mask_{t}"), t)
+        idx = self.type_combo.findData(layer.mask_type)
+        if idx >= 0:
+            self.type_combo.setCurrentIndex(idx)
+        self.type_combo.setFixedWidth(150)
+        head.addWidget(self.type_combo)
+
+        self.invert_chk = QCheckBox(tr("lbl_ie_mask_invert"))
+        self.invert_chk.setChecked(layer.invert)
+        head.addWidget(self.invert_chk)
+
+        head.addStretch()
+        self.region_btn = QPushButton(tr("btn_ie_mask_set_region"))
+        self.region_btn.setObjectName("BrowseBtn")
+        self.region_btn.setToolTip(tr("tip_ie_mask_set_region"))
+        self.region_btn.clicked.connect(lambda: self.request_region.emit(self))
+        head.addWidget(self.region_btn)
+        self.up_btn = QPushButton("▲")
+        self.up_btn.setObjectName("BrowseBtn")
+        self.up_btn.setFixedWidth(30)
+        self.up_btn.setToolTip(tr("tip_ie_mask_up"))
+        self.up_btn.clicked.connect(lambda: self.move_up.emit(self))
+        head.addWidget(self.up_btn)
+        self.down_btn = QPushButton("▼")
+        self.down_btn.setObjectName("BrowseBtn")
+        self.down_btn.setFixedWidth(30)
+        self.down_btn.setToolTip(tr("tip_ie_mask_down"))
+        self.down_btn.clicked.connect(lambda: self.move_down.emit(self))
+        head.addWidget(self.down_btn)
+        self.dup_btn = QPushButton("⧉")
+        self.dup_btn.setObjectName("BrowseBtn")
+        self.dup_btn.setFixedWidth(30)
+        self.dup_btn.setToolTip(tr("tip_ie_mask_duplicate"))
+        self.dup_btn.clicked.connect(lambda: self.duplicate.emit(self))
+        head.addWidget(self.dup_btn)
+        self.remove_btn = QPushButton("✕")
+        self.remove_btn.setObjectName("BrowseBtn")
+        self.remove_btn.setFixedWidth(32)
+        self.remove_btn.clicked.connect(lambda: self.removed.emit(self))
+        head.addWidget(self.remove_btn)
+        outer.addLayout(head)
+
+        # ── Feather slider ────────────────────────────────────────────────────
+        feat = QHBoxLayout()
+        self._lbl_feather = QLabel(tr("lbl_ie_mask_feather"))
+        self._lbl_feather.setFixedWidth(120)
+        feat.addWidget(self._lbl_feather)
+        self.feather_slider = QSlider(Qt.Orientation.Horizontal)
+        self.feather_slider.setRange(0, 100)
+        self.feather_slider.setValue(int(round(layer.feather * 100)))
+        feat.addWidget(self.feather_slider)
+        self._feather_val = QLabel(str(self.feather_slider.value()))
+        self._feather_val.setFixedWidth(48)
+        self._feather_val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        feat.addWidget(self._feather_val)
+        outer.addLayout(feat)
+
+        # ── Color-range row (visible only for the "color" mask type) ──────────
+        self._color_row = QWidget()
+        crow = QHBoxLayout(self._color_row)
+        crow.setContentsMargins(0, 0, 0, 0)
+        crow.setSpacing(8)
+        self._lbl_color = QLabel(tr("lbl_ie_mask_color"))
+        self._lbl_color.setFixedWidth(120)
+        crow.addWidget(self._lbl_color)
+        self.color_btn = QPushButton("  ")
+        self.color_btn.setFixedSize(46, 22)
+        self._apply_color_btn()
+        self.color_btn.clicked.connect(self._pick_color_dialog)
+        crow.addWidget(self.color_btn)
+        self._lbl_tol = QLabel(tr("lbl_ie_mask_tolerance"))
+        crow.addWidget(self._lbl_tol)
+        self.tol_slider = QSlider(Qt.Orientation.Horizontal)
+        self.tol_slider.setRange(1, 100)
+        self.tol_slider.setValue(int(round(layer.tolerance * 100)))
+        crow.addWidget(self.tol_slider)
+        self._tol_val = QLabel(str(self.tol_slider.value()))
+        self._tol_val.setFixedWidth(40)
+        self._tol_val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        crow.addWidget(self._tol_val)
+        outer.addWidget(self._color_row)
+
+        # ── Adjustment sliders ────────────────────────────────────────────────
+        self._sl: dict[str, QSlider] = {}
+        self._adj_labels: dict[str, QLabel] = {}
+        for key, lo, hi, default, lkey, scale in self._ADJ_DEFS:
+            row = QHBoxLayout()
+            lbl = QLabel(tr(lkey))
+            lbl.setFixedWidth(120)
+            self._adj_labels[key] = lbl
+            row.addWidget(lbl)
+            sl = QSlider(Qt.Orientation.Horizontal)
+            sl.setRange(lo, hi)
+            sl.setValue(self._slider_value_for(layer.adjust, key, default, scale))
+            row.addWidget(sl)
+            v = QLabel(str(sl.value()))
+            v.setFixedWidth(48)
+            v.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            sl.valueChanged.connect(lambda val, lab=v: lab.setText(str(val)))
+            row.addWidget(v)
+            outer.addLayout(row)
+            self._sl[key] = sl
+
+        # Wire signals AFTER all widgets carry their initial values, so building
+        # the row from a saved layer never fires `changed`.
+        self.type_combo.currentIndexChanged.connect(self.changed)
+        self.type_combo.currentIndexChanged.connect(self._sync_type_ui)
+        self.invert_chk.toggled.connect(self.changed)
+        self.feather_slider.valueChanged.connect(self.changed)
+        self.feather_slider.valueChanged.connect(
+            lambda v: self._feather_val.setText(str(v))
+        )
+        self.tol_slider.valueChanged.connect(self.changed)
+        self.tol_slider.valueChanged.connect(lambda v: self._tol_val.setText(str(v)))
+        for sl in self._sl.values():
+            sl.valueChanged.connect(self.changed)
+
+        self._sync_type_ui()
+
+    @staticmethod
+    def _slider_value_for(adj: MaskAdjust, key: str, default: int, scale: float) -> int:
+        return int(round(getattr(adj, key, default / scale) * scale))
+
+    def mask_type(self) -> str:
+        return self.type_combo.currentData() or "radial"
+
+    def overlay(self) -> Optional[tuple]:
+        """Geometry tuple for drawing this mask's outline on the preview.
+
+        Color-range masks have no spatial outline — returns None.
+        """
+        t = self.mask_type()
+        if t == "radial":
+            return ("radial", self._cx, self._cy, self._rx, self._ry)
+        if t == "linear":
+            return ("linear", self._x0, self._y0, self._x1, self._y1)
+        return None
+
+    def _apply_color_btn(self) -> None:
+        self.color_btn.setStyleSheet(
+            f"background:{self._pick_color}; border:1px solid #555; border-radius:3px;"
+        )
+
+    def _pick_color_dialog(self) -> None:
+        col = QColorDialog.getColor(QColor(self._pick_color), self, tr("lbl_ie_mask_color"))
+        if col.isValid():
+            self._pick_color = col.name()
+            self._apply_color_btn()
+            self.changed.emit()
+
+    def set_pick_color(self, hex_color: str) -> None:
+        """Set the color-range target (called after an eyedropper pick)."""
+        self._pick_color = hex_color
+        self._apply_color_btn()
+        self.changed.emit()
+
+    def _sync_type_ui(self) -> None:
+        """Show the color-range row and relabel the region button per mask type."""
+        is_color = self.mask_type() == "color"
+        self._color_row.setVisible(is_color)
+        self.region_btn.setText(
+            tr("btn_ie_mask_pick_color") if is_color else tr("btn_ie_mask_set_region"))
+        self.region_btn.setToolTip(
+            tr("tip_ie_mask_pick_color") if is_color else tr("tip_ie_mask_set_region"))
+
+    def set_index(self, n: int) -> None:
+        self._title.setText(tr("ie_mask_label").format(n=n))
+
+    def set_geometry(self, x0: float, y0: float, x1: float, y1: float) -> None:
+        """Store a drag's start/end fractions, interpreted by the mask type."""
+        if self.mask_type() == "radial":
+            self._cx = (x0 + x1) / 2.0
+            self._cy = (y0 + y1) / 2.0
+            self._rx = max(0.02, abs(x1 - x0) / 2.0)
+            self._ry = max(0.02, abs(y1 - y0) / 2.0)
+        else:
+            self._x0, self._y0, self._x1, self._y1 = x0, y0, x1, y1
+        self.changed.emit()
+
+    def to_layer(self) -> MaskLayer:
+        adj = MaskAdjust(
+            brightness  = self._sl["brightness"].value() / 100.0,
+            contrast    = self._sl["contrast"].value() / 100.0,
+            saturation  = self._sl["saturation"].value() / 100.0,
+            hue         = self._sl["hue"].value(),
+            temperature = self._sl["temperature"].value(),
+            tint        = self._sl["tint"].value(),
+            exposure    = self._sl["exposure"].value() / 100.0,
+            shadows     = self._sl["shadows"].value() / 100.0,
+            highlights  = self._sl["highlights"].value() / 100.0,
+        )
+        return MaskLayer(
+            mask_type=self.mask_type(),
+            invert=self.invert_chk.isChecked(),
+            feather=self.feather_slider.value() / 100.0,
+            cx=self._cx, cy=self._cy, rx=self._rx, ry=self._ry,
+            x0=self._x0, y0=self._y0, x1=self._x1, y1=self._y1,
+            pick_color=self._pick_color,
+            tolerance=self.tol_slider.value() / 100.0,
+            adjust=adj,
+        )
+
+    def retranslate_ui(self) -> None:
+        self._lbl_type.setText(tr("lbl_ie_mask_type"))
+        for i in range(self.type_combo.count()):
+            data = self.type_combo.itemData(i)
+            if data:
+                self.type_combo.setItemText(i, tr(f"ie_mask_{data}"))
+        self.invert_chk.setText(tr("lbl_ie_mask_invert"))
+        self.up_btn.setToolTip(tr("tip_ie_mask_up"))
+        self.down_btn.setToolTip(tr("tip_ie_mask_down"))
+        self.dup_btn.setToolTip(tr("tip_ie_mask_duplicate"))
+        self._lbl_feather.setText(tr("lbl_ie_mask_feather"))
+        self._lbl_color.setText(tr("lbl_ie_mask_color"))
+        self._lbl_tol.setText(tr("lbl_ie_mask_tolerance"))
+        self._sync_type_ui()  # relabels the region button per mask type
+        for key, lbl in self._adj_labels.items():
+            lbl.setText(tr(f"lbl_ie_{key}"))
 
 
 class ImageEditorSection(QScrollArea):
@@ -715,6 +1236,14 @@ class ImageEditorSection(QScrollArea):
         # Cached source image for the active row, keyed by path.
         self._active_row_src_path: Optional[str] = None
         self._active_row_src_image: Optional[Image.Image] = None
+        # Stacked local-adjustment masks.
+        self._mask_rows: list["_MaskRow"] = []
+        # Mask row currently waiting for a region drag on the preview.
+        self._active_mask_row: Optional["_MaskRow"] = None
+        # Undo / redo — snapshots of EditConfig, debounced via the preview timer.
+        self._undo_stack: list[EditConfig] = []
+        self._redo_stack: list[EditConfig] = []
+        self._restoring = False
 
         self._preview_timer = QTimer(self)
         self._preview_timer.setSingleShot(True)
@@ -730,22 +1259,47 @@ class ImageEditorSection(QScrollArea):
         root.setSpacing(16)
         root.setAlignment(Qt.AlignmentFlag.AlignTop)
 
+        # Input + preview + active-row banner stay pinned above the sub-tabs.
         root.addWidget(self._build_input_card())
         root.addWidget(self._build_preview_card())
         root.addWidget(self._build_active_row_banner())
-        root.addWidget(self._build_canvas_card())
-        root.addWidget(self._build_crop_rotate_card())
-        root.addWidget(self._build_filter_card())
-        root.addWidget(self._build_adjust_card())
-        root.addWidget(self._build_effects_card())
-        root.addWidget(self._build_preset_card())
-        root.addWidget(self._build_wallpaper_card())
-        root.addWidget(self._build_setup_presets_card())
-        root.addWidget(self._build_schedule_card())
+
+        # The editing cards are grouped into 6 sub-tab pages, driven by the app
+        # header tab bar via on_sub_tab_changed(). Page order MUST match the
+        # tab_keys list for "image_editor" in app.py's _SECTIONS_META.
+        self._ie_stack = QStackedWidget()
+        self._ie_stack.addWidget(self._make_page([          # 0 — Transform
+            self._build_canvas_card(), self._build_crop_rotate_card(),
+        ]))
+        self._ie_stack.addWidget(self._make_page([          # 1 — Color
+            self._build_filter_card(), self._build_adjust_card(),
+            self._build_curves_card(),
+        ]))
+        self._ie_stack.addWidget(self._make_page([          # 2 — Enhance
+            self._build_enhance_card(), self._build_effects_card(),
+        ]))
+        self._ie_stack.addWidget(self._make_page([          # 3 — Masks
+            self._build_masks_card(),
+        ]))
+        self._ie_stack.addWidget(self._make_page([          # 4 — Presets
+            self._build_preset_card(),
+        ]))
+        self._ie_stack.addWidget(self._make_page([          # 5 — Wallpaper
+            self._build_wallpaper_card(), self._build_setup_presets_card(),
+            self._build_schedule_card(),
+        ]))
+        root.addWidget(self._ie_stack)
+
+        # Output + progress stay pinned below the sub-tabs.
         root.addWidget(self._build_output_card())
         root.addWidget(self._build_progress_card())
 
         self.setWidget(content)
+
+        # Undo / redo keyboard shortcuts.
+        QShortcut(QKeySequence.StandardKey.Undo, self, activated=self._undo)
+        QShortcut(QKeySequence.StandardKey.Redo, self, activated=self._redo)
+
         self._reload_user_presets()
         self._wallpaper_first_open_done = False
         self._load_wallpaper_setup()
@@ -773,6 +1327,9 @@ class ImageEditorSection(QScrollArea):
 
     def showEvent(self, ev) -> None:  # type: ignore[override]
         super().showEvent(ev)
+        # The app shell rebuilds its sub-tab bar (resetting to tab 0) on section
+        # entry without signalling us — keep the stacked page in sync.
+        self._ie_stack.setCurrentIndex(0)
         if not self._wallpaper_first_open_done:
             self._wallpaper_first_open_done = True
             # If neither a saved setup nor any manual rows exist, auto-detect.
@@ -781,6 +1338,26 @@ class ImageEditorSection(QScrollArea):
                     self._detect_monitors()
                 except Exception:
                     pass
+
+    # ── Sub-tab plumbing ──────────────────────────────────────────────────────
+
+    def _make_page(self, cards: list[QWidget]) -> QWidget:
+        """Wrap a list of cards in a sub-tab page widget."""
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(16)
+        lay.setAlignment(Qt.AlignmentFlag.AlignTop)
+        for c in cards:
+            lay.addWidget(c)
+        return page
+
+    def on_sub_tab_changed(self, index: int) -> None:
+        """App header sub-tab changed — show the matching page."""
+        if 0 <= index < self._ie_stack.count():
+            self._ie_stack.setCurrentIndex(index)
+            # Refresh so mask outlines appear/disappear with the Masks tab.
+            self._schedule_preview()
 
     # ── Input card ────────────────────────────────────────────────────────────
 
@@ -871,9 +1448,7 @@ class ImageEditorSection(QScrollArea):
 
     def _load_source(self, path: str) -> None:
         try:
-            im = Image.open(path)
-            im.load()
-            self._src_image = im
+            self._src_image = load_image(path)
             self._src_path = path
             self._schedule_preview()
         except Exception as exc:
@@ -891,6 +1466,20 @@ class ImageEditorSection(QScrollArea):
         self._hdr_preview = _hdr(tr("hdr_ie_preview"))
         hdr_row.addWidget(self._hdr_preview)
         hdr_row.addStretch()
+        self._undo_btn = QPushButton("↶")
+        self._undo_btn.setObjectName("BrowseBtn")
+        self._undo_btn.setFixedWidth(34)
+        self._undo_btn.setToolTip(tr("tip_ie_undo"))
+        self._undo_btn.setEnabled(False)
+        self._undo_btn.clicked.connect(self._undo)
+        hdr_row.addWidget(self._undo_btn)
+        self._redo_btn = QPushButton("↷")
+        self._redo_btn.setObjectName("BrowseBtn")
+        self._redo_btn.setFixedWidth(34)
+        self._redo_btn.setToolTip(tr("tip_ie_redo"))
+        self._redo_btn.setEnabled(False)
+        self._redo_btn.clicked.connect(self._redo)
+        hdr_row.addWidget(self._redo_btn)
         self._compare_btn = QPushButton(tr("btn_ie_compare"))
         self._compare_btn.setObjectName("BrowseBtn")
         self._compare_btn.setToolTip(tr("tip_ie_compare"))
@@ -918,6 +1507,8 @@ class ImageEditorSection(QScrollArea):
         self._preview_label.hold_pressed.connect(self._on_compare_pressed)
         self._preview_label.hold_released.connect(self._on_compare_released)
         self._preview_label.crop_set.connect(self._on_crop_set)
+        self._preview_label.mask_geometry_set.connect(self._on_mask_geometry_set)
+        self._preview_label.mask_color_picked.connect(self._on_mask_color_picked)
         self._preview_label.setMouseTracking(True)
         layout.addWidget(self._preview_label)
 
@@ -926,6 +1517,10 @@ class ImageEditorSection(QScrollArea):
         return card
 
     def _on_crop_mode_toggled(self, checked: bool) -> None:
+        # Crop drag and mask drag are mutually exclusive.
+        if checked and self._active_mask_row is not None:
+            self._active_mask_row = None
+            self._preview_label.mask_mode = None
         self._preview_label.crop_mode_active = checked
         self._preview_label.setCursor(
             Qt.CursorShape.CrossCursor if checked else Qt.CursorShape.ArrowCursor
@@ -950,6 +1545,42 @@ class ImageEditorSection(QScrollArea):
     def _schedule_preview(self) -> None:
         self._preview_timer.start()
 
+    def _preview_source(self, src: Optional[Image.Image]) -> Optional[Image.Image]:
+        """A downscaled copy of *src* for fast preview rendering, cached by identity.
+
+        Rotating / cropping a full-resolution photo on every keystroke is wasteful
+        — the preview only needs ~1280px of detail. Recomputed when the source
+        image changes (keyed by identity + size).
+        """
+        if src is None:
+            return None
+        key = (id(src), src.size)
+        if getattr(self, "_prev_src_key", None) != key:
+            small = src.copy()
+            small.thumbnail((1280, 1280), Image.Resampling.LANCZOS)
+            self._prev_src_img = small
+            self._prev_src_key = key
+        return self._prev_src_img
+
+    def _scaled_preview_cfg(self, cfg: EditConfig) -> EditConfig:
+        """Clone *cfg* with the canvas scaled down so the preview pipeline runs
+        on a small image. Absolute-pixel radii shrink with it so effects keep
+        roughly the same look. The real export still uses the full *cfg*.
+        """
+        tw = max(1, cfg.fit.target_w)
+        th = max(1, cfg.fit.target_h)
+        scale = min(1.0, _PREVIEW_RENDER_MAX / max(tw, th))
+        if scale >= 0.999:
+            return cfg
+        import copy
+        pc = copy.deepcopy(cfg)
+        pc.fit.target_w = max(1, int(round(tw * scale)))
+        pc.fit.target_h = max(1, int(round(th * scale)))
+        pc.effects.blur *= scale
+        pc.effects.glass_blur_radius *= scale
+        pc.enhance.sharpen_radius = max(0.1, pc.enhance.sharpen_radius * scale)
+        return pc
+
     def _refresh_preview(self) -> None:
         # Stash the latest editor state into either the active row's override
         # or the global cfg, so the rest of the UI / Apply step has the truth.
@@ -963,22 +1594,39 @@ class ImageEditorSection(QScrollArea):
             else:
                 self._global_cfg = cur
 
+        # Debounced undo snapshot — one entry per settled edit, global mode only.
+        if (cur is not None and not self._restoring and self._active_row is None
+                and (not self._undo_stack or self._undo_stack[-1] != cur)):
+            self._undo_stack.append(cur)
+            if len(self._undo_stack) > 60:
+                self._undo_stack.pop(0)
+            self._redo_stack.clear()
+            self._update_undo_buttons()
+
         src = self._active_source_image()
         if src is None:
             self._schedule_row_thumbs()
             return
         try:
+            psrc = self._preview_source(src)
             if self._show_original:
-                shown = src.convert("RGB")
+                preview = psrc.convert("RGB")
             else:
-                shown = apply_edits(src, cur or self._global_cfg)
-            preview = shown.copy()
-            preview.thumbnail((_PREVIEW_MAX, _PREVIEW_MAX), Image.Resampling.LANCZOS)
+                preview = apply_edits(psrc, self._scaled_preview_cfg(cur or self._global_cfg))
+            if max(preview.size) > _PREVIEW_MAX:
+                preview = preview.copy()
+                preview.thumbnail((_PREVIEW_MAX, _PREVIEW_MAX), Image.Resampling.LANCZOS)
             self._preview_label.setPixmap(_pil_to_qpixmap(preview))
             self._preview_label.setText("")
             self._histogram.set_image(preview)
         except Exception as exc:
             self._preview_label.setText(f"Preview error: {exc}")
+        # Mask outlines — shown only while the Masks sub-tab is open.
+        if self._ie_stack.currentIndex() == 3 and self._mask_rows:
+            ovs = [r.overlay() for r in self._mask_rows]
+            self._preview_label.set_mask_overlays([o for o in ovs if o is not None])
+        else:
+            self._preview_label.set_mask_overlays([])
         self._schedule_row_thumbs()
 
     # ── Canvas card (aspect, fit, W×H, swap, bg, flip) ───────────────────────
@@ -1297,6 +1945,99 @@ class ImageEditorSection(QScrollArea):
             self._adj_sliders[key] = (sl, val_lbl, lo, hi)
         return card
 
+    # ── Curves card (master tone curve) ──────────────────────────────────────
+
+    def _build_curves_card(self) -> QFrame:
+        card = _card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
+        self._hdr_curves = _hdr(tr("hdr_ie_curves"))
+        layout.addWidget(self._hdr_curves)
+
+        self._curves_chk = QCheckBox(tr("lbl_ie_enable_curves"))
+        self._curves_chk.toggled.connect(self._schedule_preview)
+        layout.addWidget(self._curves_chk)
+
+        curve_row = QHBoxLayout()
+        self._curve_widget = CurveWidget()
+        self._curve_widget.changed.connect(self._on_curve_changed)
+        curve_row.addWidget(self._curve_widget)
+        curve_row.addStretch()
+        layout.addLayout(curve_row)
+
+        btn_row = QHBoxLayout()
+        self._curve_reset_btn = QPushButton(tr("btn_ie_curve_reset"))
+        self._curve_reset_btn.setObjectName("BrowseBtn")
+        self._curve_reset_btn.clicked.connect(self._curve_widget.reset)
+        btn_row.addWidget(self._curve_reset_btn)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+        return card
+
+    def _on_curve_changed(self) -> None:
+        # Touching the curve implies you want it on.
+        if not self._curves_chk.isChecked():
+            self._curves_chk.blockSignals(True)
+            self._curves_chk.setChecked(True)
+            self._curves_chk.blockSignals(False)
+        self._schedule_preview()
+
+    # ── Enhance card (Photoshop-style enhancing tools) ───────────────────────
+
+    def _build_enhance_card(self) -> QFrame:
+        card = _card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
+        self._hdr_enhance = _hdr(tr("hdr_ie_enhance"))
+        layout.addWidget(self._hdr_enhance)
+
+        self._enh_hint = QLabel(tr("hint_ie_enhance"))
+        self._enh_hint.setObjectName("TextMuted")
+        self._enh_hint.setWordWrap(True)
+        self._enh_hint.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._enh_hint)
+
+        self._auto_enhance_chk = QCheckBox(tr("lbl_ie_auto_enhance"))
+        self._auto_enhance_chk.setToolTip(tr("tip_ie_auto_enhance"))
+        self._auto_enhance_chk.toggled.connect(self._schedule_preview)
+        layout.addWidget(self._auto_enhance_chk)
+
+        self._enh_sliders: dict[str, tuple[QSlider, QLabel]] = {}
+        self._enh_labels: dict[str, QLabel] = {}
+        # (key, lo, hi, default, label_key)
+        defs = [
+            ("exposure",         -200, 200,   0, "lbl_ie_exposure"),          # /100 → stops
+            ("gamma",              20, 300, 100, "lbl_ie_gamma"),             # /100 → 0.2..3.0
+            ("dehaze",              0, 100,   0, "lbl_ie_dehaze"),            # /100 → 0..1
+            ("vibrance",         -100, 100,   0, "lbl_ie_vibrance"),          # /100 → -1..1
+            ("clarity",             0, 100,   0, "lbl_ie_clarity"),           # /100 → 0..1
+            ("denoise",             0, 100,   0, "lbl_ie_denoise"),           # /100 → 0..1
+            ("sharpen_amount",      0, 300,   0, "lbl_ie_sharpen_amount"),    # /100 → 0..3
+            ("sharpen_radius",      1,  20,   2, "lbl_ie_sharpen_radius"),    # px (direct)
+            ("sharpen_threshold",   0,  20,   3, "lbl_ie_sharpen_threshold"), # direct
+        ]
+        for key, lo, hi, default, lkey in defs:
+            row = QHBoxLayout()
+            lbl = QLabel(tr(lkey))
+            lbl.setFixedWidth(120)
+            self._enh_labels[key] = lbl
+            row.addWidget(lbl)
+            sl = QSlider(Qt.Orientation.Horizontal)
+            sl.setRange(lo, hi)
+            sl.setValue(default)
+            sl.valueChanged.connect(self._schedule_preview)
+            row.addWidget(sl)
+            v = QLabel(str(default))
+            v.setFixedWidth(48)
+            v.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            sl.valueChanged.connect(lambda val, lab=v: lab.setText(str(val)))
+            row.addWidget(v)
+            layout.addLayout(row)
+            self._enh_sliders[key] = (sl, v)
+        return card
+
     # ── Effects card ──────────────────────────────────────────────────────────
 
     def _build_effects_card(self) -> QFrame:
@@ -1387,6 +2128,133 @@ class ImageEditorSection(QScrollArea):
         grad_row.addStretch()
         layout.addLayout(grad_row)
         return card
+
+    # ── Masks card (stacked local adjustments) ───────────────────────────────
+
+    def _build_masks_card(self) -> QFrame:
+        card = _card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
+        self._hdr_masks = _hdr(tr("hdr_ie_masks"))
+        layout.addWidget(self._hdr_masks)
+
+        self._masks_hint = QLabel(tr("hint_ie_masks"))
+        self._masks_hint.setObjectName("TextMuted")
+        self._masks_hint.setWordWrap(True)
+        self._masks_hint.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._masks_hint)
+
+        add_row = QHBoxLayout()
+        self._mask_add_btn = QPushButton(tr("btn_ie_mask_add"))
+        self._mask_add_btn.setObjectName("BrowseBtn")
+        self._mask_add_btn.clicked.connect(lambda: self._add_mask_row())
+        add_row.addWidget(self._mask_add_btn)
+        add_row.addStretch()
+        layout.addLayout(add_row)
+
+        self._mask_rows_layout = QVBoxLayout()
+        self._mask_rows_layout.setSpacing(6)
+        layout.addLayout(self._mask_rows_layout)
+        return card
+
+    def _add_mask_row(self, layer: Optional[MaskLayer] = None, index: Optional[int] = None) -> None:
+        row = _MaskRow(layer if layer is not None else MaskLayer())
+        row.removed.connect(self._remove_mask_row)
+        row.changed.connect(self._schedule_preview)
+        row.request_region.connect(self._begin_mask_region)
+        row.move_up.connect(self._move_mask_up)
+        row.move_down.connect(self._move_mask_down)
+        row.duplicate.connect(self._duplicate_mask_row)
+        if index is None or index >= len(self._mask_rows):
+            self._mask_rows.append(row)
+            self._mask_rows_layout.addWidget(row)
+        else:
+            self._mask_rows.insert(index, row)
+            self._mask_rows_layout.insertWidget(index, row)
+        self._renumber_masks()
+        self._schedule_preview()
+
+    def _move_mask_up(self, row: "_MaskRow") -> None:
+        if row not in self._mask_rows:
+            return
+        i = self._mask_rows.index(row)
+        if i <= 0:
+            return
+        self._mask_rows[i - 1], self._mask_rows[i] = self._mask_rows[i], self._mask_rows[i - 1]
+        self._mask_rows_layout.removeWidget(row)
+        self._mask_rows_layout.insertWidget(i - 1, row)
+        self._renumber_masks()
+        self._schedule_preview()
+
+    def _move_mask_down(self, row: "_MaskRow") -> None:
+        if row not in self._mask_rows:
+            return
+        i = self._mask_rows.index(row)
+        if i >= len(self._mask_rows) - 1:
+            return
+        self._mask_rows[i + 1], self._mask_rows[i] = self._mask_rows[i], self._mask_rows[i + 1]
+        self._mask_rows_layout.removeWidget(row)
+        self._mask_rows_layout.insertWidget(i + 1, row)
+        self._renumber_masks()
+        self._schedule_preview()
+
+    def _duplicate_mask_row(self, row: "_MaskRow") -> None:
+        i = self._mask_rows.index(row) if row in self._mask_rows else len(self._mask_rows) - 1
+        self._add_mask_row(row.to_layer(), index=i + 1)
+
+    def _remove_mask_row(self, row: "_MaskRow") -> None:
+        if self._active_mask_row is row:
+            self._active_mask_row = None
+            self._preview_label.mask_mode = None
+            self._preview_label.setCursor(Qt.CursorShape.ArrowCursor)
+        if row in self._mask_rows:
+            self._mask_rows.remove(row)
+        self._mask_rows_layout.removeWidget(row)
+        row.setParent(None)
+        row.deleteLater()
+        self._renumber_masks()
+        self._schedule_preview()
+
+    def _clear_mask_rows(self) -> None:
+        self._active_mask_row = None
+        self._preview_label.mask_mode = None
+        for row in list(self._mask_rows):
+            self._mask_rows.remove(row)
+            self._mask_rows_layout.removeWidget(row)
+            row.setParent(None)
+            row.deleteLater()
+
+    def _renumber_masks(self) -> None:
+        for i, row in enumerate(self._mask_rows, 1):
+            row.set_index(i)
+
+    def _begin_mask_region(self, row: "_MaskRow") -> None:
+        """Arm the preview so the next drag (or click, for color) sets this mask."""
+        self._active_mask_row = row
+        self._preview_label.mask_mode = row.mask_type()
+        self._preview_label.setCursor(Qt.CursorShape.CrossCursor)
+        if self._crop_mode_btn.isChecked():
+            self._crop_mode_btn.setChecked(False)
+        hint = "ie_mask_color_hint" if row.mask_type() == "color" else "ie_mask_region_hint"
+        self.status_message.emit(tr(hint), False)
+
+    def _end_mask_region(self) -> None:
+        self._active_mask_row = None
+        self._preview_label.mask_mode = None
+        self._preview_label.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def _on_mask_geometry_set(self, x0: float, y0: float, x1: float, y1: float) -> None:
+        if self._active_mask_row is None:
+            return
+        self._active_mask_row.set_geometry(x0, y0, x1, y1)  # emits changed → preview
+        self._end_mask_region()
+
+    def _on_mask_color_picked(self, r: int, g: int, b: int) -> None:
+        if self._active_mask_row is None:
+            return
+        self._active_mask_row.set_pick_color(f"#{r:02X}{g:02X}{b:02X}")  # emits changed
+        self._end_mask_region()
 
     # ── Preset card ───────────────────────────────────────────────────────────
 
@@ -1526,6 +2394,7 @@ class ImageEditorSection(QScrollArea):
         if row.edit_cfg is None:
             row.edit_cfg = EditConfig(
                 fit=FitOptions(**asdict(self._global_cfg.fit)),
+                enhance=EnhanceOptions(**asdict(self._global_cfg.enhance)),
                 filter=FilterOptions(**asdict(self._global_cfg.filter)),
                 adjust=AdjustOptions(**asdict(self._global_cfg.adjust)),
                 effects=EffectsOptions(**asdict(self._global_cfg.effects)),
@@ -1561,9 +2430,7 @@ class ImageEditorSection(QScrollArea):
         if path and os.path.isfile(path):
             if path != self._active_row_src_path:
                 try:
-                    im = Image.open(path)
-                    im.load()
-                    self._active_row_src_image = im
+                    self._active_row_src_image = load_image(path)
                     self._active_row_src_path = path
                 except Exception:
                     return self._src_image
@@ -1745,7 +2612,8 @@ class ImageEditorSection(QScrollArea):
         # Use the global cfg as fallback — _render_one_monitor picks the row's
         # own edit_cfg when present, falls back to base_cfg otherwise.
         cfg = self._global_cfg
-        fallback = self._src_image
+        # Downscaled source — row thumbnails are tiny, full-res input is wasted work.
+        fallback = self._preview_source(self._src_image)
         layout_entries: list[tuple[int, int, int, int, str, QPixmap]] = []
         source_cache: dict[str, Image.Image] = {}
         for row in self._wp_rows:
@@ -1754,8 +2622,8 @@ class ImageEditorSection(QScrollArea):
             if spec.source_path and os.path.isfile(spec.source_path):
                 if spec.source_path not in source_cache:
                     try:
-                        im = Image.open(spec.source_path)
-                        im.load()
+                        im = load_image(spec.source_path)
+                        im.thumbnail((1280, 1280), Image.Resampling.LANCZOS)
                         source_cache[spec.source_path] = im
                     except Exception:
                         row.set_thumbnail(None)
@@ -2288,6 +3156,36 @@ class ImageEditorSection(QScrollArea):
 
     # ── Reset ────────────────────────────────────────────────────────────────
 
+    # ── Undo / redo ──────────────────────────────────────────────────────────
+
+    def _update_undo_buttons(self) -> None:
+        self._undo_btn.setEnabled(len(self._undo_stack) > 1)
+        self._redo_btn.setEnabled(bool(self._redo_stack))
+
+    def _restore_config(self, cfg: EditConfig) -> None:
+        """Push *cfg* into the controls without recording a new undo entry."""
+        self._restoring = True
+        try:
+            self._apply_config(cfg)
+            self._refresh_preview()
+        finally:
+            self._restoring = False
+        self._update_undo_buttons()
+
+    def _undo(self) -> None:
+        # Undo applies to the global edit state, not per-monitor row overrides.
+        if self._active_row is not None or len(self._undo_stack) <= 1:
+            return
+        self._redo_stack.append(self._undo_stack.pop())
+        self._restore_config(self._undo_stack[-1])
+
+    def _redo(self) -> None:
+        if self._active_row is not None or not self._redo_stack:
+            return
+        cfg = self._redo_stack.pop()
+        self._undo_stack.append(cfg)
+        self._restore_config(cfg)
+
     def _reset_all(self) -> None:
         defaults = EditConfig()
         self._apply_config(defaults)
@@ -2332,6 +3230,18 @@ class ImageEditorSection(QScrollArea):
             black_point = self._adj_sliders["black_point"][0].value(),
             white_point = self._adj_sliders["white_point"][0].value(),
         )
+        enh = EnhanceOptions(
+            auto_enhance      = self._auto_enhance_chk.isChecked(),
+            clarity           = self._enh_sliders["clarity"][0].value() / 100.0,
+            dehaze            = self._enh_sliders["dehaze"][0].value() / 100.0,
+            vibrance          = self._enh_sliders["vibrance"][0].value() / 100.0,
+            exposure          = self._enh_sliders["exposure"][0].value() / 100.0,
+            gamma             = self._enh_sliders["gamma"][0].value() / 100.0,
+            denoise           = self._enh_sliders["denoise"][0].value() / 100.0,
+            sharpen_amount    = self._enh_sliders["sharpen_amount"][0].value() / 100.0,
+            sharpen_radius    = float(self._enh_sliders["sharpen_radius"][0].value()),
+            sharpen_threshold = int(self._enh_sliders["sharpen_threshold"][0].value()),
+        )
         eff = EffectsOptions(
             sharpen          = self._eff_sliders["sharpen"][0].value() / 100.0,
             blur             = self._eff_sliders["blur"][0].value() / 10.0,
@@ -2346,16 +3256,23 @@ class ImageEditorSection(QScrollArea):
             gradient_color2  = self._eff_colors["gradient_c2"],
             gradient_angle   = int(self._grad_angle_spin.value()),
         )
-        return EditConfig(fit=fit, filter=flt, adjust=adj, effects=eff)
+        masks = [r.to_layer() for r in self._mask_rows]
+        curves = CurvesOptions(
+            enabled=self._curves_chk.isChecked(),
+            points=self._curve_widget.points(),
+        )
+        return EditConfig(fit=fit, enhance=enh, filter=flt, adjust=adj,
+                          curves=curves, effects=eff, masks=masks)
 
     def _apply_config(self, cfg: EditConfig) -> None:
         widgets = [
             self._fit_combo, self._w_spin, self._h_spin,
             self._flip_h_chk, self._flip_v_chk, self._rotate_spin,
             self._filter_combo, self._strength_slider, self._adjust_chk,
-            self._grad_angle_spin,
+            self._grad_angle_spin, self._auto_enhance_chk, self._curves_chk,
         ] + [t[0] for t in self._adj_sliders.values()] \
           + [t[0] for t in self._eff_sliders.values()] \
+          + [t[0] for t in self._enh_sliders.values()] \
           + [t[0] for t in self._crop_sliders.values()]
         for w in widgets:
             w.blockSignals(True)
@@ -2412,6 +3329,24 @@ class ImageEditorSection(QScrollArea):
                 btn.setStyleSheet(f"background:{self._eff_colors[k]}; border:1px solid #555; border-radius:3px;")
             for key, (sl, lab) in self._eff_sliders.items():
                 lab.setText(str(sl.value()))
+            self._auto_enhance_chk.setChecked(cfg.enhance.auto_enhance)
+            self._enh_sliders["clarity"][0].setValue(int(round(cfg.enhance.clarity * 100)))
+            self._enh_sliders["dehaze"][0].setValue(int(round(cfg.enhance.dehaze * 100)))
+            self._enh_sliders["vibrance"][0].setValue(int(round(cfg.enhance.vibrance * 100)))
+            self._enh_sliders["exposure"][0].setValue(int(round(cfg.enhance.exposure * 100)))
+            self._enh_sliders["gamma"][0].setValue(int(round(cfg.enhance.gamma * 100)))
+            self._enh_sliders["denoise"][0].setValue(int(round(cfg.enhance.denoise * 100)))
+            self._enh_sliders["sharpen_amount"][0].setValue(int(round(cfg.enhance.sharpen_amount * 100)))
+            self._enh_sliders["sharpen_radius"][0].setValue(int(round(cfg.enhance.sharpen_radius)))
+            self._enh_sliders["sharpen_threshold"][0].setValue(int(cfg.enhance.sharpen_threshold))
+            for key, (sl, lab) in self._enh_sliders.items():
+                lab.setText(str(sl.value()))
+            self._curves_chk.setChecked(cfg.curves.enabled)
+            self._curve_widget.set_points(cfg.curves.points)
+            # Rebuild the stacked mask rows from the config.
+            self._clear_mask_rows()
+            for layer in cfg.masks:
+                self._add_mask_row(layer)
         finally:
             for w in widgets:
                 w.blockSignals(False)
@@ -2555,6 +3490,8 @@ class ImageEditorSection(QScrollArea):
         self._hdr_preview.setText(tr("hdr_ie_preview"))
         self._compare_btn.setText(tr("btn_ie_compare"))
         self._compare_btn.setToolTip(tr("tip_ie_compare"))
+        self._undo_btn.setToolTip(tr("tip_ie_undo"))
+        self._redo_btn.setToolTip(tr("tip_ie_redo"))
         self._reset_btn.setText(tr("btn_ie_reset"))
         if not self._src_image:
             self._preview_label.setText(tr("hint_ie_no_preview"))
@@ -2592,9 +3529,24 @@ class ImageEditorSection(QScrollArea):
         self._adjust_chk.setText(tr("lbl_ie_enable_adjust"))
         for key, lbl in self._adj_labels.items():
             lbl.setText(tr(f"lbl_ie_{key}"))
+        self._hdr_curves.setText(tr("hdr_ie_curves"))
+        self._curves_chk.setText(tr("lbl_ie_enable_curves"))
+        self._curve_reset_btn.setText(tr("btn_ie_curve_reset"))
+        self._hdr_enhance.setText(tr("hdr_ie_enhance"))
+        self._enh_hint.setText(tr("hint_ie_enhance"))
+        self._auto_enhance_chk.setText(tr("lbl_ie_auto_enhance"))
+        self._auto_enhance_chk.setToolTip(tr("tip_ie_auto_enhance"))
+        for key, lbl in self._enh_labels.items():
+            lbl.setText(tr(f"lbl_ie_{key}"))
         self._hdr_effects.setText(tr("hdr_ie_effects"))
         for key, lbl in self._eff_labels.items():
             lbl.setText(tr(f"lbl_ie_{key}"))
+        self._hdr_masks.setText(tr("hdr_ie_masks"))
+        self._masks_hint.setText(tr("hint_ie_masks"))
+        self._mask_add_btn.setText(tr("btn_ie_mask_add"))
+        for mrow in self._mask_rows:
+            mrow.retranslate_ui()
+        self._renumber_masks()
         self._hdr_preset.setText(tr("hdr_ie_presets"))
         self._load_preset_btn.setText(tr("btn_ie_load_preset"))
         self._save_preset_btn.setText(tr("btn_ie_save_preset"))
