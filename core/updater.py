@@ -47,12 +47,20 @@ INSTALLER_DOWNLOAD_URL = (
 INSTALLER_MANIFEST_URL = (
     "https://github.com/darknessth22/media-utilities/releases/latest/download/Videl_Setup.exe.sig.json"
 )
+APPIMAGE_DOWNLOAD_URL = (
+    "https://github.com/darknessth22/media-utilities/releases/latest/download/Videl-x86_64.AppImage"
+)
+APPIMAGE_MANIFEST_URL = (
+    "https://github.com/darknessth22/media-utilities/releases/latest/download/Videl-x86_64.AppImage.sig.json"
+)
 STOREFRONT_URL = "https://darknessth22.github.io/media-utilities/"
 
 _HTTP_TIMEOUT_SEC = 3.0
 _DOWNLOAD_TIMEOUT_SEC = 60.0
 _USER_AGENT = f"Videl-Updater/{APP_VERSION}"
 _WIN_FROZEN = sys.platform == "win32" and getattr(sys, "frozen", False)
+_LINUX_APPIMAGE_PATH = os.environ.get("APPIMAGE") if sys.platform.startswith("linux") else None
+_LINUX_APPIMAGE = bool(_LINUX_APPIMAGE_PATH)
 
 _log = get_logger()
 
@@ -96,9 +104,10 @@ class InstallerDownloader(QThread):
     finished_ok = Signal(str)    # local installer path
     failed = Signal(str)         # error message
 
-    def __init__(self, dest_path: str, parent=None) -> None:
+    def __init__(self, dest_path: str, parent=None, url: str = INSTALLER_DOWNLOAD_URL) -> None:
         super().__init__(parent)
         self._dest = dest_path
+        self._url = url
         self._cancel = False
 
     def cancel(self) -> None:
@@ -107,7 +116,7 @@ class InstallerDownloader(QThread):
     def run(self) -> None:  # noqa: D401
         try:
             req = urllib.request.Request(
-                INSTALLER_DOWNLOAD_URL,
+                self._url,
                 headers={"User-Agent": _USER_AGENT},
             )
             with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT_SEC) as resp:
@@ -160,10 +169,10 @@ QProgressBar::chunk { background-color: #2563eb; border-radius: 5px; }
 """
 
 
-def _fetch_manifest() -> dict | None:
+def _fetch_manifest(url: str = INSTALLER_MANIFEST_URL) -> dict | None:
     try:
         req = urllib.request.Request(
-            INSTALLER_MANIFEST_URL,
+            url,
             headers={"User-Agent": _USER_AGENT, "Accept": "application/json"},
         )
         with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
@@ -360,8 +369,145 @@ def _run_in_app_update(parent: QWidget | None, latest: str) -> None:
     progress.exec()
 
 
+def _run_linux_appimage_update(parent: QWidget | None, latest: str) -> None:
+    """Replace the running AppImage in place and re-exec.
+
+    Strategy: download new AppImage to a temp file on the SAME filesystem as
+    $APPIMAGE (so os.replace is atomic), verify sha256+size against the signed
+    manifest, chmod 0755, os.replace over $APPIMAGE, then os.execv to relaunch.
+    On read-only target or signature/integrity failure, fall back to opening
+    the storefront.
+    """
+    from core.i18n import tr
+
+    appimage_path = _LINUX_APPIMAGE_PATH or ""
+    if not appimage_path or not os.path.isfile(appimage_path):
+        _open_storefront()
+        return
+
+    target_dir = os.path.dirname(os.path.abspath(appimage_path)) or "."
+    if not os.access(target_dir, os.W_OK) or not os.access(appimage_path, os.W_OK):
+        box = QMessageBox(parent)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle(tr("update_failed_title"))
+        box.setText(tr("update_failed_appimage_readonly"))
+        box.setStyleSheet(_DARK_QSS)
+        open_btn = QPushButton(tr("update_open_browser"))
+        open_btn.setProperty("primary", True)
+        close_btn = QPushButton(tr("update_skip"))
+        box.addButton(open_btn, QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(close_btn, QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        if box.clickedButton() is open_btn:
+            _open_storefront()
+        return
+
+    manifest = _fetch_manifest(APPIMAGE_MANIFEST_URL)
+    if manifest is None or not _verify_manifest_signature(manifest):
+        box = QMessageBox(parent)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle(tr("update_failed_title"))
+        box.setText(tr("update_failed_body").format(error="signature verification failed"))
+        box.setStyleSheet(_DARK_QSS)
+        open_btn = QPushButton(tr("update_open_browser"))
+        open_btn.setProperty("primary", True)
+        close_btn = QPushButton(tr("update_skip"))
+        box.addButton(open_btn, QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(close_btn, QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        if box.clickedButton() is open_btn:
+            _open_storefront()
+        return
+
+    # Temp file on SAME filesystem as $APPIMAGE → os.replace is atomic.
+    dest = os.path.join(target_dir, f".Videl-x86_64.AppImage.new-{latest}")
+
+    progress = QProgressDialog(parent)
+    progress.setWindowTitle(tr("update_title"))
+    progress.setLabelText(tr("update_downloading").format(latest=latest))
+    progress.setRange(0, 100)
+    progress.setValue(0)
+    progress.setAutoClose(False)
+    progress.setAutoReset(False)
+    progress.setWindowModality(Qt.WindowModality.ApplicationModal)
+    progress.setMinimumWidth(420)
+    progress.setStyleSheet(_DARK_QSS)
+    progress.setCancelButtonText(tr("update_cancel"))
+
+    downloader = InstallerDownloader(dest, parent, url=APPIMAGE_DOWNLOAD_URL)
+
+    def on_progress(done: int, total: int) -> None:
+        if total > 0:
+            pct = int(done * 100 / total)
+            progress.setValue(pct)
+            mb_done = done / 1048576
+            mb_total = total / 1048576
+            progress.setLabelText(
+                tr("update_downloading_progress").format(
+                    done=f"{mb_done:.1f}", total=f"{mb_total:.1f}"
+                )
+            )
+        else:
+            progress.setLabelText(tr("update_downloading").format(latest=latest))
+
+    def on_failed(msg: str) -> None:
+        progress.close()
+        try:
+            if os.path.exists(dest):
+                os.remove(dest)
+        except OSError:
+            pass
+        if msg == "cancelled":
+            return
+        box = QMessageBox(parent)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle(tr("update_failed_title"))
+        box.setText(tr("update_failed_body").format(error=msg))
+        box.setStyleSheet(_DARK_QSS)
+        open_btn = QPushButton(tr("update_open_browser"))
+        open_btn.setProperty("primary", True)
+        close_btn = QPushButton(tr("update_skip"))
+        box.addButton(open_btn, QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(close_btn, QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        if box.clickedButton() is open_btn:
+            _open_storefront()
+
+    def on_ok(path: str) -> None:
+        progress.close()
+        if not _verify_installer(path, manifest):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+            on_failed("AppImage integrity check failed")
+            return
+        try:
+            os.chmod(path, 0o755)
+            os.replace(path, appimage_path)
+        except OSError as exc:
+            _log.error("AppImage replace failed: %s", exc)
+            on_failed(str(exc))
+            return
+        # Relaunch the new AppImage in place of the current process.
+        try:
+            QApplication.quit()
+            os.execv(appimage_path, [appimage_path, *sys.argv[1:]])
+        except OSError as exc:
+            _log.error("os.execv failed: %s", exc)
+            # App already quit; nothing left to do.
+
+    downloader.progress.connect(on_progress)
+    downloader.failed.connect(on_failed)
+    downloader.finished_ok.connect(on_ok)
+    progress.canceled.connect(downloader.cancel)
+
+    downloader.start()
+    progress.exec()
+
+
 def show_update_modal(parent: QWidget | None, latest: str, _html_url: str) -> None:
-    """Display the update prompt. Frozen Windows: in-app download. Else: browser."""
+    """Display the update prompt. Frozen Windows / Linux AppImage: in-app. Else: browser."""
     from core.i18n import tr
 
     box = QMessageBox(parent)
@@ -384,6 +530,8 @@ def show_update_modal(parent: QWidget | None, latest: str, _html_url: str) -> No
 
     if _WIN_FROZEN:
         _run_in_app_update(parent, latest)
+    elif _LINUX_APPIMAGE:
+        _run_linux_appimage_update(parent, latest)
     else:
         _open_storefront()
 

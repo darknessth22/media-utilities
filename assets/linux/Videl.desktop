@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Videl
+GenericName=Media Workstation
+Comment=Offline media downloader, converter, transcriber, and AI toolkit
+Exec=Videl
+Icon=Videl
+Terminal=false
+Categories=AudioVideo;Utility;
+StartupWMClass=Videl
+StartupNotify=true

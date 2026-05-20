@@ -105,6 +105,15 @@ class _DepsChecker(QThread):
 
 def main() -> None:
     app = QApplication(sys.argv)
+    # Force Fusion style so the QSS (rounded corners, button colours, sidebar)
+    # renders identically across Windows and Linux. The Linux default style
+    # (Breeze / GTK) silently drops custom border-radius on native widgets.
+    try:
+        from PySide6.QtWidgets import QStyleFactory
+        if "Fusion" in QStyleFactory.keys():
+            app.setStyle("Fusion")
+    except Exception:
+        pass
     app.setApplicationName("Videl")
     app.setApplicationVersion(VERSION)
     app.setOrganizationName("Videl")

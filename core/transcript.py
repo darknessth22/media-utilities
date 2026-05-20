@@ -131,8 +131,8 @@ class TranscriptResult:
 
 # ── Filesystem layout ──────────────────────────────────────────────────────
 def _videl_root() -> str:
-    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return os.path.join(base, "Videl")
+    from utils.paths import user_data_dir
+    return str(user_data_dir())
 
 
 def bin_root() -> str:

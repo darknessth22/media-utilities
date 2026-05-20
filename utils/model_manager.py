@@ -18,6 +18,7 @@ from typing import Callable, Optional
 from core import ai_components
 from core.version import VERSION
 from utils.bundled_runtime import BundledRuntimeMissingError, bundled_python_path
+from utils.paths import ai_packages_dir
 from utils.gpu_detect import (
     compute_capability as _gpu_capability,
     cuda_variant_supported as _cuda_variant_supported,
@@ -56,8 +57,7 @@ class ReconcileResult:
 # ---------- paths ----------
 
 def _ai_packages_root() -> str:
-    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return os.path.join(base, "Videl", "ai_packages")
+    return str(ai_packages_dir())
 
 
 def _component_dir(component_id: str) -> str:

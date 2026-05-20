@@ -441,13 +441,37 @@ def run_exclude_test(build_python):
         print(f"[FAIL] Excluded AI packages leaked into dist/Videl/ (pytest exit {e.returncode})", file=sys.stderr)
         sys.exit(1)
 
+def _run_linux_appimage_build():
+    """Dispatch to build_appimage.sh on Linux."""
+    print("Videl - Linux Build Pipeline (AppImage)")
+    print("=" * 60)
+    script = Path("build_appimage.sh")
+    if not script.exists():
+        print(f"[FAIL] {script} not found.")
+        sys.exit(1)
+    try:
+        subprocess.check_call(["bash", str(script)])
+    except subprocess.CalledProcessError as e:
+        print(f"[FAIL] build_appimage.sh exit {e.returncode}")
+        sys.exit(e.returncode)
+    out = Path("dist/Videl-x86_64.AppImage")
+    if not out.exists():
+        print(f"[FAIL] expected output {out} missing")
+        sys.exit(1)
+    print(f"\nBuild complete.\nAppImage: {out.resolve()}")
+
+
 def main():
     """Main build process"""
+    if sys.platform.startswith("linux"):
+        _run_linux_appimage_build()
+        return
+
     print("Videl - Windows Build Pipeline")
     print("=" * 60)
-    
+
     if sys.platform != "win32":
-        print("[FAIL] This build pipeline requires Windows.")
+        print("[FAIL] Supported build hosts: Windows or Linux.")
         sys.exit(1)
     
     config = load_build_config()

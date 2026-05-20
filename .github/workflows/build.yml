@@ -2,13 +2,20 @@ name: Build Videl
 
 on:
   push:
-    branches: [master, main, phase1/security-stability]
+    branches: [master, main, phase1/security-stability, 001-linux-build]
     tags: ['v*']
   workflow_dispatch:
 
+# Dedupe parallel runs: if a tag push and the branch push share the same SHA
+# (typical "push master + push tag" flow), keep only one in flight.
+concurrency:
+  group: build-${{ github.sha }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
+    if: ${{ github.ref != 'refs/heads/001-linux-build' && !contains(github.event.head_commit.message, '[skip-windows]') }}
     permissions:
       contents: write
 
@@ -129,6 +136,7 @@ jobs:
             --out artifacts/clean/Videl_Setup.exe.sig.json
 
       - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
@@ -142,4 +150,107 @@ jobs:
           files: |
             artifacts/clean/Videl_Setup.exe
             artifacts/clean/Videl_Setup.exe.sig.json
+          fail_on_unmatched_files: true
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-build.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Cache ffmpeg binaries
+        uses: actions/cache@v5
+        with:
+          path: bin
+          key: ${{ runner.os }}-ffmpeg-${{ hashFiles('build_config.json') }}
+
+      - name: Install system deps (libfuse2 + Qt6 + xcb for linuxdeploy-qt)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libfuse2 file desktop-file-utils \
+            qmake6 qt6-base-dev \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-sync1 \
+            libxcb-util1 libxcb-xfixes0 libxcb-xinerama0 libxcb-xkb1 \
+            libxkbcommon-x11-0 libpulse0
+
+      - name: Install build-only Python dependencies
+        run: pip install -r requirements-build.txt
+
+      - name: Install AppImage tooling
+        run: |
+          mkdir -p tools
+          curl -fsSL -o tools/linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -fsSL -o tools/linuxdeploy-plugin-qt-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          curl -fsSL -o tools/appimagetool-x86_64.AppImage \
+            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x tools/linuxdeploy-x86_64.AppImage tools/linuxdeploy-plugin-qt-x86_64.AppImage tools/appimagetool-x86_64.AppImage
+
+      - name: Build AppImage
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        run: bash build_appimage.sh
+
+      - name: Read app version
+        id: version
+        run: |
+          v=$(python -c "import re,pathlib;print(re.search(r'VERSION\s*=\s*\"([^\"]+)\"', pathlib.Path('core/version.py').read_text()).group(1))")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $v"
+
+      - name: Sign AppImage (Ed25519 manifest)
+        env:
+          VIDEL_PRIV_KEY_PEM: ${{ secrets.VIDEL_PRIV_KEY_PEM }}
+        run: |
+          if [ -z "${VIDEL_PRIV_KEY_PEM:-}" ]; then
+            echo "Missing secret VIDEL_PRIV_KEY_PEM — set it to the Ed25519 PEM that matches core/_signing.py PUBLIC_KEY_B64." >&2
+            exit 1
+          fi
+          python tools/sign_installer.py dist/Videl-x86_64.AppImage \
+            --version "${{ steps.version.outputs.version }}" \
+            --priv-key "$VIDEL_PRIV_KEY_PEM" \
+            --out dist/Videl-x86_64.AppImage.sig.json
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: Videl-AppImage-${{ github.sha }}
+          path: dist/Videl-x86_64.AppImage
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Videl v${{ steps.version.outputs.version }}
+          prerelease: false
+          body: |
+            Built from `${{ github.ref_name }}` @ `${{ github.sha }}`.
+
+            **Linux AppImage:** `Videl-x86_64.AppImage`
+            **Signed manifest:** `Videl-x86_64.AppImage.sig.json` (Ed25519, verified by in-app updater)
+          files: |
+            dist/Videl-x86_64.AppImage
+            dist/Videl-x86_64.AppImage.sig.json
           fail_on_unmatched_files: true

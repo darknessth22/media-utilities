@@ -9,6 +9,8 @@ import threading
 from pathlib import Path
 from typing import Callable
 
+from utils.paths import ai_packages_dir
+
 AUDIO_EXTS = {".mp3", ".wav", ".flac", ".aac", ".m4a", ".ogg", ".opus", ".wma"}
 VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv"}
 SUPPORTED_EXTS = AUDIO_EXTS | VIDEO_EXTS
@@ -24,9 +26,8 @@ _PROGRESS_RE = re.compile(r"(\d+)%")
 
 
 def _ai_dir() -> str:
-    """Return %LOCALAPPDATA%\\Videl\\ai_packages\\vocal_isolator (where demucs lives)."""
-    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return os.path.join(base, "Videl", "ai_packages", "vocal_isolator")
+    """Return <user-data>/Videl/ai_packages/vocal_isolator (where demucs lives)."""
+    return str(ai_packages_dir() / "vocal_isolator")
 
 
 def _python_exe() -> str:

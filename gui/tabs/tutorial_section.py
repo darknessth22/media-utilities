@@ -604,6 +604,47 @@ _TUTORIAL_DATA_EN = [
             "Pair with Ctrl+K — chips reduce the list, palette jumps you in.",
         ],
     },
+    {
+        "emoji": "🐧",
+        "title": "Linux & Cross-Platform",
+        "description": (
+            "Videl ships for Windows 10+ and Linux x86_64 (Ubuntu 22.04+ / glibc 2.35+). "
+            "The Linux build is a single AppImage; settings and AI packages follow XDG."
+        ),
+        "steps": [
+            "Download Videl-x86_64.AppImage from the Releases page.",
+            "Install libfuse2 once: sudo apt-get install libfuse2",
+            "chmod +x Videl-x86_64.AppImage and double-click to run.",
+            "Settings persist under ~/.config/Videl/, AI packages under ~/.local/share/Videl/ai_packages/.",
+            "To build from source: bash build_appimage.sh (see specs/001-linux-build/quickstart.md).",
+        ],
+        "tips": [
+            "The updater replaces the AppImage in place and re-launches — keep it in a writable folder.",
+            "Supported: Windows 10+ · Linux x86_64 (Ubuntu 22.04+ / glibc 2.35+).",
+        ],
+    },
+    {
+        "emoji": "🎨",
+        "title": "Image Editor",
+        "description": (
+            "Fit, flip, filter and color-grade images. Save your favourite recipe as a reusable preset "
+            "and apply it to a whole folder in batch mode."
+        ),
+        "steps": [
+            "Pick a single image, or tick 'Batch mode' to queue many.",
+            "Set target Width × Height, choose Cover / Fill / Center / Stretch, and pick a background colour for letterboxed modes.",
+            "Toggle Flip horizontal / vertical if needed.",
+            "Choose a filter preset (Vibrant Contrast, Moon Light, Golden Hour, …) and dial in Strength.",
+            "Tick 'Enable color adjustments' to drive brightness / contrast / saturation / hue / shadows / highlights directly.",
+            "Hit 'Save current as preset…' to keep your recipe; presets live in your user config folder and load instantly.",
+            "Click Apply Edits — single mode writes <name>_edited.<ext>; batch mode processes the whole list.",
+        ],
+        "tips": [
+            "Strength slider blends the filter over your manual adjustments — set it to 0% to compare wet/dry.",
+            "Center mode does not scale the source — useful for keeping pixel-perfect originals on a padded canvas.",
+            "Saved presets capture every control: fit, flip, filter, strength, and all six adjustment values.",
+        ],
+    },
 ]
 
 _TUTORIAL_DATA_AR = [
@@ -1150,6 +1191,47 @@ _TUTORIAL_DATA_AR = [
             "بما أن البناء --onefile عبر PyInstaller، التحديث تنزيل كامل (لا توجد رقع ثنائية).",
         ],
     },
+    {
+        "emoji": "🐧",
+        "title": "لينكس ودعم الأنظمة المتعددة",
+        "description": (
+            "يتوفر Videl لويندوز 10+ ولينكس x86_64 (أوبونتو 22.04+ / glibc 2.35+). "
+            "بناء لينكس عبارة عن ملف AppImage واحد، والإعدادات وحزم الذكاء الاصطناعي تتبع معيار XDG."
+        ),
+        "steps": [
+            "نزّل Videl-x86_64.AppImage من صفحة الإصدارات.",
+            "ثبّت libfuse2 مرة واحدة: sudo apt-get install libfuse2",
+            "نفّذ chmod +x Videl-x86_64.AppImage ثم انقر مرتين للتشغيل.",
+            "تُحفظ الإعدادات في ~/.config/Videl/ وحزم الذكاء الاصطناعي في ~/.local/share/Videl/ai_packages/.",
+            "للبناء من المصدر: bash build_appimage.sh (انظر specs/001-linux-build/quickstart.md).",
+        ],
+        "tips": [
+            "يستبدل المحدّث ملف AppImage في مكانه ثم يعيد التشغيل — احتفظ به في مجلد قابل للكتابة.",
+            "المنصّات المدعومة: ويندوز 10+ · لينكس x86_64 (أوبونتو 22.04+ / glibc 2.35+).",
+        ],
+    },
+    {
+        "emoji": "🎨",
+        "title": "محرر الصور",
+        "description": (
+            "احتواء وقلب وتلوين الصور. احفظ ضبطك المفضل كإعداد مسبق قابل لإعادة الاستخدام، "
+            "وطبّقه على مجلد كامل في وضع الدُفعات."
+        ),
+        "steps": [
+            "اختر صورة واحدة، أو فعّل 'وضع الدُفعات' لإضافة عدة صور.",
+            "حدّد العرض × الارتفاع، واختر تغطية / ملء / توسيط / تمديد، وحدّد لون الخلفية لأنماط الإطار.",
+            "فعّل القلب الأفقي أو الرأسي عند الحاجة.",
+            "اختر فلتراً (تباين نابض، ضوء القمر، الساعة الذهبية…) واضبط الشدّة.",
+            "فعّل 'تعديلات اللون' للتحكم في السطوع والتباين والتشبع والصبغة والظلال والإبرازات.",
+            "انقر 'حفظ الحالي كإعداد مسبق…' لحفظ الضبط؛ تُخزَّن الإعدادات في مجلد المستخدم وتُحمَّل فوراً.",
+            "انقر 'تطبيق التعديلات' — يولّد الملف <name>_edited.<ext> في الوضع الفردي، ويعالج كامل القائمة في الدُفعات.",
+        ],
+        "tips": [
+            "شريط الشدّة يمزج الفلتر مع تعديلاتك اليدوية — ضعه على 0٪ لمقارنة قبل/بعد.",
+            "نمط التوسيط لا يغيّر مقاس الصورة الأصلية — مفيد للحفاظ على دقة البكسل داخل لوحة بلون خلفية.",
+            "تحفظ الإعدادات المسبقة كل عناصر التحكم: الاحتواء والقلب والفلتر والشدّة والقيم الستة.",
+        ],
+    },
 ]
 
 
@@ -1187,6 +1269,8 @@ _TUTORIAL_SECTION_IDS: list[str | None] = [
     None,              # 28 Quick Open (Ctrl+K) — cross-cutting
     None,              # 29 Drag & Drop on Home — cross-cutting
     None,              # 30 Filter Tools by Category — cross-cutting
+    None,              # 31 Linux & Cross-Platform — cross-cutting
+    "image_editor",    # 32 Image Editor
 ]
 
 

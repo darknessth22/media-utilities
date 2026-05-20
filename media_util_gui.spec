@@ -4,6 +4,9 @@ import os
 import sys
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_all, collect_dynamic_libs
 
+IS_WIN = sys.platform == "win32"
+IS_LINUX = sys.platform.startswith("linux")
+
 datas = []
 datas += collect_data_files('yt_dlp')
 
@@ -50,27 +53,35 @@ if os.path.isdir('locales'):
 if os.path.isdir('browser_extension'):
     datas.append(('browser_extension', 'browser_extension'))
 
-# Bundled embeddable Python runtime + AI manifests — required for on-demand install.
-if os.path.isdir('runtime'):
+# Bundled embeddable Python runtime + AI manifests — Windows-only (embeddable
+# Python is win-amd64). Linux installs AI packages into the user-site instead.
+if IS_WIN and os.path.isdir('runtime'):
     datas.append(('runtime', 'runtime'))
 if os.path.isdir('manifests'):
     datas.append(('manifests', 'manifests'))
 
-if os.path.exists('bin/ffmpeg.exe'):
-    datas.append(('bin/ffmpeg.exe', '.'))
-if os.path.exists('bin/ffprobe.exe'):
-    datas.append(('bin/ffprobe.exe', '.'))
+if IS_WIN:
+    if os.path.exists('bin/ffmpeg.exe'):
+        datas.append(('bin/ffmpeg.exe', '.'))
+    if os.path.exists('bin/ffprobe.exe'):
+        datas.append(('bin/ffprobe.exe', '.'))
 
-if not os.path.exists('bin/ffmpeg.exe'):
-    if os.path.exists('ffmpeg.exe'):
-        datas.append(('ffmpeg.exe', '.'))
-    if os.path.exists('ffprobe.exe'):
-        datas.append(('ffprobe.exe', '.'))
+    if not os.path.exists('bin/ffmpeg.exe'):
+        if os.path.exists('ffmpeg.exe'):
+            datas.append(('ffmpeg.exe', '.'))
+        if os.path.exists('ffprobe.exe'):
+            datas.append(('ffprobe.exe', '.'))
 
-if os.path.exists('spotdl.exe'):
-    datas.append(('spotdl.exe', '.'))
-elif os.path.exists('Scripts/spotdl.exe'):
-    datas.append(('Scripts/spotdl.exe', '.'))
+    if os.path.exists('spotdl.exe'):
+        datas.append(('spotdl.exe', '.'))
+    elif os.path.exists('Scripts/spotdl.exe'):
+        datas.append(('Scripts/spotdl.exe', '.'))
+elif IS_LINUX:
+    # Linux static ffmpeg/ffprobe staged into bin/ by build_appimage.sh.
+    if os.path.exists('bin/ffmpeg'):
+        datas.append(('bin/ffmpeg', '.'))
+    if os.path.exists('bin/ffprobe'):
+        datas.append(('bin/ffprobe', '.'))
 
 hiddenimports = []
 
