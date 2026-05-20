@@ -186,12 +186,17 @@ class DeltaDownloader(QThread):
         total = sum(size for _rel, _sha, size in self._jobs)
         done = 0
         try:
-            for rel_path, sha, _size in self._jobs:
+            for rel_path, sha, size in self._jobs:
                 if self._cancel:
                     self.failed.emit("cancelled")
                     return
                 dest = os.path.join(self._staging, rel_path)
                 os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
+                # 0-byte files have no blob on the store (GitHub rejects empty
+                # asset uploads) — recreate them empty, no download.
+                if size == 0:
+                    open(dest, "wb").close()
+                    continue
                 req = urllib.request.Request(
                     BLOB_BASE_URL + sha, headers={"User-Agent": _USER_AGENT}
                 )

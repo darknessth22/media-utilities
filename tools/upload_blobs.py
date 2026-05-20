@@ -81,11 +81,19 @@ def main() -> int:
     print(f"Blob store already holds {len(have)} blobs.")
 
     # Map sha -> one source file (dedupes identical content within the tree).
+    # 0-byte files are skipped: GitHub's upload API rejects empty assets
+    # ("HTTP 400: Bad Content-Length"). The updater recreates them empty.
     by_sha: dict[str, str] = {}
+    skipped_empty = 0
     for root, _dirs, names in os.walk(args.tree):
         for name in names:
             ap = os.path.join(root, name)
+            if os.path.getsize(ap) == 0:
+                skipped_empty += 1
+                continue
             by_sha.setdefault(_sha256(ap), ap)
+    if skipped_empty:
+        print(f"Skipped {skipped_empty} empty (0-byte) file(s) — no blob needed.")
 
     missing = {sha: src for sha, src in by_sha.items() if sha not in have}
     print(f"Tree has {len(by_sha)} unique blobs; {len(missing)} new to upload.")
