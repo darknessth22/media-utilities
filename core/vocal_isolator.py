@@ -30,6 +30,13 @@ def _ai_dir() -> str:
     return str(ai_packages_dir() / "vocal_isolator")
 
 
+def _torch_runtime_dir() -> str:
+    """Dir holding torch. model_manager's one-time migration lifts torch /
+    torchaudio / numpy / nvidia-* out of vocal_isolator/ into the shared
+    `torch_runtime/` component — so torch no longer lives in _ai_dir()."""
+    return str(ai_packages_dir() / "torch_runtime")
+
+
 def _python_exe() -> str:
     """Return the bundled embeddable Python (where AI components are installed against).
 
@@ -60,12 +67,15 @@ def detect_device() -> str:
     global _LAST_DETECT_DEBUG
     py = _python_exe()
     ai = _ai_dir()
-    if not os.path.isdir(ai):
-        _LAST_DETECT_DEBUG = f"ai_dir missing: {ai}"
+    torch_dir = _torch_runtime_dir()
+    if not os.path.isdir(torch_dir):
+        _LAST_DETECT_DEBUG = f"torch runtime missing: {torch_dir}"
         return "cpu"
+    # torch_dir inserted last → resolves first; torch lives there post-migration.
     code = (
         "import sys, traceback\n"
         f"sys.path.insert(0, r'{ai}')\n"
+        f"sys.path.insert(0, r'{torch_dir}')\n"
         "try:\n"
         "    import torch\n"
         "    avail = torch.cuda.is_available()\n"
@@ -155,6 +165,7 @@ def separate_vocals(
     bootstrap = (
         "import sys, runpy;"
         f"sys.path.insert(0, r'{ai_dir}');"
+        f"sys.path.insert(0, r'{_torch_runtime_dir()}');"
         f"sys.argv = ['demucs', *{demucs_args!r}];"
         "runpy.run_module('demucs', run_name='__main__', alter_sys=True)"
     )

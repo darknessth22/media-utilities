@@ -23,6 +23,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Read app version
+        id: version
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path core/version.py -Pattern 'VERSION\s*=\s*"([^"]+)"').Matches.Groups[1].Value
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Detected version: $v"
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -63,6 +71,25 @@ jobs:
           Get-ChildItem -Recurse -File dist/Videl |
             ForEach-Object { $_.FullName.Substring((Resolve-Path dist/Videl).Path.Length + 1) } |
             Sort-Object | Out-File -Encoding utf8 artifacts/clean/paths.txt
+
+      - name: Generate delta-update file manifest
+        env:
+          VIDEL_PRIV_KEY_PEM: ${{ secrets.VIDEL_PRIV_KEY_PEM }}
+        shell: pwsh
+        run: |
+          if (-not $env:VIDEL_PRIV_KEY_PEM) {
+            Write-Error "Missing secret VIDEL_PRIV_KEY_PEM — required to sign the delta manifest."
+            exit 1
+          }
+          python tools/gen_manifest.py dist/Videl `
+            --version "${{ steps.version.outputs.version }}" `
+            --priv-key "$env:VIDEL_PRIV_KEY_PEM" `
+            --out artifacts/clean/videl-files.manifest.json
+
+      - name: Upload delta-update blobs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python tools/upload_blobs.py dist/Videl --repo ${{ github.repository }}
 
       - name: Pollute venv with AI packages (parity check)
         run: |
@@ -113,14 +140,6 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Read app version
-        id: version
-        shell: pwsh
-        run: |
-          $v = (Select-String -Path core/version.py -Pattern 'VERSION\s*=\s*"([^"]+)"').Matches.Groups[1].Value
-          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          Write-Host "Detected version: $v"
-
       - name: Sign installer (Ed25519 manifest)
         env:
           VIDEL_PRIV_KEY_PEM: ${{ secrets.VIDEL_PRIV_KEY_PEM }}
@@ -150,6 +169,7 @@ jobs:
           files: |
             artifacts/clean/Videl_Setup.exe
             artifacts/clean/Videl_Setup.exe.sig.json
+            artifacts/clean/videl-files.manifest.json
           fail_on_unmatched_files: true
 
   build-linux:

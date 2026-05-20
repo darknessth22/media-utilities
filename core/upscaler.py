@@ -32,15 +32,16 @@ def _ai_dir() -> str:
 
 
 def _torch_host_dir() -> str:
-    """Return the ai_packages dir that owns torch — currently vocal_isolator's."""
-    return str(ai_packages_dir() / "vocal_isolator")
+    """Return the ai_packages dir that owns torch — the shared `torch_runtime`
+    component. model_manager's migration lifted torch out of vocal_isolator/."""
+    return str(ai_packages_dir() / "torch_runtime")
 
 
 def torch_host_installed() -> bool:
-    """True iff the component that provides torch (vocal_isolator) is installed."""
+    """True iff the shared torch runtime component is installed."""
     try:
         from utils import model_manager
-        return model_manager.is_installed("vocal_isolator")
+        return model_manager.is_installed("torch_runtime")
     except Exception:
         return False
 
@@ -67,7 +68,7 @@ def detect_device() -> str:
     ai = _ai_dir()
     torch_host = _torch_host_dir()
     if not os.path.isdir(torch_host):
-        _LAST_DETECT_DEBUG = f"torch host (vocal_isolator) missing: {torch_host}"
+        _LAST_DETECT_DEBUG = f"torch runtime missing: {torch_host}"
         return "cpu"
     # Order matters: torch_host first so torch resolves from there.
     code = (
