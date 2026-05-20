@@ -25,9 +25,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import urllib.error
 import urllib.request
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from PySide6.QtCore import QThread, Signal, Qt
 from PySide6.QtGui import QGuiApplication
@@ -80,6 +83,12 @@ def _blob_url(sha: str) -> str:
 
 _HTTP_TIMEOUT_SEC = 3.0
 _DOWNLOAD_TIMEOUT_SEC = 60.0
+# Blobs are many small files behind a GitHub 302 redirect to a signed CDN URL
+# (two TLS handshakes each). Downloading them in parallel hides that per-file
+# latency — the dominant cost on a delta update — instead of stalling between
+# files. 6 keeps well clear of any anonymous-download throttling.
+_DELTA_WORKERS = 6
+_DELTA_READ_CHUNK = 1 << 20  # 1 MiB
 _USER_AGENT = f"Videl-Updater/{APP_VERSION}"
 _WIN_FROZEN = sys.platform == "win32" and getattr(sys, "frozen", False)
 _LINUX_APPIMAGE_PATH = os.environ.get("APPIMAGE") if sys.platform.startswith("linux") else None
@@ -190,45 +199,96 @@ class DeltaDownloader(QThread):
 
     def run(self) -> None:  # noqa: D401
         total = sum(size for _rel, _sha, size in self._jobs)
-        done = 0
+        self._done = 0
+        self._done_lock = threading.Lock()
+        self._last_emit = 0.0
+
+        # Create directories and recreate 0-byte files up front (no network):
+        # GitHub rejects empty asset uploads, so empty files have no blob.
+        blob_jobs: list[tuple[str, str, int, str]] = []
         try:
             for rel_path, sha, size in self._jobs:
-                if self._cancel:
-                    self.failed.emit("cancelled")
-                    return
                 dest = os.path.join(self._staging, rel_path)
                 os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
-                # 0-byte files have no blob on the store (GitHub rejects empty
-                # asset uploads) — recreate them empty, no download.
                 if size == 0:
                     open(dest, "wb").close()
-                    continue
-                req = urllib.request.Request(
-                    _blob_url(sha), headers={"User-Agent": _USER_AGENT}
-                )
-                h = hashlib.sha256()
-                with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT_SEC) as resp, \
-                        open(dest, "wb") as fh:
-                    while True:
-                        if self._cancel:
-                            self.failed.emit("cancelled")
-                            return
-                        chunk = resp.read(262144)
-                        if not chunk:
-                            break
-                        fh.write(chunk)
-                        h.update(chunk)
-                        done += len(chunk)
-                        self.progress.emit(done, total)
-                if h.hexdigest().lower() != sha.lower():
-                    self.failed.emit(f"blob hash mismatch: {rel_path}")
-                    return
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            _log.warning("Delta blob download failed: %s", exc)
+                else:
+                    blob_jobs.append((rel_path, sha, size, dest))
+        except OSError as exc:
+            _log.warning("Delta staging failed: %s", exc)
             self.failed.emit(str(exc))
             return
 
+        if not blob_jobs:
+            self.progress.emit(total, total)
+            self.finished_ok.emit()
+            return
+
+        # Download blobs in parallel — the per-file redirect/TLS latency is the
+        # bottleneck, so concurrency (not bigger chunks) is what speeds this up.
+        workers = min(_DELTA_WORKERS, len(blob_jobs))
+        results: list[str | None] = []
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(self._fetch_blob, job, total) for job in blob_jobs]
+            for fut in as_completed(futures):
+                err = fut.result()
+                results.append(err)
+                # Fail fast: a real error cancels the remaining downloads so
+                # the user is not left waiting on a doomed update.
+                if err and err != "cancelled":
+                    self._cancel = True
+
+        real_errors = [e for e in results if e and e != "cancelled"]
+        if real_errors:
+            self.failed.emit(real_errors[0])
+            return
+        if any(e == "cancelled" for e in results):
+            self.failed.emit("cancelled")
+            return
+
+        self.progress.emit(total, total)
         self.finished_ok.emit()
+
+    def _fetch_blob(self, job: tuple[str, str, int, str], total: int) -> str | None:
+        """Download + sha256-verify one blob. Returns an error string or None."""
+        rel_path, sha, _size, dest = job
+        if self._cancel:
+            return "cancelled"
+        try:
+            req = urllib.request.Request(
+                _blob_url(sha), headers={"User-Agent": _USER_AGENT}
+            )
+            h = hashlib.sha256()
+            with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT_SEC) as resp, \
+                    open(dest, "wb") as fh:
+                while True:
+                    if self._cancel:
+                        return "cancelled"
+                    chunk = resp.read(_DELTA_READ_CHUNK)
+                    if not chunk:
+                        break
+                    fh.write(chunk)
+                    h.update(chunk)
+                    self._advance(len(chunk), total)
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            _log.warning("Delta blob download failed (%s): %s", rel_path, exc)
+            return str(exc)
+        if h.hexdigest().lower() != sha.lower():
+            return f"blob hash mismatch: {rel_path}"
+        return None
+
+    def _advance(self, n: int, total: int) -> None:
+        """Aggregate byte progress across worker threads, throttled to ~20 Hz."""
+        emit = False
+        with self._done_lock:
+            self._done += n
+            done = self._done
+            now = time.monotonic()
+            if now - self._last_emit >= 0.05 or done >= total:
+                self._last_emit = now
+                emit = True
+        if emit:
+            self.progress.emit(done, total)
 
 
 _DARK_QSS = """
