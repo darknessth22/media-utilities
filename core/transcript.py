@@ -359,6 +359,9 @@ def _extract_wav(input_path: str) -> str:
             os.remove(wav_path)
         except OSError:
             pass
+        from core.crash_log import record_crash
+        record_crash("FFmpeg (audio extract for Whisper)", proc.stderr or "",
+                     cmd=cmd, returncode=proc.returncode)
         raise RuntimeError(f"ffmpeg audio extract failed: {(proc.stderr or '')[-1500:]}")
     return wav_path
 
@@ -507,12 +510,16 @@ def transcribe(
             reader.join(timeout=2)
 
         if proc.returncode != 0:
+            from core.crash_log import record_crash
+            record_crash("Whisper", "\n".join(tail), cmd=cmd, returncode=proc.returncode)
             raise RuntimeError(
                 f"whisper-cli exited {proc.returncode}.\n--- last output ---\n"
                 + "\n".join(tail[-40:])
             )
 
         if not os.path.isfile(tmp_srt):
+            from core.crash_log import record_crash
+            record_crash("Whisper", "\n".join(tail), cmd=cmd, returncode=proc.returncode)
             raise RuntimeError(
                 "whisper-cli reported success but no SRT file was written.\n"
                 + "--- last output ---\n" + "\n".join(tail[-40:])

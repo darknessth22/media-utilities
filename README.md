@@ -20,6 +20,7 @@ Offline media workstation for Windows — download, convert, trim, compress, mer
 - **Command palette (Ctrl+K)** — fuzzy-search every tool by name or description from anywhere in the app; ↑/↓ navigate, Enter opens, Esc closes.
 - **Category filters** — on the Tools page, filter the grid by All / Video / Audio / Image / Document.
 - **Accent-tinted icon tiles** — each tool's icon sits on a tinted square in its own brand color, with a hover lift on every card.
+- **Developer Console (crash logs)** — when a task fails, Videl captures the last 50 lines of the raw FFmpeg / Whisper / Demucs output to a timestamped `.txt` file. Open it any time from the **⋯ title-bar menu → Developer Console**, or right-click the status bar / a failed notification entry → **Show Raw Logs**. Includes a **Copy Crash Log to Clipboard** button for bug reports. Crash files live next to `app.log` (most recent 30 kept; credentials masked).
 
 ### Browser Extension (Download with Videl)
 - Floats a "Download with Videl" button over every `<video>` on the web (top-right corner, follows the video on scroll).

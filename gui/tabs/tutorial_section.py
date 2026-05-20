@@ -375,6 +375,11 @@ _TUTORIAL_DATA_EN = [
             "Download queue icon shows active downloads.",
             "Double-click the title bar to maximize.",
             "Right-click the status bar to copy a long error message.",
+            "Developer Console — open it any time from the ⋯ title-bar menu, or "
+            "when a task fails right-click the status bar / a failed notification "
+            "entry → Show Raw Logs. It shows the last 50 lines of the "
+            "FFmpeg/Whisper output with a \"Copy Crash Log to Clipboard\" button "
+            "for bug reports.",
             "Save Presets in Download / Convert tabs to reuse settings in one click.",
             "Customize output filenames in Settings → Output Naming.",
         ],
@@ -1013,6 +1018,10 @@ _TUTORIAL_DATA_AR = [
             "أيقونة الطابور تعرض التنزيلات النشطة.",
             "انقر نقراً مزدوجاً على شريط العنوان للتكبير.",
             "انقر بزر الفأرة الأيمن على شريط الحالة لنسخ رسالة خطأ طويلة.",
+            "وحدة تحكّم المطوّر — افتحها في أي وقت من قائمة ⋯ في شريط العنوان، أو "
+            "عند فشل مهمة انقر بزر الفأرة الأيمن على شريط الحالة / إشعار فاشل ← "
+            "عرض السجلّات الأولية. تعرض آخر 50 سطراً من مخرجات FFmpeg/Whisper مع "
+            "زر «نسخ سجلّ العطل إلى الحافظة» لتقارير الأخطاء.",
             "احفظ قوالب في تبويبَي التحميل والتحويل لإعادة استخدامها بنقرة.",
             "خصّص أسماء الإخراج من الإعدادات ← تسمية الإخراج.",
         ],

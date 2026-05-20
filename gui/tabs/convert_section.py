@@ -107,6 +107,8 @@ def _ffmpeg_convert(
         subprocess.run(cmd, check=True, capture_output=True, timeout=3600, **flags)
         return {"success": True, "file_path": dest}
     except Exception as exc:
+        from core.crash_log import record_exception
+        record_exception("FFmpeg (convert)", exc, cmd)
         return {"success": False, "error": str(exc)}
 
 

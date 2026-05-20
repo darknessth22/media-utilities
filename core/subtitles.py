@@ -666,6 +666,9 @@ def burn_subtitles(
                 pass
             raise RuntimeError("Cancelled")
         if rc != 0:
+            from core.crash_log import record_crash
+            record_crash("FFmpeg (subtitle burn-in)", "\n".join(stderr_tail),
+                         cmd=cmd, returncode=rc)
             raise RuntimeError("ffmpeg failed: " + "\n".join(stderr_tail[-30:]))
         return output_path
     finally:

@@ -504,6 +504,9 @@ class TitleBar(QWidget):
         settings_act = menu.addAction(tr("menu_settings"))
         settings_act.triggered.connect(lambda: win._navigate_to(_section_index("settings")))
 
+        devconsole_act = menu.addAction(tr("menu_developer_console"))
+        devconsole_act.triggered.connect(win._open_developer_console)
+
         menu.addSeparator()
         from PySide6.QtWidgets import QApplication
         quit_act = menu.addAction(tr("menu_quit"))
@@ -2369,14 +2372,34 @@ class MainWindow(QMainWindow):
 
     def _show_status_context_menu(self, pos) -> None:
         msg = getattr(self, "_status_message", "")
-        if not msg or msg == "Ready":
+        from core.crash_log import last_crash
+        crash = last_crash()
+        has_msg = bool(msg) and msg != "Ready"
+        if not has_msg and not crash:
             return
         from PySide6.QtWidgets import QApplication
         menu = QMenu(self)
-        copy_act = menu.addAction(tr("menu_copy_message"))
+        copy_act = menu.addAction(tr("menu_copy_message")) if has_msg else None
+        logs_act = menu.addAction(tr("menu_show_raw_logs")) if crash else None
         action = menu.exec(self._status_bar.mapToGlobal(pos))
-        if action is copy_act:
+        if copy_act is not None and action is copy_act:
             QApplication.clipboard().setText(msg)
+        elif logs_act is not None and action is logs_act:
+            self._open_crash_log(crash)
+
+    def _open_crash_log(self, crash: dict) -> None:
+        """Show the Developer Console crash-log viewer for *crash*."""
+        from gui.crash_log_dialog import CrashLogDialog
+        CrashLogDialog(crash, self).exec()
+
+    def _open_developer_console(self) -> None:
+        """Open the Developer Console — last crash log, or an empty-state notice."""
+        from PySide6.QtWidgets import QMessageBox
+        from gui.crash_log_dialog import show_crash_log
+        if not show_crash_log(self):
+            QMessageBox.information(
+                self, tr("crashlog_title"), tr("crashlog_empty")
+            )
 
     def _on_status_message(self, message: str, is_error: bool) -> None:
         """Slot connected to every section's status_message signal.
@@ -2388,10 +2411,24 @@ class MainWindow(QMainWindow):
 
         if self._is_final_status(message, is_error):
             file_path = None
+            crash = None
             if not is_error:
                 sender = self.sender()
                 file_path = getattr(sender, "_last_result_path", None)
-            self._notifications.append({"text": message, "is_error": is_error, "file_path": file_path})
+            else:
+                # Attach the crash log only if one was recorded for *this*
+                # failure — a fresh crash lands microseconds before the error
+                # signal. Anything older is stale (e.g. a plain validation
+                # error after an earlier subprocess crash) and must not link.
+                from datetime import datetime, timedelta
+                from core.crash_log import last_crash
+                recent = last_crash()
+                if recent and recent.get("time") and \
+                        datetime.now() - recent["time"] < timedelta(seconds=15):
+                    crash = recent
+            self._notifications.append(
+                {"text": message, "is_error": is_error, "file_path": file_path, "crash": crash}
+            )
             self.title_bar.update_bell_badge(len(self._notifications))
 
         # T019: notify via tray only when the window is not visible.
@@ -2410,7 +2447,12 @@ class MainWindow(QMainWindow):
                 icon = "✕" if n["is_error"] else "✔"
                 act = menu.addAction(f"{icon}  {n['text']}")
                 fp = n.get("file_path")
-                if fp and os.path.exists(fp):
+                crash = n.get("crash")
+                if crash:
+                    act.triggered.connect(
+                        lambda _checked, cr=crash: self._open_crash_log(cr)
+                    )
+                elif fp and os.path.exists(fp):
                     act.triggered.connect(lambda _checked, p=fp: self._open_containing_folder(p))
                 elif fp:
                     # File gone — try opening the parent directory

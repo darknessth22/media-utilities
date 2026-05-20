@@ -297,6 +297,9 @@ def upscale_image(
         t_err.join(timeout=5); t_out.join(timeout=5)
 
         if proc.returncode != 0:
+            from core.crash_log import record_crash
+            record_crash("AI Upscaler (Real-ESRGAN)", "\n".join(stderr_lines),
+                         cmd=cmd, returncode=proc.returncode)
             detail = "\n".join(stderr_lines[-15:]) if stderr_lines else ""
             msg = f"upscaler exited with code {proc.returncode}"
             if detail:

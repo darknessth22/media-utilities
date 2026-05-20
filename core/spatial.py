@@ -50,8 +50,12 @@ def resize_media(src: str, out_dir: str, width: int, height: int) -> dict:
         tracked_run(cmd, str(uuid.uuid4()), check=True, capture_output=True, timeout=7200, **_flags())
         return {"success": True, "file_path": dest}
     except subprocess.CalledProcessError as exc:
+        from core.crash_log import record_exception
+        record_exception("FFmpeg (transform)", exc, cmd)
         return {"success": False, "error": exc.stderr.decode(errors="replace").strip()}
     except Exception as exc:
+        from core.crash_log import record_exception
+        record_exception("FFmpeg (transform)", exc, cmd)
         return {"success": False, "error": str(exc)}
 
 
@@ -74,8 +78,12 @@ def crop_media(src: str, out_dir: str, width: int, height: int, x: int, y: int) 
         tracked_run(cmd, str(uuid.uuid4()), check=True, capture_output=True, timeout=7200, **_flags())
         return {"success": True, "file_path": dest}
     except subprocess.CalledProcessError as exc:
+        from core.crash_log import record_exception
+        record_exception("FFmpeg (transform)", exc, cmd)
         return {"success": False, "error": exc.stderr.decode(errors="replace").strip()}
     except Exception as exc:
+        from core.crash_log import record_exception
+        record_exception("FFmpeg (transform)", exc, cmd)
         return {"success": False, "error": str(exc)}
 
 
@@ -104,8 +112,12 @@ def rotate_flip_chain(src: str, out_dir: str, ops: list[str]) -> dict:
         tracked_run(cmd, str(uuid.uuid4()), check=True, capture_output=True, timeout=7200, **_flags())
         return {"success": True, "file_path": dest}
     except subprocess.CalledProcessError as exc:
+        from core.crash_log import record_exception
+        record_exception("FFmpeg (transform)", exc, cmd)
         return {"success": False, "error": exc.stderr.decode(errors="replace").strip()}
     except Exception as exc:
+        from core.crash_log import record_exception
+        record_exception("FFmpeg (transform)", exc, cmd)
         return {"success": False, "error": str(exc)}
 
 
@@ -133,8 +145,12 @@ def rotate_flip_media(src: str, out_dir: str, operation: str) -> dict:
         tracked_run(cmd, str(uuid.uuid4()), check=True, capture_output=True, timeout=7200, **_flags())
         return {"success": True, "file_path": dest}
     except subprocess.CalledProcessError as exc:
+        from core.crash_log import record_exception
+        record_exception("FFmpeg (transform)", exc, cmd)
         return {"success": False, "error": exc.stderr.decode(errors="replace").strip()}
     except Exception as exc:
+        from core.crash_log import record_exception
+        record_exception("FFmpeg (transform)", exc, cmd)
         return {"success": False, "error": str(exc)}
 
 

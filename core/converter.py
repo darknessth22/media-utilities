@@ -85,11 +85,13 @@ def convert_media(file_path: str) -> bool:
 
     base = os.path.splitext(file_path)[0]
     output_path = f"{base}_converted.{ext}"
+    cmd = [ffmpeg_path, "-y", "-i", file_path, output_path]
     try:
         subprocess.run(
-            [ffmpeg_path, "-y", "-i", file_path, output_path],
-            check=True, capture_output=True, timeout=3600, **_WIN_FLAGS,
+            cmd, check=True, capture_output=True, timeout=3600, **_WIN_FLAGS,
         )
         return True
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        from core.crash_log import record_exception
+        record_exception("FFmpeg (convert)", exc, cmd)
         return False
