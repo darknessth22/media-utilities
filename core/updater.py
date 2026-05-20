@@ -83,12 +83,16 @@ def _blob_url(sha: str) -> str:
 
 _HTTP_TIMEOUT_SEC = 3.0
 _DOWNLOAD_TIMEOUT_SEC = 60.0
-# Blobs are many small files behind a GitHub 302 redirect to a signed CDN URL
-# (two TLS handshakes each). Downloading them in parallel hides that per-file
-# latency — the dominant cost on a delta update — instead of stalling between
-# files. 6 keeps well clear of any anonymous-download throttling.
-_DELTA_WORKERS = 6
+# Delta blobs are many small files behind a GitHub 302 redirect to a signed CDN
+# URL (two TLS handshakes each). Work is split into segments — small blobs are
+# one segment, large blobs are split into byte-range segments — and all segments
+# run through one worker pool. Small files keep every worker busy; once they
+# drain, the workers pile onto the big file's ranges instead of one connection
+# crawling alone. 8 keeps well clear of any anonymous-download throttling.
+_DELTA_WORKERS = 8
 _DELTA_READ_CHUNK = 1 << 20  # 1 MiB
+# Blobs larger than this are fetched as parallel HTTP Range segments.
+_RANGE_SEGMENT = 4 << 20  # 4 MiB
 _USER_AGENT = f"Videl-Updater/{APP_VERSION}"
 _WIN_FROZEN = sys.platform == "win32" and getattr(sys, "frozen", False)
 _LINUX_APPIMAGE_PATH = os.environ.get("APPIMAGE") if sys.platform.startswith("linux") else None
@@ -203,8 +207,9 @@ class DeltaDownloader(QThread):
         self._done_lock = threading.Lock()
         self._last_emit = 0.0
 
-        # Create directories and recreate 0-byte files up front (no network):
-        # GitHub rejects empty asset uploads, so empty files have no blob.
+        # Create directories, recreate 0-byte files (GitHub rejects empty asset
+        # uploads so they have no blob), and pre-size each real file so range
+        # segments can seek+write into it concurrently.
         blob_jobs: list[tuple[str, str, int, str]] = []
         try:
             for rel_path, sha, size in self._jobs:
@@ -213,6 +218,8 @@ class DeltaDownloader(QThread):
                 if size == 0:
                     open(dest, "wb").close()
                 else:
+                    with open(dest, "wb") as fh:
+                        fh.truncate(size)
                     blob_jobs.append((rel_path, sha, size, dest))
         except OSError as exc:
             _log.warning("Delta staging failed: %s", exc)
@@ -224,12 +231,25 @@ class DeltaDownloader(QThread):
             self.finished_ok.emit()
             return
 
-        # Download blobs in parallel — the per-file redirect/TLS latency is the
-        # bottleneck, so concurrency (not bigger chunks) is what speeds this up.
-        workers = min(_DELTA_WORKERS, len(blob_jobs))
+        # Split work into segments: a small blob is one whole-file segment; a
+        # large blob becomes several byte-range segments. Feeding them all to a
+        # single pool means one big file is downloaded over many connections
+        # instead of stalling a lone worker.
+        segments: list[tuple[str, str, int, int, bool]] = []
+        for _rel, sha, size, dest in blob_jobs:
+            if size <= _RANGE_SEGMENT:
+                segments.append((sha, dest, 0, size, False))
+            else:
+                start = 0
+                while start < size:
+                    length = min(_RANGE_SEGMENT, size - start)
+                    segments.append((sha, dest, start, length, True))
+                    start += length
+
+        workers = min(_DELTA_WORKERS, len(segments))
         results: list[str | None] = []
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = [pool.submit(self._fetch_blob, job, total) for job in blob_jobs]
+            futures = [pool.submit(self._fetch_segment, seg, total) for seg in segments]
             for fut in as_completed(futures):
                 err = fut.result()
                 results.append(err)
@@ -246,35 +266,63 @@ class DeltaDownloader(QThread):
             self.failed.emit("cancelled")
             return
 
+        # All segments written — verify each blob's sha256 over the full file.
+        # A bad write (wrong offset, partial range) is caught here; the caller
+        # then falls back to the full installer.
+        for rel_path, sha, _size, dest in blob_jobs:
+            h = hashlib.sha256()
+            try:
+                with open(dest, "rb") as fh:
+                    for chunk in iter(lambda fh=fh: fh.read(_DELTA_READ_CHUNK), b""):
+                        h.update(chunk)
+            except OSError as exc:
+                self.failed.emit(str(exc))
+                return
+            if h.hexdigest().lower() != sha.lower():
+                self.failed.emit(f"blob hash mismatch: {rel_path}")
+                return
+
         self.progress.emit(total, total)
         self.finished_ok.emit()
 
-    def _fetch_blob(self, job: tuple[str, str, int, str], total: int) -> str | None:
-        """Download + sha256-verify one blob. Returns an error string or None."""
-        rel_path, sha, _size, dest = job
+    def _fetch_segment(
+        self, seg: tuple[str, str, int, int, bool], total: int
+    ) -> str | None:
+        """Download one segment (whole file, or a byte range) into its dest.
+
+        Returns an error string, ``"cancelled"``, or ``None`` on success.
+        """
+        sha, dest, start, length, ranged = seg
         if self._cancel:
             return "cancelled"
+        headers = {"User-Agent": _USER_AGENT}
+        if ranged:
+            headers["Range"] = f"bytes={start}-{start + length - 1}"
         try:
-            req = urllib.request.Request(
-                _blob_url(sha), headers={"User-Agent": _USER_AGENT}
-            )
-            h = hashlib.sha256()
-            with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT_SEC) as resp, \
-                    open(dest, "wb") as fh:
-                while True:
-                    if self._cancel:
-                        return "cancelled"
-                    chunk = resp.read(_DELTA_READ_CHUNK)
-                    if not chunk:
-                        break
-                    fh.write(chunk)
-                    h.update(chunk)
-                    self._advance(len(chunk), total)
+            req = urllib.request.Request(_blob_url(sha), headers=headers)
+            with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT_SEC) as resp:
+                # If the CDN ignored the Range header it returns 200 + the whole
+                # file — writing that at an offset would corrupt the blob, so
+                # bail and let the caller fall back to the full installer.
+                if ranged and getattr(resp, "status", None) != 206:
+                    return f"range request not honoured for {os.path.basename(dest)}"
+                with open(dest, "r+b") as fh:
+                    fh.seek(start)
+                    remaining = length
+                    while remaining > 0:
+                        if self._cancel:
+                            return "cancelled"
+                        chunk = resp.read(min(_DELTA_READ_CHUNK, remaining))
+                        if not chunk:
+                            break
+                        fh.write(chunk)
+                        remaining -= len(chunk)
+                        self._advance(len(chunk), total)
+            if remaining > 0:
+                return f"short read on {os.path.basename(dest)}"
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            _log.warning("Delta blob download failed (%s): %s", rel_path, exc)
+            _log.warning("Delta segment download failed (%s): %s", dest, exc)
             return str(exc)
-        if h.hexdigest().lower() != sha.lower():
-            return f"blob hash mismatch: {rel_path}"
         return None
 
     def _advance(self, n: int, total: int) -> None:
