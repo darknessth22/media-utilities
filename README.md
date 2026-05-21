@@ -141,6 +141,17 @@ Offline media workstation for Windows — download, convert, trim, compress, mer
 - First upscale run downloads ~64 MB x4plus weights
 - Output: `<name>_upscaled_x4.<ext>` (PNG / JPG / WebP)
 
+### AI Video Upscaler
+- Upscale video **2× or 4×** with **Real-ESRGAN** — the AI runs on every frame
+- **Resumable pipeline** — progress is saved frame-by-frame; close the app or sleep the PC, then run again with the same settings to continue
+- Two models: **Fast** (light ~5 MB `realesr-general-x4v3`) and **Quality** (64 MB `x4plus`)
+- One persistent worker process loads the model once and loops every frame — no per-frame import overhead
+- **Disk-space guard** aborts early if the temp drive can't hold the extracted frames
+- Final encode uses your **hardware encoder** (NVENC / AMF) when available; original audio is kept
+- Shares the AI Upscaler's installed component (torch + `realesrgan`) — no extra install
+- Best for short clips; full movies can take hours. A CUDA GPU is essential
+- Output: `<name>_upscaled_x2.mp4` (MP4 / MKV)
+
 ### PDF Toolkit
 - **Compress** — re-render at Screen (72 dpi), Web (150 dpi), or Print (300 dpi)
 - **Merge** — combine PDFs; drag rows to set page order

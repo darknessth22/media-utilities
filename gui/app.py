@@ -62,6 +62,7 @@ from gui.tabs.palette_section import PaletteSection
 from gui.tabs.bg_eraser_section import BgEraserSection
 from gui.tabs.vocal_isolator_section import VocalIsolatorSection
 from gui.tabs.upscaler_section import UpscalerSection
+from gui.tabs.video_upscaler_section import VideoUpscalerSection
 from gui.tabs.pdf_toolkit_section import PdfToolkitSection
 from gui.tabs.jumpcut_section import JumpcutSection
 from gui.tabs.subtitles_section import SubtitlesSection
@@ -273,6 +274,13 @@ _SECTIONS_META = [
         "icon": "upscaler.svg",
         "tab_keys": ["tab_upscaler"],
         "action_key": "action_upscale",
+    },
+    {
+        "id": "video_upscaler",
+        "label_key": "section_video_upscaler",
+        "icon": "video_upscaler.svg",
+        "tab_keys": ["tab_video_upscaler"],
+        "action_key": "action_upscale_video",
     },
     {
         "id": "pdf_toolkit",
@@ -1979,6 +1987,7 @@ class MainWindow(QMainWindow):
             self._bg_eraser_section,
             self._vocal_isolator_section,
             self._upscaler_section,
+            self._video_upscaler_section,
             self._pdf_toolkit_section,
             self._jumpcut_section,
             self._subtitles_section,
@@ -2076,6 +2085,7 @@ class MainWindow(QMainWindow):
         self._bg_eraser_section = BgEraserSection(self.settings)
         self._vocal_isolator_section = VocalIsolatorSection(self.settings)
         self._upscaler_section = UpscalerSection(self.settings)
+        self._video_upscaler_section = VideoUpscalerSection(self.settings)
         self._pdf_toolkit_section = PdfToolkitSection(self.settings)
         self._jumpcut_section = JumpcutSection(self.settings)
         self._subtitles_section = SubtitlesSection(self.settings)
@@ -2105,15 +2115,16 @@ class MainWindow(QMainWindow):
             self._bg_eraser_section,        # index 14 — bg eraser
             self._vocal_isolator_section,   # index 15 — vocal isolator
             self._upscaler_section,         # index 16 — ai upscaler
-            self._pdf_toolkit_section,      # index 17 — pdf toolkit
-            self._jumpcut_section,          # index 18 — jump-cutter
-            self._subtitles_section,        # index 19 — subtitles
-            self._transcript_section,       # index 20 — transcript
-            self._image_editor_section,     # index 21 — image editor
-            self._history_section,          # index 22 — history
-            self._settings_section_widget,  # index 23 — settings
-            self._tutorial_section,         # index 24 — how to use
-            self._bug_reporter_section,     # index 25 — bug reporter
+            self._video_upscaler_section,   # index 17 — ai video upscaler
+            self._pdf_toolkit_section,      # index 18 — pdf toolkit
+            self._jumpcut_section,          # index 19 — jump-cutter
+            self._subtitles_section,        # index 20 — subtitles
+            self._transcript_section,       # index 21 — transcript
+            self._image_editor_section,     # index 22 — image editor
+            self._history_section,          # index 23 — history
+            self._settings_section_widget,  # index 24 — settings
+            self._tutorial_section,         # index 25 — how to use
+            self._bug_reporter_section,     # index 26 — bug reporter
         ]
 
         # Connect status signals from all operation sections.
@@ -2136,11 +2147,12 @@ class MainWindow(QMainWindow):
             self._bg_eraser_section,      # index 14
             self._vocal_isolator_section, # index 15
             self._upscaler_section,       # index 16
-            self._pdf_toolkit_section,    # index 17
-            self._jumpcut_section,        # index 18
-            self._subtitles_section,      # index 19
-            self._transcript_section,     # index 20
-            self._image_editor_section,   # index 21
+            self._video_upscaler_section, # index 17
+            self._pdf_toolkit_section,    # index 18
+            self._jumpcut_section,        # index 19
+            self._subtitles_section,      # index 20
+            self._transcript_section,     # index 21
+            self._image_editor_section,   # index 22
         )
         for section in _op_sections:
             section.status_message.connect(self._on_status_message)

@@ -310,6 +310,143 @@ def _reencode_video_audio(filepath: str, audio_codec: str) -> str:
     return filepath
 
 
+def _needs_compat_remux(path: str) -> bool:
+    """True if an MP4 should be remuxed for video-editor (NLE) compatibility.
+
+    Editors like Premiere reject MP4s that are *fragmented* (contain `moof`
+    boxes — common for social-media downloads such as Instagram) or that are
+    not *faststart* (`moov` after `mdat`). Walks the top-level box headers
+    only — seeks past box bodies, so it stays fast even on multi-GB files.
+    """
+    if os.path.splitext(path)[1].lower() not in (".mp4", ".m4v", ".mov"):
+        return False
+    try:
+        with open(path, "rb") as f:
+            first_moov = -1
+            first_mdat = -1
+            idx = 0
+            while True:
+                header = f.read(8)
+                if len(header) < 8:
+                    break
+                size = int.from_bytes(header[:4], "big")
+                btype = header[4:8]
+                if btype == b"moof":
+                    return True  # fragmented MP4
+                if btype == b"moov" and first_moov < 0:
+                    first_moov = idx
+                elif btype == b"mdat" and first_mdat < 0:
+                    first_mdat = idx
+                idx += 1
+                if size == 1:  # 64-bit extended size
+                    ext = f.read(8)
+                    if len(ext) < 8:
+                        break
+                    size = int.from_bytes(ext, "big")
+                    skip = size - 16
+                elif size == 0:
+                    break  # box runs to EOF
+                else:
+                    skip = size - 8
+                if skip < 0:
+                    break
+                f.seek(skip, 1)
+            # moov after mdat = not faststart.
+            return first_moov >= 0 and 0 <= first_mdat < first_moov
+    except Exception:
+        return False
+
+
+# Video codecs that video editors (Premiere, older Resolve) cannot import.
+# ffprobe reports AV1 as "av1" and VP9/VP8 as "vp9"/"vp8".
+_EDITOR_HOSTILE_VCODECS = {"av1", "vp9", "vp8"}
+
+
+def _video_codec_name(path: str) -> str:
+    """Return the lowercase codec name of the first video stream, or ''."""
+    try:
+        cmd = [
+            ffprobe_path, "-v", "error", "-select_streams", "v:0",
+            "-show_entries", "stream=codec_name", "-of", "json", path,
+        ]
+        r = tracked_run(cmd, str(uuid.uuid4()), capture_output=True,
+                        text=True, timeout=60, **_WIN_FLAGS)
+        data = json.loads(r.stdout or "{}")
+        return (data.get("streams", [{}])[0].get("codec_name") or "").lower()
+    except Exception:
+        return ""
+
+
+def _ensure_editor_compatible(path: str) -> str:
+    """Make a downloaded video import cleanly in editors (Premiere, Resolve…).
+
+    Returns the final path (the extension can change to .mp4 on re-encode).
+
+    Two separate problems are handled:
+      • Codec — AV1/VP9 cannot be decoded by many editors → re-encode to H.264.
+      • Container — fragmented or non-faststart MP4 → fast stream-copy remux.
+    """
+    if not path or not os.path.exists(path):
+        return path
+
+    needs_reencode = _video_codec_name(path) in _EDITOR_HOSTILE_VCODECS
+    if not needs_reencode and not _needs_compat_remux(path):
+        return path
+
+    base, ext = os.path.splitext(path)
+    # A re-encode always lands in MP4; a pure remux keeps the source container.
+    out_ext = ".mp4" if needs_reencode else ext
+    tmp = f"{base}_compat{out_ext}"
+    job = str(uuid.uuid4())
+
+    if needs_reencode:
+        cmd = [
+            ffmpeg_path, "-y", "-i", path,
+            "-map", "0:v:0", "-map", "0:a?",
+            "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+            "-profile:v", "high", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "192k",
+            "-movflags", "+faststart", tmp,
+        ]
+        timeout = 10800
+    else:
+        # Fragmented / non-faststart fix — stream copy, fast and lossless.
+        cmd = [
+            ffmpeg_path, "-y", "-i", path,
+            "-map", "0:v:0", "-map", "0:a?", "-map", "0:s?",
+            "-c", "copy", "-movflags", "+faststart", tmp,
+        ]
+        timeout = 3600
+
+    try:
+        tracked_run(cmd, job, check=True, capture_output=True,
+                    timeout=timeout, **_WIN_FLAGS)
+    except Exception as e:
+        _log.error("Editor-compatibility pass failed: %s", e)
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except OSError:
+            pass
+        return path
+
+    if not os.path.exists(tmp):
+        return path
+
+    final = base + out_ext
+    try:
+        os.remove(path)
+        os.replace(tmp, final)
+        return final
+    except OSError as e:
+        _log.error("Could not replace original with compat file: %s", e)
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return path
+
+
 def get_available_subtitles(url: str) -> list[dict]:
     """Return [{lang, name, auto}] of subtitle tracks the URL exposes.
 
@@ -512,16 +649,24 @@ def download_media(
     else:
         if quality_height and not quality:
             # Height-based selector: works consistently across playlist videos
-            # (used for both full-playlist mode and individually-queued playlist items)
+            # (used for both full-playlist mode and individually-queued playlist items).
+            # Prefer H.264 (avc1) so downloads import in video editors; fall
+            # back to any codec, then to a progressive stream.
+            h = quality_height
             ydl_opts["format"] = (
-                f"bestvideo[height<={quality_height}]+bestaudio/best"
-                f"/bestvideo[height<={quality_height}]+bestaudio"
-                f"/best[height<={quality_height}]/best"
+                f"bestvideo[height<={h}][vcodec^=avc1]+bestaudio/"
+                f"bestvideo[height<={h}]+bestaudio/"
+                f"best[height<={h}]/best"
             )
-        else:
+        elif quality:
             # When a specific format ID is selected it is usually video-only.
             # Append +bestaudio so yt-dlp always merges in the best audio stream.
-            ydl_opts["format"] = f"{quality}+bestaudio/best" if quality else "bestvideo+bestaudio/best"
+            ydl_opts["format"] = f"{quality}+bestaudio/best"
+        else:
+            # No explicit choice — prefer H.264 for editor compatibility.
+            ydl_opts["format"] = (
+                "bestvideo[vcodec^=avc1]+bestaudio/bestvideo+bestaudio/best"
+            )
         vaf_key = video_audio_format.lower()
         _vaf_container = _VIDEO_AUDIO_CODEC_MAP[vaf_key][1] if vaf_key in _VIDEO_AUDIO_CODEC_MAP else "mp4"
         ydl_opts["merge_output_format"] = _vaf_container
@@ -569,6 +714,14 @@ def download_media(
                 url, downloaded_file, subtitle_lang, subtitle_auto,
                 _cookie_file, _cookie_browser, status_cb,
             )
+
+        # AV1/VP9 video or fragmented/non-faststart MP4s (common from Instagram
+        # & other social sources) import as "unsupported format" in editors.
+        # Re-encode to H.264 or remux to a clean faststart MP4 as needed.
+        if media_type != "audio":
+            downloaded_file = _ensure_editor_compatible(downloaded_file)
+            if downloaded_file and os.path.exists(downloaded_file):
+                final_size = os.path.getsize(downloaded_file)
 
         return {"success": True, "file_path": downloaded_file, "file_size": final_size,
                 "error_code": None, "warning": sub_warning}

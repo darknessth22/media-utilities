@@ -656,6 +656,30 @@ _TUTORIAL_DATA_EN = [
             "Saved presets capture every control: fit, flip, enhance, filter, strength, masks, and all adjustment values.",
         ],
     },
+    {
+        "emoji": "🎬",
+        "title": "AI Video Upscaler",
+        "description": (
+            "Upscale video 2× or 4× with Real-ESRGAN. The AI runs on every frame, "
+            "so the job is long but fully resumable — stop any time and pick up where you left off."
+        ),
+        "steps": [
+            "First time: click Install Model in the banner (shares the AI Upscaler's model — installing one installs both).",
+            "Click Browse and pick a video. A line shows its resolution, frame count and length.",
+            "Pick scale — 2× is recommended for video.",
+            "Pick a model — Fast (light, best for most video) or Quality (heavier, sharper).",
+            "Set output path or leave blank for <name>_upscaled_x2.mp4 next to the source.",
+            "Click Upscale Video (or Ctrl+Enter). Watch the per-frame progress and ETA.",
+        ],
+        "tips": [
+            "Best for short clips. A 1-minute clip is many minutes of GPU work; full movies can take hours.",
+            "Progress is saved frame-by-frame. If the app closes or the PC sleeps, run again with the same settings to resume.",
+            "A CUDA GPU is essential — CPU upscaling is hours per minute of video.",
+            "The pipeline checks free disk space first: extracted frames need temporary room and it will abort early if the drive is too full.",
+            "It is a per-frame model, so noisy live-action footage may shimmer slightly. Clean digital video and animation look best.",
+            "The final video is encoded with your GPU's hardware encoder (NVENC) when available, and the original audio is kept.",
+        ],
+    },
 ]
 
 _TUTORIAL_DATA_AR = [
@@ -1207,6 +1231,55 @@ _TUTORIAL_DATA_AR = [
         ],
     },
     {
+        "emoji": "⌘",
+        "title": "الفتح السريع (Ctrl+K)",
+        "description": (
+            "اضغط Ctrl+K في أي مكان داخل التطبيق لفتح لوحة الأوامر والبحث الضبابي "
+            "عن أي أداة في Videl بالاسم."
+        ),
+        "steps": [
+            "اضغط Ctrl+K — أو انقر زر البحث أعلى الشريط الجانبي.",
+            "اكتب بضعة أحرف من أي أداة: 'comp' يجد الضغط، 'pdf' يجد عدة أدوات PDF.",
+            "استخدم ↑/↓ للتحديد، Enter للفتح، Esc للإغلاق.",
+        ],
+        "tips": [
+            "يُبحَث في أسماء الأدوات وأوصافها معاً، لذا 'shrink' يجد الضغط.",
+            "أسرع من التنقل عبر الرئيسية ← الأدوات للأدوات التي تعرفها.",
+        ],
+    },
+    {
+        "emoji": "⤓",
+        "title": "السحب والإفلات في الرئيسية",
+        "description": (
+            "أفلِت ملف وسائط على لافتة الترحيب في الصفحة الرئيسية، فيوجّهه Videl "
+            "إلى الأداة المناسبة تلقائياً."
+        ),
+        "steps": [
+            "افتح الصفحة الرئيسية.",
+            "اسحب ملفاً من مستكشف الملفات إلى لافتة الترحيب.",
+            "يختار Videl الأداة الصحيحة: فيديو ← تحويل، .pdf ← أدوات PDF، .gif ← منشئ GIF.",
+        ],
+        "tips": [
+            "تتوهّج اللافتة عندما تقبل الإفلات.",
+            "إن كان نوع الملف غير معروف، يعود افتراضياً إلى تحويل الوسائط.",
+        ],
+    },
+    {
+        "emoji": "⊞",
+        "title": "تصفية الأدوات حسب الفئة",
+        "description": (
+            "في صفحة الأدوات، ضيّق الشبكة إلى الأدوات التي تهمّك عبر شريط الرقاقات."
+        ),
+        "steps": [
+            "افتح صفحة الأدوات.",
+            "انقر الكل / فيديو / صوت / صورة / مستند فوق الشبكة.",
+            "تتحدّث الشبكة فوراً؛ انقر 'الكل' لمسح التصفية.",
+        ],
+        "tips": [
+            "اقرنها مع Ctrl+K — الرقاقات تقلّص القائمة، واللوحة تنقلك مباشرة.",
+        ],
+    },
+    {
         "emoji": "🐧",
         "title": "لينكس ودعم الأنظمة المتعددة",
         "description": (
@@ -1253,6 +1326,30 @@ _TUTORIAL_DATA_AR = [
             "تحفظ الإعدادات المسبقة كل عناصر التحكم: الاحتواء والقلب والتحسين والفلتر والشدّة والأقنعة وقيم التعديل.",
         ],
     },
+    {
+        "emoji": "🎬",
+        "title": "مُحسِّن الفيديو بالذكاء الاصطناعي",
+        "description": (
+            "كبّر الفيديو 2× أو 4× باستخدام Real-ESRGAN. يعمل الذكاء الاصطناعي على كل إطار، "
+            "لذا المهمة طويلة لكنها قابلة للاستئناف بالكامل — أوقفها متى شئت وتابع من حيث توقفت."
+        ),
+        "steps": [
+            "أول مرة: انقر 'تثبيت النموذج' في الشريط (يشارك نموذج مُحسِّن الصور — تثبيت أحدهما يثبّت كليهما).",
+            "انقر 'استعراض' واختر فيديو. سيظهر سطر بدقته وعدد إطاراته ومدته.",
+            "اختر معامل التكبير — يُنصح بـ 2× للفيديو.",
+            "اختر النموذج — سريع (خفيف، الأفضل لمعظم الفيديوهات) أو جودة (أثقل، أوضح).",
+            "حدد مسار الإخراج أو اتركه فارغاً لـ <الاسم>_upscaled_x2.mp4 بجوار المصدر.",
+            "انقر 'تكبير الفيديو' (أو Ctrl+Enter). راقب تقدّم الإطارات والوقت المتبقي المقدّر.",
+        ],
+        "tips": [
+            "الأفضل للمقاطع القصيرة. مقطع مدته دقيقة واحدة يعني عدة دقائق من عمل كرت الشاشة؛ والأفلام الكاملة قد تستغرق ساعات.",
+            "يُحفظ التقدم إطاراً بإطار. إذا أُغلق التطبيق أو نام الجهاز، شغّله مرة أخرى بنفس الإعدادات للاستئناف.",
+            "كرت شاشة CUDA ضروري — التكبير على المعالج يستغرق ساعات لكل دقيقة فيديو.",
+            "يتحقق المسار من المساحة الحرة على القرص أولاً: تحتاج الإطارات المستخرَجة مساحة مؤقتة، وسيتوقف مبكراً إذا كان القرص ممتلئاً.",
+            "هو نموذج يعمل لكل إطار، لذا قد تظهر اهتزازات طفيفة في اللقطات الحية المليئة بالضوضاء. الفيديو الرقمي النظيف والرسوم المتحركة تبدو أفضل.",
+            "يُرمَّز الفيديو النهائي بمُرمِّز كرت الشاشة (NVENC) عند توفّره، ويُحتفَظ بالصوت الأصلي.",
+        ],
+    },
 ]
 
 
@@ -1292,6 +1389,7 @@ _TUTORIAL_SECTION_IDS: list[str | None] = [
     None,              # 30 Filter Tools by Category — cross-cutting
     None,              # 31 Linux & Cross-Platform — cross-cutting
     "image_editor",    # 32 Image Editor
+    "video_upscaler",  # 33 AI Video Upscaler
 ]
 
 
