@@ -59,6 +59,7 @@ from core.image_editor import (
     FilterOptions,
     AdjustOptions,
     FIT_MODES,
+    MASK_BLEND_MODES,
     MASK_TYPES,
     MaskAdjust,
     MaskLayer,
@@ -69,6 +70,7 @@ from core.image_editor import (
     export_wallpapers,
     load_image,
     load_user_presets,
+    mask_overlay_image,
     preset_to_config,
     process_batch,
     process_image,
@@ -648,16 +650,22 @@ class _PreviewLabel(QLabel):
     mask_geometry_set = Signal(float, float, float, float)
     # Sampled pixel colour for a color-range mask.
     mask_color_picked = Signal(int, int, int)
+    # A finished freehand brush stroke — list of (fx, fy) fractions of the pixmap.
+    brush_stroke = Signal(list)
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.crop_mode_active = False
         self._drag_origin = None
         self._drag_rect = None
-        # Mask placement mode: None | "radial" | "linear".
+        # Mask placement mode: None | "radial" | "linear" | "brush".
         self.mask_mode: Optional[str] = None
         self._mask_origin = None
         self._mask_cur = None
+        # Brush paint mode — accumulates label-space points during a drag.
+        self._brush_points: list = []
+        self.brush_size_frac: float = 0.06
+        self.brush_erase: bool = False
         # Outlines of existing masks, drawn always: list of
         # ("radial", cx, cy, rx, ry) or ("linear", x0, y0, x1, y1) in 0..1 fractions.
         self._mask_overlays: list = []
@@ -707,6 +715,9 @@ class _PreviewLabel(QLabel):
                 self._drag_rect = None
             elif self.mask_mode == "color":
                 self._sample_color(ev.position().toPoint())
+            elif self.mask_mode == "brush":
+                self._brush_points = [ev.position().toPoint()]
+                self.update()
             elif self.mask_mode:
                 self._mask_origin = ev.position().toPoint()
                 self._mask_cur = None
@@ -718,6 +729,9 @@ class _PreviewLabel(QLabel):
         if self.crop_mode_active and self._drag_origin is not None:
             from PySide6.QtCore import QRect
             self._drag_rect = QRect(self._drag_origin, ev.position().toPoint()).normalized()
+            self.update()
+        elif self.mask_mode == "brush" and self._brush_points:
+            self._brush_points.append(ev.position().toPoint())
             self.update()
         elif self.mask_mode and self._mask_origin is not None:
             self._mask_cur = ev.position().toPoint()
@@ -748,6 +762,16 @@ class _PreviewLabel(QLabel):
                         self.crop_set.emit(crop_top, crop_left, crop_bottom, crop_right)
                 self._drag_origin = None
                 self._drag_rect = None
+                self.update()
+            elif self.mask_mode == "brush" and self._brush_points:
+                fracs = []
+                for pt in self._brush_points:
+                    f = self._point_to_frac(pt)
+                    if f is not None:
+                        fracs.append(f)
+                self._brush_points = []
+                if fracs:
+                    self.brush_stroke.emit(fracs)
                 self.update()
             elif self.mask_mode and self._mask_origin is not None and self._mask_cur is not None:
                 f0 = self._point_to_frac(self._mask_origin)
@@ -780,6 +804,24 @@ class _PreviewLabel(QLabel):
             else:
                 p.drawLine(self._mask_origin, self._mask_cur)
             p.end()
+        # In-progress freehand brush stroke.
+        if self.mask_mode == "brush" and self._brush_points:
+            p = QPainter(self)
+            pm = self.pixmap()
+            wpx = 8.0
+            if pm and not pm.isNull():
+                wpx = max(2.0, self.brush_size_frac * min(pm.width(), pm.height()))
+            col = QColor(239, 68, 68, 170) if self.brush_erase else QColor(34, 197, 94, 170)
+            pen = QPen(col, wpx)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            p.setPen(pen)
+            if len(self._brush_points) == 1:
+                p.drawPoint(self._brush_points[0])
+            else:
+                for i in range(1, len(self._brush_points)):
+                    p.drawLine(self._brush_points[i - 1], self._brush_points[i])
+            p.end()
         # Outlines of every existing mask — drawn whenever overlays are set.
         if self._mask_overlays:
             from PySide6.QtCore import QRect
@@ -790,11 +832,17 @@ class _PreviewLabel(QLabel):
             p.setBrush(Qt.BrushStyle.NoBrush)
             for ov in self._mask_overlays:
                 if ov[0] == "radial":
-                    _, cx, cy, rx, ry = ov
-                    a = self._frac_to_point(cx - rx, cy - ry)
-                    b = self._frac_to_point(cx + rx, cy + ry)
-                    if a and b:
-                        p.drawEllipse(QRect(a[0], a[1], b[0] - a[0], b[1] - a[1]))
+                    _, cx, cy, rx, ry, rot = ov
+                    c = self._frac_to_point(cx, cy)
+                    e = self._frac_to_point(cx + rx, cy + ry)
+                    if c and e:
+                        hw = max(1, abs(e[0] - c[0]))
+                        hh = max(1, abs(e[1] - c[1]))
+                        p.save()
+                        p.translate(c[0], c[1])
+                        p.rotate(rot)
+                        p.drawEllipse(QRect(-hw, -hh, 2 * hw, 2 * hh))
+                        p.restore()
                 else:
                     _, x0, y0, x1, y1 = ov
                     a = self._frac_to_point(x0, y0)
@@ -966,6 +1014,12 @@ class _MaskRow(QFrame):
         ("exposure",  -200,  200,   0, "lbl_ie_exposure",    100.0),
         ("shadows",   -100,  100,   0, "lbl_ie_shadows",     100.0),
         ("highlights",-100,  100,   0, "lbl_ie_highlights",  100.0),
+        ("clarity",      0,  100,   0, "lbl_ie_clarity",     100.0),
+        ("dehaze",       0,  100,   0, "lbl_ie_dehaze",      100.0),
+        ("vibrance",  -100,  100,   0, "lbl_ie_vibrance",    100.0),
+        ("gamma",       20,  300, 100, "lbl_ie_gamma",       100.0),
+        ("sharpen",      0,  300,   0, "lbl_ie_sharpen",     100.0),
+        ("blur",         0,  100,   0, "lbl_ie_blur",         10.0),
     ]
 
     def __init__(self, layer: MaskLayer, parent=None) -> None:
@@ -976,6 +1030,8 @@ class _MaskRow(QFrame):
         self._x0, self._y0 = layer.x0, layer.y0
         self._x1, self._y1 = layer.x1, layer.y1
         self._pick_color = layer.pick_color
+        # Freehand brush strokes — painted on the preview, stored as fractions.
+        self._brush_strokes = [dict(s) for s in (layer.brush_strokes or [])]
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(12, 10, 12, 10)
@@ -998,6 +1054,18 @@ class _MaskRow(QFrame):
             self.type_combo.setCurrentIndex(idx)
         self.type_combo.setFixedWidth(150)
         head.addWidget(self.type_combo)
+
+        self._lbl_blend = QLabel(tr("lbl_ie_mask_blend"))
+        head.addWidget(self._lbl_blend)
+        self.blend_combo = QComboBox()
+        for m in MASK_BLEND_MODES:
+            self.blend_combo.addItem(tr(f"ie_mask_blend_{m}"), m)
+        bidx = self.blend_combo.findData(layer.blend_mode)
+        if bidx >= 0:
+            self.blend_combo.setCurrentIndex(bidx)
+        self.blend_combo.setFixedWidth(130)
+        self.blend_combo.setToolTip(tr("tip_ie_mask_blend"))
+        head.addWidget(self.blend_combo)
 
         self.invert_chk = QCheckBox(tr("lbl_ie_mask_invert"))
         self.invert_chk.setChecked(layer.invert)
@@ -1049,6 +1117,81 @@ class _MaskRow(QFrame):
         feat.addWidget(self._feather_val)
         outer.addLayout(feat)
 
+        # ── Opacity slider — overall mask-effect strength ─────────────────────
+        op = QHBoxLayout()
+        self._lbl_opacity = QLabel(tr("lbl_ie_mask_opacity"))
+        self._lbl_opacity.setFixedWidth(120)
+        op.addWidget(self._lbl_opacity)
+        self.opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        self.opacity_slider.setRange(0, 100)
+        self.opacity_slider.setValue(int(round(layer.opacity * 100)))
+        self.opacity_slider.setToolTip(tr("tip_ie_mask_opacity"))
+        op.addWidget(self.opacity_slider)
+        self._opacity_val = QLabel(str(self.opacity_slider.value()))
+        self._opacity_val.setFixedWidth(48)
+        self._opacity_val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        op.addWidget(self._opacity_val)
+        outer.addLayout(op)
+
+        # ── Rotation row (radial type only) ───────────────────────────────────
+        self._rotation_row = QWidget()
+        rotl = QHBoxLayout(self._rotation_row)
+        rotl.setContentsMargins(0, 0, 0, 0)
+        rotl.setSpacing(8)
+        self._lbl_rotation = QLabel(tr("lbl_ie_mask_rotation"))
+        self._lbl_rotation.setFixedWidth(120)
+        rotl.addWidget(self._lbl_rotation)
+        self.rotation_spin = QDoubleSpinBox()
+        self.rotation_spin.setRange(-180.0, 180.0)
+        self.rotation_spin.setDecimals(1)
+        self.rotation_spin.setSingleStep(1.0)
+        self.rotation_spin.setSuffix("°")
+        self.rotation_spin.setFixedWidth(90)
+        self.rotation_spin.setValue(float(layer.rotation))
+        rotl.addWidget(self.rotation_spin)
+        rotl.addStretch()
+        outer.addWidget(self._rotation_row)
+
+        # ── Luminance-range row (luminance type only) ─────────────────────────
+        self._lum_row = QWidget()
+        lrow = QHBoxLayout(self._lum_row)
+        lrow.setContentsMargins(0, 0, 0, 0)
+        lrow.setSpacing(8)
+        self._lbl_lum_min = QLabel(tr("lbl_ie_mask_lum_min"))
+        self._lbl_lum_min.setFixedWidth(120)
+        lrow.addWidget(self._lbl_lum_min)
+        self.lum_min_slider = QSlider(Qt.Orientation.Horizontal)
+        self.lum_min_slider.setRange(0, 100)
+        self.lum_min_slider.setValue(int(round(layer.lum_min * 100)))
+        lrow.addWidget(self.lum_min_slider)
+        self._lbl_lum_max = QLabel(tr("lbl_ie_mask_lum_max"))
+        lrow.addWidget(self._lbl_lum_max)
+        self.lum_max_slider = QSlider(Qt.Orientation.Horizontal)
+        self.lum_max_slider.setRange(0, 100)
+        self.lum_max_slider.setValue(int(round(layer.lum_max * 100)))
+        lrow.addWidget(self.lum_max_slider)
+        outer.addWidget(self._lum_row)
+
+        # ── Brush row (brush type only) ───────────────────────────────────────
+        self._brush_row = QWidget()
+        brow = QHBoxLayout(self._brush_row)
+        brow.setContentsMargins(0, 0, 0, 0)
+        brow.setSpacing(8)
+        self._lbl_brush_size = QLabel(tr("lbl_ie_mask_brush_size"))
+        self._lbl_brush_size.setFixedWidth(120)
+        brow.addWidget(self._lbl_brush_size)
+        self.brush_size_slider = QSlider(Qt.Orientation.Horizontal)
+        self.brush_size_slider.setRange(1, 40)
+        self.brush_size_slider.setValue(12)
+        brow.addWidget(self.brush_size_slider)
+        self.erase_chk = QCheckBox(tr("lbl_ie_mask_erase"))
+        brow.addWidget(self.erase_chk)
+        self.clear_strokes_btn = QPushButton(tr("btn_ie_mask_clear_strokes"))
+        self.clear_strokes_btn.setObjectName("BrowseBtn")
+        self.clear_strokes_btn.clicked.connect(self.clear_brush_strokes)
+        brow.addWidget(self.clear_strokes_btn)
+        outer.addWidget(self._brush_row)
+
         # ── Color-range row (visible only for the "color" mask type) ──────────
         self._color_row = QWidget()
         crow = QHBoxLayout(self._color_row)
@@ -1099,17 +1242,29 @@ class _MaskRow(QFrame):
         # the row from a saved layer never fires `changed`.
         self.type_combo.currentIndexChanged.connect(self.changed)
         self.type_combo.currentIndexChanged.connect(self._sync_type_ui)
+        self.blend_combo.currentIndexChanged.connect(self.changed)
+        self.blend_combo.currentIndexChanged.connect(self._sync_blend_ui)
         self.invert_chk.toggled.connect(self.changed)
         self.feather_slider.valueChanged.connect(self.changed)
         self.feather_slider.valueChanged.connect(
             lambda v: self._feather_val.setText(str(v))
         )
+        self.opacity_slider.valueChanged.connect(self.changed)
+        self.opacity_slider.valueChanged.connect(
+            lambda v: self._opacity_val.setText(str(v))
+        )
+        self.rotation_spin.valueChanged.connect(self.changed)
+        self.lum_min_slider.valueChanged.connect(self.changed)
+        self.lum_max_slider.valueChanged.connect(self.changed)
+        self.brush_size_slider.valueChanged.connect(self.changed)
+        self.erase_chk.toggled.connect(self.changed)
         self.tol_slider.valueChanged.connect(self.changed)
         self.tol_slider.valueChanged.connect(lambda v: self._tol_val.setText(str(v)))
         for sl in self._sl.values():
             sl.valueChanged.connect(self.changed)
 
         self._sync_type_ui()
+        self._sync_blend_ui()
 
     @staticmethod
     def _slider_value_for(adj: MaskAdjust, key: str, default: int, scale: float) -> int:
@@ -1118,14 +1273,38 @@ class _MaskRow(QFrame):
     def mask_type(self) -> str:
         return self.type_combo.currentData() or "radial"
 
+    def blend_mode(self) -> str:
+        return self.blend_combo.currentData() or "add"
+
+    def brush_size_frac(self) -> float:
+        """Brush diameter as a fraction of the smaller canvas side."""
+        return self.brush_size_slider.value() / 200.0
+
+    def brush_erase(self) -> bool:
+        return self.erase_chk.isChecked()
+
+    def add_brush_stroke(self, points: list) -> None:
+        """Append a finished freehand stroke — `points` are (fx, fy) fractions."""
+        self._brush_strokes.append({
+            "points": [[float(x), float(y)] for x, y in points],
+            "size": self.brush_size_frac(),
+            "erase": self.brush_erase(),
+        })
+        self.changed.emit()
+
+    def clear_brush_strokes(self) -> None:
+        self._brush_strokes = []
+        self.changed.emit()
+
     def overlay(self) -> Optional[tuple]:
         """Geometry tuple for drawing this mask's outline on the preview.
 
-        Color-range masks have no spatial outline — returns None.
+        Color / luminance / brush masks have no simple outline — returns None.
         """
         t = self.mask_type()
         if t == "radial":
-            return ("radial", self._cx, self._cy, self._rx, self._ry)
+            return ("radial", self._cx, self._cy, self._rx, self._ry,
+                    float(self.rotation_spin.value()))
         if t == "linear":
             return ("linear", self._x0, self._y0, self._x1, self._y1)
         return None
@@ -1149,13 +1328,34 @@ class _MaskRow(QFrame):
         self.changed.emit()
 
     def _sync_type_ui(self) -> None:
-        """Show the color-range row and relabel the region button per mask type."""
-        is_color = self.mask_type() == "color"
-        self._color_row.setVisible(is_color)
-        self.region_btn.setText(
-            tr("btn_ie_mask_pick_color") if is_color else tr("btn_ie_mask_set_region"))
-        self.region_btn.setToolTip(
-            tr("tip_ie_mask_pick_color") if is_color else tr("tip_ie_mask_set_region"))
+        """Show type-specific rows and relabel the region button per mask type."""
+        t = self.mask_type()
+        self._color_row.setVisible(t == "color")
+        self._lum_row.setVisible(t == "luminance")
+        self._brush_row.setVisible(t == "brush")
+        self._rotation_row.setVisible(t == "radial")
+        # Luminance masks need no preview drag — hide the region button.
+        self.region_btn.setVisible(t != "luminance")
+        self.region_btn.setCheckable(t == "brush")
+        if t != "brush":
+            self.region_btn.setChecked(False)
+        if t == "color":
+            self.region_btn.setText(tr("btn_ie_mask_pick_color"))
+            self.region_btn.setToolTip(tr("tip_ie_mask_pick_color"))
+        elif t == "brush":
+            self.region_btn.setText(tr("btn_ie_mask_paint"))
+            self.region_btn.setToolTip(tr("tip_ie_mask_paint"))
+        else:
+            self.region_btn.setText(tr("btn_ie_mask_set_region"))
+            self.region_btn.setToolTip(tr("tip_ie_mask_set_region"))
+
+    def _sync_blend_ui(self) -> None:
+        """Subtract / intersect masks contribute geometry only — grey out their
+        adjustment + opacity controls so it's clear they carry no colour grade."""
+        is_add = self.blend_mode() == "add"
+        self.opacity_slider.setEnabled(is_add)
+        for sl in self._sl.values():
+            sl.setEnabled(is_add)
 
     def set_index(self, n: int) -> None:
         self._title.setText(tr("ie_mask_label").format(n=n))
@@ -1182,15 +1382,31 @@ class _MaskRow(QFrame):
             exposure    = self._sl["exposure"].value() / 100.0,
             shadows     = self._sl["shadows"].value() / 100.0,
             highlights  = self._sl["highlights"].value() / 100.0,
+            clarity     = self._sl["clarity"].value() / 100.0,
+            dehaze      = self._sl["dehaze"].value() / 100.0,
+            vibrance    = self._sl["vibrance"].value() / 100.0,
+            gamma       = self._sl["gamma"].value() / 100.0,
+            sharpen     = self._sl["sharpen"].value() / 100.0,
+            blur        = self._sl["blur"].value() / 10.0,
         )
         return MaskLayer(
             mask_type=self.mask_type(),
             invert=self.invert_chk.isChecked(),
             feather=self.feather_slider.value() / 100.0,
+            opacity=self.opacity_slider.value() / 100.0,
+            blend_mode=self.blend_mode(),
             cx=self._cx, cy=self._cy, rx=self._rx, ry=self._ry,
+            rotation=float(self.rotation_spin.value()),
             x0=self._x0, y0=self._y0, x1=self._x1, y1=self._y1,
             pick_color=self._pick_color,
             tolerance=self.tol_slider.value() / 100.0,
+            lum_min=self.lum_min_slider.value() / 100.0,
+            lum_max=self.lum_max_slider.value() / 100.0,
+            brush_strokes=[
+                {"points": [list(p) for p in s.get("points", [])],
+                 "size": s.get("size", 0.06), "erase": bool(s.get("erase", False))}
+                for s in self._brush_strokes
+            ],
             adjust=adj,
         )
 
@@ -1204,7 +1420,21 @@ class _MaskRow(QFrame):
         self.up_btn.setToolTip(tr("tip_ie_mask_up"))
         self.down_btn.setToolTip(tr("tip_ie_mask_down"))
         self.dup_btn.setToolTip(tr("tip_ie_mask_duplicate"))
+        self._lbl_blend.setText(tr("lbl_ie_mask_blend"))
+        for i in range(self.blend_combo.count()):
+            data = self.blend_combo.itemData(i)
+            if data:
+                self.blend_combo.setItemText(i, tr(f"ie_mask_blend_{data}"))
+        self.blend_combo.setToolTip(tr("tip_ie_mask_blend"))
         self._lbl_feather.setText(tr("lbl_ie_mask_feather"))
+        self._lbl_opacity.setText(tr("lbl_ie_mask_opacity"))
+        self.opacity_slider.setToolTip(tr("tip_ie_mask_opacity"))
+        self._lbl_rotation.setText(tr("lbl_ie_mask_rotation"))
+        self._lbl_lum_min.setText(tr("lbl_ie_mask_lum_min"))
+        self._lbl_lum_max.setText(tr("lbl_ie_mask_lum_max"))
+        self._lbl_brush_size.setText(tr("lbl_ie_mask_brush_size"))
+        self.erase_chk.setText(tr("lbl_ie_mask_erase"))
+        self.clear_strokes_btn.setText(tr("btn_ie_mask_clear_strokes"))
         self._lbl_color.setText(tr("lbl_ie_mask_color"))
         self._lbl_tol.setText(tr("lbl_ie_mask_tolerance"))
         self._sync_type_ui()  # relabels the region button per mask type
@@ -1509,6 +1739,7 @@ class ImageEditorSection(QScrollArea):
         self._preview_label.crop_set.connect(self._on_crop_set)
         self._preview_label.mask_geometry_set.connect(self._on_mask_geometry_set)
         self._preview_label.mask_color_picked.connect(self._on_mask_color_picked)
+        self._preview_label.brush_stroke.connect(self._on_brush_stroke)
         self._preview_label.setMouseTracking(True)
         layout.addWidget(self._preview_label)
 
@@ -1616,7 +1847,17 @@ class ImageEditorSection(QScrollArea):
             if max(preview.size) > _PREVIEW_MAX:
                 preview = preview.copy()
                 preview.thumbnail((_PREVIEW_MAX, _PREVIEW_MAX), Image.Resampling.LANCZOS)
-            self._preview_label.setPixmap(_pil_to_qpixmap(preview))
+            # Show-mask overlay — tint every masked region red on the preview.
+            shown = preview
+            if (not self._show_original and self._show_masks_chk.isChecked()
+                    and cur is not None and cur.masks):
+                try:
+                    ov = mask_overlay_image(preview, cur.masks)
+                    red = Image.new("RGB", preview.size, (255, 45, 45))
+                    shown = Image.composite(Image.blend(preview, red, 0.5), preview, ov)
+                except Exception:
+                    shown = preview
+            self._preview_label.setPixmap(_pil_to_qpixmap(shown))
             self._preview_label.setText("")
             self._histogram.set_image(preview)
         except Exception as exc:
@@ -2150,6 +2391,10 @@ class ImageEditorSection(QScrollArea):
         self._mask_add_btn.setObjectName("BrowseBtn")
         self._mask_add_btn.clicked.connect(lambda: self._add_mask_row())
         add_row.addWidget(self._mask_add_btn)
+        self._show_masks_chk = QCheckBox(tr("lbl_ie_show_masks"))
+        self._show_masks_chk.setToolTip(tr("tip_ie_show_masks"))
+        self._show_masks_chk.toggled.connect(self._schedule_preview)
+        add_row.addWidget(self._show_masks_chk)
         add_row.addStretch()
         layout.addLayout(add_row)
 
@@ -2166,6 +2411,8 @@ class ImageEditorSection(QScrollArea):
         row.move_up.connect(self._move_mask_up)
         row.move_down.connect(self._move_mask_down)
         row.duplicate.connect(self._duplicate_mask_row)
+        row.type_combo.currentIndexChanged.connect(
+            lambda _i, r=row: self._on_mask_type_changed(r))
         if index is None or index >= len(self._mask_rows):
             self._mask_rows.append(row)
             self._mask_rows_layout.addWidget(row)
@@ -2230,14 +2477,35 @@ class ImageEditorSection(QScrollArea):
             row.set_index(i)
 
     def _begin_mask_region(self, row: "_MaskRow") -> None:
-        """Arm the preview so the next drag (or click, for color) sets this mask."""
+        """Arm the preview so the next drag / click / paint stroke sets this mask."""
+        t = row.mask_type()
+        if t == "brush":
+            # The paint button is checkable for brush — toggle paint mode.
+            if not row.region_btn.isChecked():
+                self._end_mask_region()
+                return
+            self._active_mask_row = row
+            self._preview_label.mask_mode = "brush"
+            self._preview_label.brush_size_frac = row.brush_size_frac()
+            self._preview_label.brush_erase = row.brush_erase()
+            self._preview_label.setCursor(Qt.CursorShape.CrossCursor)
+            if self._crop_mode_btn.isChecked():
+                self._crop_mode_btn.setChecked(False)
+            self.status_message.emit(tr("ie_mask_brush_hint"), False)
+            return
         self._active_mask_row = row
-        self._preview_label.mask_mode = row.mask_type()
+        self._preview_label.mask_mode = t
         self._preview_label.setCursor(Qt.CursorShape.CrossCursor)
         if self._crop_mode_btn.isChecked():
             self._crop_mode_btn.setChecked(False)
-        hint = "ie_mask_color_hint" if row.mask_type() == "color" else "ie_mask_region_hint"
+        hint = "ie_mask_color_hint" if t == "color" else "ie_mask_region_hint"
         self.status_message.emit(tr(hint), False)
+
+    def _on_mask_type_changed(self, row: "_MaskRow") -> None:
+        """If the armed brush row switched away from brush, disarm painting."""
+        if (self._active_mask_row is row and row.mask_type() != "brush"
+                and self._preview_label.mask_mode == "brush"):
+            self._end_mask_region()
 
     def _end_mask_region(self) -> None:
         self._active_mask_row = None
@@ -2255,6 +2523,20 @@ class ImageEditorSection(QScrollArea):
             return
         self._active_mask_row.set_pick_color(f"#{r:02X}{g:02X}{b:02X}")  # emits changed
         self._end_mask_region()
+
+    def _on_brush_stroke(self, points: list) -> None:
+        """A finished freehand stroke — append it to the armed brush mask.
+
+        Brush mode stays armed afterwards so the user can paint stroke after
+        stroke; they click the Paint button again (or switch tools) to stop.
+        """
+        row = self._active_mask_row
+        if row is None or row.mask_type() != "brush":
+            return
+        row.add_brush_stroke(points)  # emits changed → preview refresh
+        # Keep the live brush params in sync for the next stroke.
+        self._preview_label.brush_size_frac = row.brush_size_frac()
+        self._preview_label.brush_erase = row.brush_erase()
 
     # ── Preset card ───────────────────────────────────────────────────────────
 
@@ -3544,6 +3826,8 @@ class ImageEditorSection(QScrollArea):
         self._hdr_masks.setText(tr("hdr_ie_masks"))
         self._masks_hint.setText(tr("hint_ie_masks"))
         self._mask_add_btn.setText(tr("btn_ie_mask_add"))
+        self._show_masks_chk.setText(tr("lbl_ie_show_masks"))
+        self._show_masks_chk.setToolTip(tr("tip_ie_show_masks"))
         for mrow in self._mask_rows:
             mrow.retranslate_ui()
         self._renumber_masks()

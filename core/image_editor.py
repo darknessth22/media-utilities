@@ -185,7 +185,11 @@ class CurvesOptions:
     points: list = field(default_factory=lambda: [[0, 0], [255, 255]])
 
 
-MASK_TYPES = ("radial", "linear", "color")
+MASK_TYPES = ("radial", "linear", "color", "luminance", "brush")
+
+# How a mask combines with the mask(s) above it. "add" starts a fresh
+# selection; "subtract"/"intersect" refine the preceding "add" mask's region.
+MASK_BLEND_MODES = ("add", "subtract", "intersect")
 
 
 @dataclass
@@ -200,6 +204,12 @@ class MaskAdjust:
     exposure: float = 0.0     # -2..2 stops
     shadows: float = 0.0      # -1..1
     highlights: float = 0.0   # -1..1
+    clarity: float = 0.0      # 0..1   midtone local-contrast punch
+    dehaze: float = 0.0       # 0..1   haze removal
+    vibrance: float = 0.0     # -1..1  smart saturation (protects vivid pixels)
+    gamma: float = 1.0        # 0.2..3.0  midtone gamma
+    sharpen: float = 0.0      # 0..3   unsharp-mask amount
+    blur: float = 0.0         # 0..10  gaussian blur radius
 
 
 @dataclass
@@ -207,18 +217,28 @@ class MaskLayer:
     """One local-adjustment mask. Geometry is stored as fractions (0..1) of the
     canvas so a mask survives a target W×H change.
 
-    radial — feathered ellipse centred at (cx, cy) with radii (rx, ry).
-    linear — graduated ramp from point A (x0, y0) to point B (x1, y1).
-    color  — selects pixels near `pick_color` within `tolerance` (sky, grass…).
+    radial    — feathered ellipse at (cx, cy), radii (rx, ry), optional rotation.
+    linear    — graduated ramp from point A (x0, y0) to point B (x1, y1).
+    color     — selects pixels near `pick_color` within `tolerance` (sky, grass…).
+    luminance — selects pixels whose brightness falls in [lum_min, lum_max].
+    brush     — freehand selection painted as `brush_strokes` on the preview.
+
+    `blend_mode` controls how a mask combines with the one(s) above it: "add"
+    starts a fresh selection (its own adjustment applies); "subtract" /
+    "intersect" only refine the selection of the preceding "add" mask — their
+    own adjustments are ignored. `opacity` scales the whole mask effect.
     """
     mask_type: str = "radial"
     invert: bool = False
     feather: float = 0.5      # 0..1 edge softness
+    opacity: float = 1.0      # 0..1 overall mask-effect strength
+    blend_mode: str = "add"   # add | subtract | intersect
     # Radial geometry
     cx: float = 0.5
     cy: float = 0.5
     rx: float = 0.3
     ry: float = 0.3
+    rotation: float = 0.0     # -180..180 ellipse rotation, degrees
     # Linear geometry
     x0: float = 0.5
     y0: float = 0.0
@@ -227,6 +247,11 @@ class MaskLayer:
     # Color-range geometry
     pick_color: str = "#808080"
     tolerance: float = 0.12   # 0..1 — radius of colour fully selected (kept tight on purpose)
+    # Luminance-range geometry
+    lum_min: float = 0.0      # 0..1 brightness floor
+    lum_max: float = 1.0      # 0..1 brightness ceiling
+    # Brush geometry — each stroke: {"points": [[fx,fy],...], "size": 0.06, "erase": bool}
+    brush_strokes: list = field(default_factory=list)
     adjust: MaskAdjust = field(default_factory=MaskAdjust)
 
 
@@ -803,15 +828,78 @@ def _apply_vignette(img: Image.Image, amount: float) -> Image.Image:
 # ── Local-adjustment masks ────────────────────────────────────────────────────
 
 def _build_radial_mask(size: tuple[int, int], layer: MaskLayer) -> Image.Image:
-    """Feathered ellipse mask. 'L' image, 255 = full local effect."""
+    """Feathered ellipse mask, optionally rotated. 'L' image, 255 = full effect."""
     w, h = size
-    mask = Image.new("L", (w, h), 0)
     cx, cy = layer.cx * w, layer.cy * h
     rx = max(1.0, layer.rx * w)
     ry = max(1.0, layer.ry * h)
-    ImageDraw.Draw(mask).ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=255)
+    rot = getattr(layer, "rotation", 0.0) or 0.0
     # Feather softens the edge — blur radius scales with the smaller ellipse axis.
     feather_px = max(0.0, min(1.0, layer.feather)) * 0.6 * min(rx, ry)
+    if abs(rot) < 0.01:
+        mask = Image.new("L", (w, h), 0)
+        ImageDraw.Draw(mask).ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=255)
+    else:
+        # Draw the ellipse centred on its own square tile, rotate the tile (PIL
+        # rotates about the image centre), then paste it back at (cx, cy).
+        pad = int(feather_px) + 4
+        side = int(2 * max(rx, ry) + 2 * pad)
+        tile = Image.new("L", (side, side), 0)
+        ts = side / 2.0
+        ImageDraw.Draw(tile).ellipse([ts - rx, ts - ry, ts + rx, ts + ry], fill=255)
+        tile = tile.rotate(rot, resample=Image.Resampling.BICUBIC, expand=False)
+        mask = Image.new("L", (w, h), 0)
+        mask.paste(tile, (int(round(cx - ts)), int(round(cy - ts))))
+    if feather_px > 0.5:
+        mask = mask.filter(ImageFilter.GaussianBlur(feather_px))
+    return mask
+
+
+def _build_luminance_mask(img: Image.Image, layer: MaskLayer) -> Image.Image:
+    """Select pixels whose brightness lies in [lum_min, lum_max]. 'L' mask.
+
+    `feather` softens the band edges so a tonal selection blends smoothly into
+    the shadows / highlights it borders. Cheap 256-entry LUT — no NumPy.
+    """
+    luma = img.convert("L")
+    lo = max(0.0, min(1.0, layer.lum_min)) * 255.0
+    hi = max(0.0, min(1.0, layer.lum_max)) * 255.0
+    if hi < lo:
+        lo, hi = hi, lo
+    soft = max(1.0, max(0.0, min(1.0, layer.feather)) * 80.0)
+    lut = []
+    for i in range(256):
+        if lo <= i <= hi:
+            lut.append(255)
+        else:
+            d = (lo - i) if i < lo else (i - hi)
+            lut.append(max(0, int(round(255 * (1.0 - d / soft)))))
+    return luma.point(lut)
+
+
+def _build_brush_mask(size: tuple[int, int], layer: MaskLayer) -> Image.Image:
+    """Rasterise freehand brush strokes into an 'L' mask. 255 = full effect.
+
+    Each stroke is a polyline of (fx, fy) fractions plus a `size` (fraction of
+    the smaller canvas side) and an `erase` flag. Strokes paint in order, so an
+    erase stroke removes from everything painted before it.
+    """
+    w, h = size
+    mask = Image.new("L", (w, h), 0)
+    draw = ImageDraw.Draw(mask)
+    for stroke in layer.brush_strokes or []:
+        pts = stroke.get("points") or []
+        px = [(p[0] * w, p[1] * h) for p in pts if len(p) >= 2]
+        if not px:
+            continue
+        r = max(1.0, float(stroke.get("size", 0.06)) * min(w, h) / 2.0)
+        fill = 0 if stroke.get("erase") else 255
+        if len(px) >= 2:
+            draw.line(px, fill=fill, width=int(round(r * 2)), joint="curve")
+        # Round caps at every vertex so the stroke has no square ends.
+        for x, y in px:
+            draw.ellipse([x - r, y - r, x + r, y + r], fill=fill)
+    feather_px = max(0.0, min(1.0, layer.feather)) * 0.12 * min(w, h)
     if feather_px > 0.5:
         mask = mask.filter(ImageFilter.GaussianBlur(feather_px))
     return mask
@@ -883,36 +971,99 @@ def _apply_mask_adjust(img: Image.Image, adj: MaskAdjust) -> Image.Image:
         "temperature": adj.temperature,
         "tint":       adj.tint,
     })
-    if adj.exposure != 0.0:
-        out = _apply_exposure_gamma(out, adj.exposure, 1.0)
+    if adj.exposure != 0.0 or abs(adj.gamma - 1.0) > 0.001:
+        out = _apply_exposure_gamma(out, adj.exposure, adj.gamma)
+    if adj.dehaze > 0:
+        out = _apply_dehaze(out, adj.dehaze)
+    if adj.vibrance != 0.0:
+        out = _apply_vibrance(out, adj.vibrance)
+    if adj.clarity > 0:
+        out = _apply_clarity(out, adj.clarity)
+    if adj.sharpen > 0:
+        out = _apply_unsharp(out, adj.sharpen, 2.0, 0)
+    if adj.blur > 0:
+        out = out.filter(ImageFilter.GaussianBlur(radius=float(adj.blur)))
+    return out
+
+
+def _mask_image_for(img: Image.Image, layer: MaskLayer) -> Image.Image:
+    """Build the raw 'L' selection for one mask layer, applying `invert`."""
+    t = layer.mask_type
+    if t == "linear":
+        m = _build_linear_mask(img.size, layer)
+    elif t == "color":
+        m = _build_color_mask(img, layer)
+    elif t == "luminance":
+        m = _build_luminance_mask(img, layer)
+    elif t == "brush":
+        m = _build_brush_mask(img.size, layer)
+    else:
+        m = _build_radial_mask(img.size, layer)
+    if layer.invert:
+        m = ImageChops.invert(m)
+    return m
+
+
+def _resolve_mask_selections(
+    img: Image.Image, masks: list[MaskLayer],
+) -> list[tuple[Image.Image, MaskLayer]]:
+    """Fold boolean groups into final selections.
+
+    Each "add" mask starts a group; the following "subtract" / "intersect"
+    masks refine that group's selection. Returns one (selection, owning-layer)
+    pair per group, with the owner's `opacity` already baked into the 'L' mask.
+    """
+    out: list[tuple[Image.Image, MaskLayer]] = []
+    i, n = 0, len(masks)
+    while i < n:
+        layer = masks[i]
+        sel = _mask_image_for(img, layer)
+        j = i + 1
+        while j < n and masks[j].blend_mode in ("subtract", "intersect"):
+            comp = _mask_image_for(img, masks[j])
+            if masks[j].blend_mode == "subtract":
+                sel = ImageChops.subtract(sel, comp)
+            else:
+                sel = ImageChops.darker(sel, comp)
+            j += 1
+        op = max(0.0, min(1.0, layer.opacity))
+        if op < 0.999:
+            sel = sel.point(lambda p, o=op: int(p * o))
+        out.append((sel, layer))
+        i = j
     return out
 
 
 def _apply_masks(img: Image.Image, masks: list[MaskLayer]) -> Image.Image:
-    """Composite each mask's local adjustment over the image, in order."""
+    """Composite each mask group's local adjustment over the image, in order."""
     if not masks:
         return img
     base = img.convert("RGB")
-    for layer in masks:
-        if layer.mask_type == "linear":
-            mask = _build_linear_mask(base.size, layer)
-        elif layer.mask_type == "color":
-            mask = _build_color_mask(base, layer)
-        else:
-            mask = _build_radial_mask(base.size, layer)
-        if layer.invert:
-            mask = ImageChops.invert(mask)
+    for sel, layer in _resolve_mask_selections(base, masks):
         edited = _apply_mask_adjust(base, layer.adjust)
-        base = Image.composite(edited, base, mask)
+        base = Image.composite(edited, base, sel)
     return base
 
 
+def mask_overlay_image(img: Image.Image, masks: list[MaskLayer]) -> Image.Image:
+    """Union 'L' mask of every resolved selection — for the show-mask preview."""
+    acc = Image.new("L", img.size, 0)
+    for sel, _ in _resolve_mask_selections(img.convert("RGB"), masks):
+        acc = ImageChops.lighter(acc, sel)
+    return acc
+
+
 def clone_masks(masks: list[MaskLayer]) -> list[MaskLayer]:
-    """Deep-copy a mask list (each MaskLayer carries a nested MaskAdjust)."""
+    """Deep-copy a mask list (nested MaskAdjust + brush-stroke list)."""
     out: list[MaskLayer] = []
     for m in masks:
         nm = MaskLayer(**{k: getattr(m, k) for k in m.__dataclass_fields__ if k != "adjust"})
         nm.adjust = MaskAdjust(**asdict(m.adjust))
+        nm.brush_strokes = [
+            {"points": [list(p) for p in s.get("points", [])],
+             "size": s.get("size", 0.06), "erase": bool(s.get("erase", False))}
+            for s in m.brush_strokes
+        ]
         out.append(nm)
     return out
 
