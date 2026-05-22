@@ -159,6 +159,11 @@ nav{
   box-shadow:0 4px 24px rgba(124,58,237,.45);
 }
 .btn-download.btn-linux:hover{box-shadow:0 12px 36px rgba(124,58,237,.6)}
+.btn-download.btn-android{
+  background:linear-gradient(135deg,#16a34a 0%, #22c55e 100%);
+  box-shadow:0 4px 24px rgba(34,197,94,.45);
+}
+.btn-download.btn-android:hover{box-shadow:0 12px 36px rgba(34,197,94,.6)}
 .supported-platforms{
   font-size:.82rem; color:var(--muted-2); margin-top:4px; letter-spacing:.3px;
   font-family:'JetBrains Mono',monospace;
@@ -402,8 +407,12 @@ footer a:hover{color:var(--text)}
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.077 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.93.93 0 00-.45.343c-.224.327-.295.668-.232 1.073.072.388.234.85.434 1.395.139.396.226.92.291 1.395.064.475.117.872.318 1.071.6.6 1.435.62 2.106.488.553-.111 1.026-.336 1.342-.595.31.06.585.139.847.226.297.099.55.219.838.36.59.293 1.234.677 1.97.677.74 0 1.382-.384 1.972-.677.288-.141.541-.261.838-.36.262-.087.537-.166.847-.226.316.259.789.484 1.342.595.671.132 1.506.112 2.106-.488.201-.199.254-.596.318-1.071.065-.475.152-.999.291-1.395.2-.545.362-1.007.434-1.395.063-.405-.008-.746-.232-1.073a.93.93 0 00-.45-.343c.123-.805-.009-1.657-.287-2.489-.589-1.771-1.831-3.47-2.716-4.521-.75-1.067-.973-1.928-1.05-3.02-.065-1.491 1.056-5.965-3.17-6.298a6.05 6.05 0 00-.48-.021z"/></svg>
         Download for Linux
       </a>
+      <a href="https://github.com/darknessth22/media-utilities/releases/download/android-latest/videl-android-arm64-v8a.apk" id="download-btn-android" class="btn-download btn-android" aria-label="Download Videl for Android">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M17.523 15.341c-.62 0-1.124-.504-1.124-1.124s.504-1.123 1.124-1.123 1.124.503 1.124 1.123-.504 1.124-1.124 1.124m-11.046 0c-.62 0-1.124-.504-1.124-1.124s.504-1.123 1.124-1.123 1.124.503 1.124 1.123-.504 1.124-1.124 1.124m11.45-6.02l2.235-3.87a.464.464 0 00-.171-.633.463.463 0 00-.633.171l-2.263 3.92A14.05 14.05 0 0012 7.658a14.05 14.05 0 00-5.095.946L4.643 4.684a.463.463 0 00-.633-.171.464.464 0 00-.171.633L6.073 9.02C2.247 11.117 0 14.713 0 18.654h24c0-3.94-2.247-7.537-6.073-9.333"/></svg>
+        Download for Android
+      </a>
     </div>
-    <div class="supported-platforms">Windows 10+ · Linux x86_64 (Ubuntu 22.04+ / glibc 2.35+)</div>
+    <div class="supported-platforms">Windows 10+ · Linux x86_64 (Ubuntu 22.04+ / glibc 2.35+) · Android 10+ (arm64)</div>
     <div class="version-badge">
       <span class="version-dot" id="status-dot"></span>
       <span id="version-label" class="skeleton" style="min-width:240px;height:14px">&nbsp;</span>
@@ -495,6 +504,10 @@ footer a:hover{color:var(--text)}
     <a href="https://github.com/darknessth22/media-utilities/releases/latest/download/Videl-x86_64.AppImage" id="download-btn-2-linux" class="btn-download btn-linux" aria-label="Download Videl for Linux">
       <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.077 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.93.93 0 00-.45.343c-.224.327-.295.668-.232 1.073.072.388.234.85.434 1.395.139.396.226.92.291 1.395.064.475.117.872.318 1.071.6.6 1.435.62 2.106.488.553-.111 1.026-.336 1.342-.595.31.06.585.139.847.226.297.099.55.219.838.36.59.293 1.234.677 1.97.677.74 0 1.382-.384 1.972-.677.288-.141.541-.261.838-.36.262-.087.537-.166.847-.226.316.259.789.484 1.342.595.671.132 1.506.112 2.106-.488.201-.199.254-.596.318-1.071.065-.475.152-.999.291-1.395.2-.545.362-1.007.434-1.395.063-.405-.008-.746-.232-1.073a.93.93 0 00-.45-.343c.123-.805-.009-1.657-.287-2.489-.589-1.771-1.831-3.47-2.716-4.521-.75-1.067-.973-1.928-1.05-3.02-.065-1.491 1.056-5.965-3.17-6.298a6.05 6.05 0 00-.48-.021z"/></svg>
       Linux
+    </a>
+    <a href="https://github.com/darknessth22/media-utilities/releases/download/android-latest/videl-android-arm64-v8a.apk" id="download-btn-2-android" class="btn-download btn-android" aria-label="Download Videl for Android">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M17.523 15.341c-.62 0-1.124-.504-1.124-1.124s.504-1.123 1.124-1.123 1.124.503 1.124 1.123-.504 1.124-1.124 1.124m-11.046 0c-.62 0-1.124-.504-1.124-1.124s.504-1.123 1.124-1.123 1.124.503 1.124 1.123-.504 1.124-1.124 1.124m11.45-6.02l2.235-3.87a.464.464 0 00-.171-.633.463.463 0 00-.633.171l-2.263 3.92A14.05 14.05 0 0012 7.658a14.05 14.05 0 00-5.095.946L4.643 4.684a.463.463 0 00-.633-.171.464.464 0 00-.171.633L6.073 9.02C2.247 11.117 0 14.713 0 18.654h24c0-3.94-2.247-7.537-6.073-9.333"/></svg>
+      Android
     </a>
   </div>
 </section>
