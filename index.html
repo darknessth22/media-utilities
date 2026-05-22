@@ -608,38 +608,66 @@ const REPO = 'darknessth22/media-utilities';
 const API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const FALLBACK_WIN   = `https://github.com/${REPO}/releases/latest/download/Videl_Setup.exe`;
 const FALLBACK_LINUX = `https://github.com/${REPO}/releases/latest/download/Videl-x86_64.AppImage`;
+const FALLBACK_ANDROID = `https://github.com/${REPO}/releases/download/android-latest/videl-android-arm64-v8a.apk`;
+const ANDROID_API_URL = `https://api.github.com/repos/${REPO}/releases/tags/android-latest`;
 const btnWin    = document.getElementById('download-btn');
 const btnWin2   = document.getElementById('download-btn-2');
 const btnLinux  = document.getElementById('download-btn-linux');
 const btnLinux2 = document.getElementById('download-btn-2-linux');
+const btnAndroid  = document.getElementById('download-btn-android');
+const btnAndroid2 = document.getElementById('download-btn-2-android');
 const versionLabel = document.getElementById('version-label');
 const statusDot    = document.getElementById('status-dot');
 
+const sizes = {};
+
 function setWin(href){ btnWin.href = href; btnWin2.href = href; btnWin.classList.add('loaded'); }
 function setLinux(href){ btnLinux.href = href; btnLinux2.href = href; }
+function setAndroid(href){ if(btnAndroid) btnAndroid.href = href; if(btnAndroid2) btnAndroid2.href = href; }
 function setVersion(text, online=true){
   versionLabel.classList.remove('skeleton');
   versionLabel.style.minWidth=''; versionLabel.style.height='';
   versionLabel.textContent = text;
   statusDot.className = online ? 'version-dot online' : 'version-dot';
 }
+function rebuildVersionLabel(release){
+  const parts = [`Version ${release.tag_name}`];
+  if(sizes.win){   parts.push(`Win ${sizes.win} MB`); }
+  if(sizes.linux){ parts.push(`Linux ${sizes.linux} MB`); }
+  if(sizes.android){ parts.push(`Android ${sizes.android} MB`); }
+  setVersion(parts.join(' · '), true);
+}
+
+let mainRelease = null;
 
 fetch(API_URL)
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(release=>{
+    mainRelease = release;
     const exe = release.assets.find(a=>a.name.endsWith('.exe'));
     const appimage = release.assets.find(a=>a.name.endsWith('.AppImage'));
     setWin(exe ? exe.browser_download_url : FALLBACK_WIN);
     setLinux(appimage ? appimage.browser_download_url : FALLBACK_LINUX);
-    const parts = [`Version ${release.tag_name}`];
-    if(exe){ parts.push(`Win ${(exe.size/1048576).toFixed(1)} MB`); }
-    if(appimage){ parts.push(`Linux ${(appimage.size/1048576).toFixed(1)} MB`); }
-    setVersion(parts.join(' · '), true);
+    if(exe){      sizes.win   = (exe.size/1048576).toFixed(1); }
+    if(appimage){ sizes.linux = (appimage.size/1048576).toFixed(1); }
+    rebuildVersionLabel(release);
   })
   .catch(()=>{
     setWin(FALLBACK_WIN);
     setLinux(FALLBACK_LINUX);
     setVersion('View all releases on GitHub →', false);
+  });
+
+fetch(ANDROID_API_URL)
+  .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
+  .then(release=>{
+    const apk = release.assets.find(a=>a.name.endsWith('.apk'));
+    setAndroid(apk ? apk.browser_download_url : FALLBACK_ANDROID);
+    if(apk){ sizes.android = (apk.size/1048576).toFixed(1); }
+    if(mainRelease) rebuildVersionLabel(mainRelease);
+  })
+  .catch(()=>{
+    setAndroid(FALLBACK_ANDROID);
   });
 </script>
 </body>
