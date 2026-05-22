@@ -1,0 +1,49 @@
+// Append the Chaquopy bits below into your android/app/build.gradle
+// (created by `flutter create .`). Keep your existing flutter-generated config intact.
+
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+    id "com.chaquo.python" // add this
+}
+
+android {
+    namespace "com.videl.mobile"
+    compileSdk 34
+    ndkVersion flutter.ndkVersion
+
+    defaultConfig {
+        applicationId "com.videl.mobile"
+        minSdk 29           // Android 10+
+        targetSdk 34
+        versionCode 1
+        versionName "0.1.0"
+
+        ndk { abiFilters "arm64-v8a", "armeabi-v7a" }
+
+        python {
+            version "3.11"
+            pip {
+                install "yt-dlp"
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+}
+
+flutter { source "../.." }
+
+// Root android/build.gradle additions:
+// buildscript {
+//   dependencies {
+//     classpath "com.chaquo.python:gradle:15.0.1"
+//   }
+// }

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="clipboard_download"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_clip_short"
+        android:shortcutLongLabel="@string/shortcut_clip_long">
+        <intent
+            android:action="com.videl.mobile.CLIPBOARD_DOWNLOAD"
+            android:targetPackage="com.videl.mobile"
+            android:targetClass="com.videl.mobile.MainActivity" />
+    </shortcut>
+</shortcuts>

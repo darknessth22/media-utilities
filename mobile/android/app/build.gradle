@@ -1,0 +1,58 @@
+plugins {
+    id "com.android.application"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+apply plugin: "com.chaquo.python"
+
+android {
+    namespace = "com.videl.mobile"
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    defaultConfig {
+        applicationId = "com.videl.mobile"
+        minSdk = flutter.minSdkVersion
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+
+    }
+
+    packagingOptions {
+        jniLibs {
+            excludes += ["**/x86/**", "**/x86_64/**", "**/armeabi-v7a/**"]
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.debug
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}
+
+chaquopy {
+    defaultConfig {
+        version = "3.11"
+        pip {
+            // Nightly master — Facebook/IG/TikTok extractors lag in stable releases.
+            install "https://github.com/yt-dlp/yt-dlp/archive/refs/heads/master.tar.gz"
+        }
+    }
+}
