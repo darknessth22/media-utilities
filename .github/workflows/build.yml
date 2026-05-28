@@ -160,8 +160,12 @@ jobs:
         if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Videl v${{ steps.version.outputs.version }}
+          # Publish to the actual git tag that triggered the build so the
+          # Windows/Linux/Android assets always land on the SAME release, even
+          # if version.py and the tag momentarily disagree. Falls back to the
+          # version string for manual workflow_dispatch runs.
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', steps.version.outputs.version) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('Videl {0}', github.ref_name) || format('Videl v{0}', steps.version.outputs.version) }}
           prerelease: false
           body: |
             Built from `${{ github.ref_name }}` @ `${{ github.sha }}`.
@@ -264,8 +268,12 @@ jobs:
         if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Videl v${{ steps.version.outputs.version }}
+          # Publish to the actual git tag that triggered the build so the
+          # Windows/Linux/Android assets always land on the SAME release, even
+          # if version.py and the tag momentarily disagree. Falls back to the
+          # version string for manual workflow_dispatch runs.
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', steps.version.outputs.version) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('Videl {0}', github.ref_name) || format('Videl v{0}', steps.version.outputs.version) }}
           prerelease: false
           body: |
             Built from `${{ github.ref_name }}` @ `${{ github.sha }}`.
