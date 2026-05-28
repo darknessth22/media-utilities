@@ -47,7 +47,10 @@ def download(url, out_dir, fmt, callback):
 
     opts = {
         "format": fmt,
-        "outtmpl": os.path.join(out_dir, "%(title)s.%(ext)s"),
+        # Append the unique video id so multiple posts from the same account
+        # don't collide — Instagram/TikTok return an identical title
+        # ("Video by <account>") for every video, which overwrote prior files.
+        "outtmpl": os.path.join(out_dir, "%(title).150B [%(id)s].%(ext)s"),
         "progress_hooks": [hook],
         "noplaylist": True,
         "quiet": True,

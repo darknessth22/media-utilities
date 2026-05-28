@@ -6,6 +6,7 @@ on:
     paths:
       - 'mobile/**'
       - '.github/workflows/android.yml'
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -59,11 +60,13 @@ jobs:
           cp mobile/build/app/outputs/flutter-apk/app-release.apk out/videl-android-arm64-v8a.apk
           ls -lh out/
 
-      - name: Publish rolling release
+      - name: Publish release
         uses: ncipollo/release-action@v1
         with:
-          tag: android-latest
-          name: Videl Android (Latest)
+          # Tag build → attach the APK to that version's release (alongside the
+          # Windows/Linux assets from build.yml). Branch build → rolling latest.
+          tag: ${{ github.ref_type == 'tag' && github.ref_name || 'android-latest' }}
+          name: ${{ github.ref_type == 'tag' && format('Videl {0}', github.ref_name) || 'Videl Android (Latest)' }}
           body: |
             **Videl Android — arm64-v8a sideload build**
 
