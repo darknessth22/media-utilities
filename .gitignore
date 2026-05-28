@@ -103,3 +103,41 @@ tools/*.AppImage
 # (codeformer.pth ~360 MB exceeds GitHub's 100 MB file limit). Source lives in
 # core/restore.py; weights fetch to ai_packages/photo_restore/weights on first run.
 /CodeFormer/
+
+# ───────────── Flutter / Android (mobile/) ─────────────
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/.metadata
+mobile/build/
+mobile/inspect/
+mobile/inspect2/
+mobile/inspect.zip
+mobile/apk.zip
+mobile/android/.gradle/
+mobile/android/.kotlin/
+mobile/android/captures/
+mobile/android/local.properties
+mobile/android/key.properties
+mobile/android/app/release/
+mobile/android/app/profile/
+mobile/android/app/debug/
+mobile/android/app/build/
+mobile/android/build/
+mobile/android/.idea/
+mobile/android/*.iml
+mobile/android/**/*.iml
+mobile/.idea/
+mobile/.vscode/
+mobile/ios/
+mobile/macos/
+mobile/linux/
+mobile/windows/
+mobile/web/
+mobile/test/
+mobile/*.iml
+mobile/coverage/
+
+# Don't ignore pubspec.lock — track it for app reproducibility
+!mobile/pubspec.lock

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcut_clip_short">Clipboard</string>
+    <string name="shortcut_clip_long">Download from clipboard</string>
+</resources>
