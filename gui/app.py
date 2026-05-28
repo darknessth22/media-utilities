@@ -68,6 +68,7 @@ from gui.tabs.jumpcut_section import JumpcutSection
 from gui.tabs.subtitles_section import SubtitlesSection
 from gui.tabs.transcript_section import TranscriptSection
 from gui.tabs.image_editor_section import ImageEditorSection
+from gui.tabs.photo_restore_section import PhotoRestoreSection
 from gui.tabs.bug_reporter import BugReporterSection
 from gui.pages.home_page import HomePage, ToolsPage
 
@@ -319,6 +320,13 @@ _SECTIONS_META = [
             "tab_ie_masks", "tab_ie_presets", "tab_ie_wallpaper",
         ],
         "action_key": "action_apply_edits",
+    },
+    {
+        "id": "photo_restore",
+        "label_key": "section_photo_restore",
+        "icon": "photo_restore.svg",
+        "tab_keys": ["tab_photo_restore"],
+        "action_key": "action_photo_restore",
     },
     {
         "id": "history",
@@ -1110,6 +1118,14 @@ class SettingsSection(QScrollArea):
         self._ytdlp_status.setStyleSheet("font-size: 12px;")
         layout.addWidget(self._ytdlp_status)
 
+        try:
+            from utils.ytdlp_updater import current_version
+            ver = current_version()
+            if ver:
+                self._ytdlp_status.setText(f"Current yt-dlp: {ver}")
+        except Exception:
+            pass
+
         return card
 
     def retranslate_ui(self) -> None:
@@ -1202,45 +1218,35 @@ class SettingsSection(QScrollArea):
 
     def _on_update_ytdlp(self) -> None:
         from gui.worker import Worker
-        import sys
+        from utils import ytdlp_updater
 
-        # Frozen --onefile builds ship a pinned yt-dlp inside the bundle.
-        # `python -m yt_dlp -U` errors out with "you installed yt-dlp with pip
-        # or wheels from pypi use that to update", and pip isn't reachable from
-        # inside the bundle either. Surface that clearly instead of crashing.
-        if getattr(sys, "frozen", False):
-            self._ytdlp_status.setText(
-                "yt-dlp ships with Videl. Update Videl to get the latest yt-dlp."
-            )
-            return
-
+        # Works in frozen builds too: yt-dlp is pip-installed into a user-writable
+        # dir and prepended to sys.path at launch, so it shadows the bundled copy
+        # without rebuilding Videl. The new version takes effect after a restart.
         self._ytdlp_btn.setEnabled(False)
-        self._ytdlp_status.setText("Updating…")
+        self._ytdlp_status.setText("Updating yt-dlp…")
 
         def _run_update():
-            import subprocess
-            # Source / venv install: yt-dlp came from pip, so `-U` refuses.
-            # Run `pip install --upgrade yt-dlp` which is the supported path.
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"],
-                capture_output=True, text=True, timeout=180,
-            )
-            return result.returncode, result.stdout + result.stderr
+            return ytdlp_updater.update()
 
         def _on_done(payload) -> None:
             self._ytdlp_btn.setEnabled(True)
             rc, output = payload
-            lines = [l for l in output.strip().splitlines() if l.strip()]
-            tail = lines[-1] if lines else ""
             if rc == 0:
-                if "already satisfied" in output.lower():
-                    self._ytdlp_status.setText("yt-dlp is already up to date.")
-                elif "successfully installed" in output.lower():
-                    self._ytdlp_status.setText(tail or "yt-dlp updated.")
+                ver = ytdlp_updater.installed_target_version()
+                if "already up-to-date" in output.lower() or "already satisfied" in output.lower():
+                    self._ytdlp_status.setText(
+                        f"yt-dlp already up to date ({ver})." if ver else "yt-dlp already up to date."
+                    )
                 else:
-                    self._ytdlp_status.setText(tail or "Update complete.")
+                    self._ytdlp_status.setText(
+                        f"Updated to yt-dlp {ver} — restart Videl to use it."
+                        if ver else "yt-dlp updated — restart Videl to use it."
+                    )
             else:
-                self._ytdlp_status.setText(f"Update failed: {tail or 'pip exit ' + str(rc)}")
+                lines = [l for l in output.strip().splitlines() if l.strip()]
+                tail = lines[-1] if lines else f"pip exit {rc}"
+                self._ytdlp_status.setText(f"Update failed: {tail}")
 
         def _on_error(exc_tuple) -> None:
             self._ytdlp_btn.setEnabled(True)
@@ -1993,6 +1999,7 @@ class MainWindow(QMainWindow):
             self._subtitles_section,
             self._transcript_section,
             self._image_editor_section,
+            self._photo_restore_section,
             self._history_section,
             self._tutorial_section,
         ):
@@ -2091,6 +2098,7 @@ class MainWindow(QMainWindow):
         self._subtitles_section = SubtitlesSection(self.settings)
         self._transcript_section = TranscriptSection(self.settings)
         self._image_editor_section = ImageEditorSection(self.settings)
+        self._photo_restore_section = PhotoRestoreSection(self.settings)
         self._history_section = HistorySection()
         self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
@@ -2121,10 +2129,11 @@ class MainWindow(QMainWindow):
             self._subtitles_section,        # index 20 — subtitles
             self._transcript_section,       # index 21 — transcript
             self._image_editor_section,     # index 22 — image editor
-            self._history_section,          # index 23 — history
-            self._settings_section_widget,  # index 24 — settings
-            self._tutorial_section,         # index 25 — how to use
-            self._bug_reporter_section,     # index 26 — bug reporter
+            self._photo_restore_section,    # index 23 — ai photo restore
+            self._history_section,          # index 24 — history
+            self._settings_section_widget,  # index 25 — settings
+            self._tutorial_section,         # index 26 — how to use
+            self._bug_reporter_section,     # index 27 — bug reporter
         ]
 
         # Connect status signals from all operation sections.
@@ -2153,6 +2162,7 @@ class MainWindow(QMainWindow):
             self._subtitles_section,      # index 20
             self._transcript_section,     # index 21
             self._image_editor_section,   # index 22
+            self._photo_restore_section,  # index 23
         )
         for section in _op_sections:
             section.status_message.connect(self._on_status_message)

@@ -98,3 +98,8 @@ tools/*.AppImage
 
 # OpenWolf local context — per-machine, not for sharing
 .wolf/
+
+# AI photo-restore model weights — auto-downloaded at runtime, too large for git
+# (codeformer.pth ~360 MB exceeds GitHub's 100 MB file limit). Source lives in
+# core/restore.py; weights fetch to ai_packages/photo_restore/weights on first run.
+/CodeFormer/

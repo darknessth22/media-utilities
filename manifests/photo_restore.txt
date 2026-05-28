@@ -1,0 +1,27 @@
+# AI Photo Restore — runs on shared torch_runtime (CPU variant).
+# torch + torchvision + numpy live in torch_runtime; --no-deps in registry.
+#
+# Stages:
+#   1. Colorize    — OpenCV deep colorization (Zhang 2016, Caffe via cv2.dnn).
+#                    NO pip dep — only weights auto-download. (DDColor / DeOldify
+#                    are not viable: DDColor not on PyPI, DeOldify needs fastai<2.)
+#   2. Face restore — codeformer-pip (sczhou/CodeFormer wrapper).
+#   3. Upscale     — Real-ESRGAN reused from the `upscaler` component.
+codeformer-pip==0.0.4
+einops==0.8.0
+# codeformer-pip vendors its own basicsr that imports lpips at module load.
+# We install with --no-deps so we have to list its runtime deps explicitly.
+lpips==0.1.4
+gdown==5.2.0
+# DDColor (ICCV 2023) for top-quality colorize — runs as ONNX. CPU package
+# works on both CPU and CUDA variants (CUDA torch handles face restore; ORT
+# handles colorize); skips the cu12/onnxruntime-gpu version-matching dance.
+onnxruntime==1.20.1
+# zeroscratches wraps Microsoft "Bringing-Old-Photos-Back-to-Life" (CVPR 2020)
+# for Stage 0 Heal — neural scratch detection + Pix2PixHD restoration.
+# Models auto-download from HuggingFace on first heal (~600 MB).
+zeroscratches==1.0.2
+huggingface-hub==0.26.0
+filelock==3.16.1
+fsspec==2024.10.0
+typing-extensions==4.12.2

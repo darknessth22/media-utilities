@@ -82,6 +82,20 @@ _REGISTRY: dict[str, AIComponent] = {
         approx_size_mb_cpu=120,
         approx_size_mb_cuda=None,
     ),
+    "photo_restore": AIComponent(
+        id="photo_restore",
+        label_key="tool_photo_restore_name",
+        importable_name="codeformer",
+        manifest_cpu=os.path.join(_MANIFESTS_DIR, "photo_restore.txt"),
+        manifest_cuda=os.path.join(_MANIFESTS_DIR, "photo_restore.cuda.txt"),
+        approx_size_mb_cpu=350,
+        approx_size_mb_cuda=350,
+        extra_pip_args=("--no-deps",),
+        # Needs torch_runtime; reuses upscaler's basicsr/facexlib/realesrgan
+        # at import time (see core/restore.py child script — both component
+        # dirs are on sys.path).
+        requires=("torch_runtime", "upscaler"),
+    ),
     "ocr_easy": AIComponent(
         id="ocr_easy",
         label_key="tool_ocr_easy_name",

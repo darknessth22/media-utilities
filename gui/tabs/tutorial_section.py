@@ -680,6 +680,31 @@ _TUTORIAL_DATA_EN = [
             "The final video is encoded with your GPU's hardware encoder (NVENC) when available, and the original audio is kept.",
         ],
     },
+    {
+        "emoji": "🪄",
+        "title": "AI Photo Restore",
+        "description": (
+            "Two-stage restoration for old / damaged photos: colorize black & white, "
+            "then rebuild faces with CodeFormer. Strict per-stage VRAM cleanup. "
+            "For resolution upscaling, send the result through the AI Upscaler tab."
+        ),
+        "steps": [
+            "First time: click Install Model. The installer chains torch_runtime → AI Upscaler → Photo Restore automatically.",
+            "Browse a damaged or black-and-white photo.",
+            "Tick the stages you want — Colorize, Restore Faces. Either or both.",
+            "If colorize is on, dial the saturation slider (Zhang 2016 is muted by default — 130–150% looks natural, 180%+ vivid).",
+            "Drag the CodeFormer fidelity slider — low = sharper but face may drift, high = closer to original. 60–75 % is a good default.",
+            "Hit Restore Photo. Send the output to the AI Upscaler tab if you want a higher-resolution version.",
+        ],
+        "tips": [
+            "Stages run Colorize → Faces; models are loaded, run, then unloaded between stages so an 8 GB GPU survives.",
+            "Colorize uses OpenCV's cv2.dnn Caffe model (Zhang 2016) — no extra pip dep, ~123 MB weights auto-download on first run. DDColor and DeOldify aren't shipped (DDColor isn't on PyPI; DeOldify needs fastai<2).",
+            "The saturation slider is purely cosmetic — it scales HSV S in the output. The underlying ab field is the same; this just makes muted greens/skin look like real photo colour.",
+            "Face restore uses CodeFormer with RetinaFace detection — works on multiple faces per image.",
+            "Upscale is intentionally NOT here — the dedicated AI Upscaler tab handles it (Real-ESRGAN x2/x4 with tiling).",
+            "CPU mode works but is minutes per stage. NVIDIA GPU with the CUDA variant is strongly recommended.",
+        ],
+    },
 ]
 
 _TUTORIAL_DATA_AR = [
@@ -1350,6 +1375,31 @@ _TUTORIAL_DATA_AR = [
             "يُرمَّز الفيديو النهائي بمُرمِّز كرت الشاشة (NVENC) عند توفّره، ويُحتفَظ بالصوت الأصلي.",
         ],
     },
+    {
+        "emoji": "🪄",
+        "title": "ترميم الصور بالذكاء الاصطناعي",
+        "description": (
+            "ترميم من مرحلتين للصور القديمة/التالفة: تلوين الأبيض والأسود، "
+            "ثم إعادة بناء الوجوه بـ CodeFormer. تفريغ صارم لذاكرة الـ VRAM بين المرحلتين. "
+            "لتكبير الدقة، مرّر النتيجة عبر تبويب 'مكبّر الذكاء الاصطناعي'."
+        ),
+        "steps": [
+            "أول مرة: انقر 'تثبيت النموذج'. يُثبِّت المثبِّت تلقائيًا torch_runtime → مكبّر الذكاء الاصطناعي → ترميم الصور.",
+            "استعرض صورة تالفة أو بالأبيض والأسود.",
+            "ضع علامة على المراحل المطلوبة — تلوين، إصلاح الوجوه. أو كلاهما.",
+            "إذا فعّلت التلوين، اضبط شريط الإشباع (Zhang 2016 باهت افتراضيًا — 130–150٪ طبيعي، 180٪+ زاهٍ).",
+            "اسحب شريط دقة CodeFormer — منخفض = أوضح لكن قد يبتعد الوجه، عالي = أقرب للأصل. 60–75٪ افتراضي جيد.",
+            "انقر 'ترميم الصورة'. مرّر النتيجة عبر تبويب 'مكبّر الذكاء الاصطناعي' إذا أردت دقة أعلى.",
+        ],
+        "tips": [
+            "تعمل المراحل بالترتيب تلوين → وجوه؛ تُحمَّل النماذج وتُشغَّل ثم تُفرَّغ بين كل مرحلة لتنجو بطاقة 8 GB.",
+            "يستخدم التلوين نموذج cv2.dnn Caffe من OpenCV (Zhang 2016) — بدون حزم pip إضافية، أوزان ~123 ميجابايت تُنزَّل تلقائيًا عند أول تشغيل.",
+            "شريط الإشباع تجميلي بحت — يضرب قناة S في HSV. حقل ab الأصلي لا يتغير، لكن الألوان الباهتة (مثل البشرة والخضرة) تبدو أكثر طبيعية.",
+            "يستخدم إصلاح الوجوه CodeFormer مع كشف RetinaFace — يعمل مع عدة وجوه في الصورة.",
+            "التكبير مقصود ألا يكون هنا — تبويب 'مكبّر الذكاء الاصطناعي' المخصّص يتولّاه (Real-ESRGAN x2/x4 مع التقطيع).",
+            "وضع المعالج يعمل لكنه يستغرق دقائق لكل مرحلة. يُنصح بشدّة بكرت NVIDIA مع نسخة CUDA.",
+        ],
+    },
 ]
 
 
@@ -1390,6 +1440,7 @@ _TUTORIAL_SECTION_IDS: list[str | None] = [
     None,              # 31 Linux & Cross-Platform — cross-cutting
     "image_editor",    # 32 Image Editor
     "video_upscaler",  # 33 AI Video Upscaler
+    "photo_restore",   # 34 AI Photo Restore
 ]
 
 

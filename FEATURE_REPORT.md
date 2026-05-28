@@ -88,6 +88,46 @@ Source of truth: `_SECTIONS_META` in `gui/app.py`, cross-checked against `README
 
 ---
 
+## ⚡ GPU / CUDA acceleration
+
+Videl has two independent acceleration paths — they use different hardware and
+are wired into different tools.
+
+### A. GPU video encoding (FFmpeg hardware H.264 encoders)
+
+Auto-detected per machine, selectable per session, with CPU `libx264` fallback.
+NVIDIA / AMD / Intel on Windows + Linux; Apple VideoToolbox on macOS.
+
+| Tool | Hardware encoders | Notes |
+|---|---|---|
+| Compress | NVENC / AMF / QuickSync / VideoToolbox | Hardware Acceleration dropdown |
+| Watermark | NVENC / AMF / QuickSync / VideoToolbox | video re-encode path |
+| Subtitles (burn-in) | NVENC / AMF / QuickSync / CPU | tunable encoder + CRF |
+
+Encoder labels are detected via `utils.ffmpeg.detect_hw_encoders()`. Hardware
+encoding only applies to video; if a job fails after enabling it, switch to CPU.
+
+### B. CUDA compute (NVIDIA-only — PyTorch / whisper.cpp)
+
+NVIDIA-only acceleration for the AI tools. CPU fallback is always available.
+The PyTorch tools use a CUDA 12.8 build and require **compute capability ≥ 7.0**
+(RTX 20/30/40/50, V100, A100, H100). Maxwell / Pascal cards fall back to CPU.
+
+| Tool | Engine | GPU path | CPU fallback |
+|---|---|---|---|
+| Vocal Isolator | HTDemucs v4 (PyTorch) | CUDA ≥ 7.0, auto-routed | ✅ |
+| AI Upscaler | Real-ESRGAN (PyTorch) | CUDA — reuses Vocal Isolator's torch | ✅ |
+| AI Transcript | whisper.cpp | CUDA backend (`whisper-cublas`, ~600 MB) | ✅ CPU backend (~80 MB) |
+| PDF Toolkit — OCR | EasyOCR | optional CUDA — reuses Vocal Isolator's torch | ✅ (RapidOCR is CPU-only ONNX) |
+
+Notes:
+- AI Upscaler requires Vocal Isolator installed first — they share one PyTorch runtime (`ai_packages/torch_runtime/`), so CUDA torch is downloaded only once.
+- AI Transcript ships two separate prebuilt whisper.cpp binaries; the backend (CPU vs CUDA) is picked in-tab, and NVIDIA machines get CUDA recommended.
+- BG Eraser (rembg / U2-Net via onnxruntime) runs on **CPU** — no CUDA path is wired in the app.
+- The two paths are orthogonal: a machine can use NVENC for video encoding while running the PyTorch tools on CPU, or vice versa.
+
+---
+
 ## Assessment
 
 Mature, broad media workstation — 22 tools, 5 AI-powered, fully offline-first. No half-finished

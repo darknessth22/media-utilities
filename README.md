@@ -236,6 +236,15 @@ Offline media workstation for Windows — download, convert, trim, compress, mer
   - Live / video / animated wallpapers are intentionally out of scope (still-image + slideshow only).
 - Live preview thumbnail updates as you tweak; outputs to `<name>_edited.<ext>`
 
+### AI Photo Restore
+- Two-stage restoration for old / damaged photos, with **strict per-stage VRAM cleanup** (`del model; gc.collect; torch.cuda.empty_cache; ipc_collect`) so an 8 GB GPU survives the chain.
+  1. **Colorize** black & white photos with **OpenCV deep colorization** (Zhang 2016, cv2.dnn Caffe — ~123 MB weights auto-download, no extra pip dep). DDColor and DeOldify are rejected (DDColor isn't on PyPI; DeOldify needs `fastai<2` which would break every other AI tool). Includes a **saturation slider** — Zhang 2016 is muted by design; 130–150 % looks natural, 180 %+ vivid.
+  2. **Restore faces** with **CodeFormer** + RetinaFace face detection (multi-face per image); fidelity slider 0–100 % (low = sharper, high = closer to original)
+- Resolution upscaling is **intentionally not here** — Videl already has a dedicated AI Upscaler tab. Restore first, then send the result through the Upscaler.
+- Either or both stages can run; auto-installs on demand: torch_runtime → AI Upscaler → Photo Restore (~220 MB component on top of the shared runtime)
+- Outputs to `<name>_restored.<ext>` next to the source, or a path you choose
+- CPU mode works; NVIDIA GPU with the CUDA variant strongly recommended (minutes vs seconds per image)
+
 ### History
 - Log of all operations with status, filename, timestamp
 - Persists across restarts

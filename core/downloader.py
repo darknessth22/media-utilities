@@ -8,6 +8,11 @@ import uuid
 from urllib.request import Request, urlopen
 
 from core.version import VERSION
+
+# Activate any user-installed yt-dlp BEFORE importing it, so an on-demand
+# update (Settings → Update yt-dlp) shadows the copy bundled at build time.
+from utils.ytdlp_updater import activate_user_ytdlp
+activate_user_ytdlp()
 from yt_dlp import YoutubeDL
 
 from utils.ffmpeg import ffmpeg_path, ffprobe_path
@@ -41,6 +46,27 @@ _ALLOWED_PLATFORMS: dict[str, list[str]] = {
     "spotify":   ["spotify.com", "open.spotify.com"],
     "twitch":    ["twitch.tv", "clips.twitch.tv"],
 }
+
+
+def _classify_download_error(msg: str) -> str:
+    """Map a yt-dlp exception string to a UI error code (see download_section)."""
+    m = (msg or "").lower()
+    if "unsupported url" in m:
+        return "unsupported_url"
+    if "geo" in m or "not available in your country" in m or "not available in your region" in m:
+        return "geo_blocked"
+    if ("private" in m or "log in" in m or "login required" in m
+            or "sign in" in m or "members-only" in m or "age" in m and "confirm" in m):
+        return "paywall"
+    if "removed" in m or "no longer available" in m or "video unavailable" in m or "this video is unavailable" in m:
+        return "unavailable"
+    if "429" in m or ("rate" in m and "limit" in m):
+        return "rate_limited"
+    if "timed out" in m or "timeout" in m:
+        return "timeout"
+    if "ffmpeg" in m or "postprocessing" in m:
+        return "ffmpeg"
+    return "generic"
 
 
 def get_platform(url: str) -> str:
@@ -200,10 +226,15 @@ def _finalize_downloaded_file(
 # Spotify
 # ---------------------------------------------------------------------------
 
-def _scrape_spotify_track(url: str) -> tuple[str, str] | None:
-    """Scrape track title and primary artist from Spotify page HTML. No API key needed.
+_SPOTIFY_ENTITY_RE = re.compile(
+    r"open\.spotify\.com/(?:intl-[a-z]{2}/)?(track|album|playlist)/([A-Za-z0-9]+)"
+)
 
-    Returns (title, artist) or None on failure.
+
+def _scrape_spotify_og(url: str) -> tuple[str, str] | None:
+    """Scrape (title, artist) from a Spotify page's Open Graph tags.
+
+    Fallback path when the embed JSON is unavailable. No API key needed.
     """
     try:
         req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -228,55 +259,169 @@ def _scrape_spotify_track(url: str) -> tuple[str, str] | None:
         return None
 
 
+def _spotify_embed_entity(url: str) -> dict | None:
+    """Fetch and parse the Spotify embed page's `__NEXT_DATA__` entity dict.
+
+    Returns the entity (track/album/playlist) or None. No API key needed.
+    """
+    m = _SPOTIFY_ENTITY_RE.search(url)
+    if not m:
+        return None
+    etype, eid = m.group(1), m.group(2)
+    embed = f"https://open.spotify.com/embed/{etype}/{eid}"
+    try:
+        req = Request(embed, headers={"User-Agent": "Mozilla/5.0"})
+        with urlopen(req, timeout=20) as resp:
+            html = resp.read().decode("utf-8", errors="replace")
+    except Exception as e:
+        _log.warning("Spotify embed fetch error: %s", e)
+        return None
+
+    nm = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
+    if not nm:
+        return None
+    try:
+        return json.loads(nm.group(1))["props"]["pageProps"]["state"]["data"]["entity"]
+    except Exception as e:
+        _log.warning("Spotify embed parse error: %s", e)
+        return None
+
+
+def fetch_spotify_entries(url: str) -> list[dict]:
+    """List a Spotify album/playlist's tracks as [{title, duration, url}].
+
+    Each entry's `url` is a single-track open.spotify.com link so the caller can
+    queue individual tracks. Mirrors `fetch_playlist_entries` for YouTube.
+    """
+    entity = _spotify_embed_entity(url)
+    if not entity:
+        return []
+    out: list[dict] = []
+    for t in entity.get("trackList") or []:
+        title = (t.get("title") or "").strip()
+        if not title:
+            continue
+        artist = (t.get("subtitle") or "").strip()
+        uri = t.get("uri") or ""  # spotify:track:ID
+        tid = uri.split(":")[-1] if uri.startswith("spotify:track:") else ""
+        dur_ms = t.get("duration")
+        out.append({
+            "title": f"{artist} - {title}".strip(" -") if artist else title,
+            "duration": _fmt_duration(dur_ms / 1000) if dur_ms else "—",
+            "url": f"https://open.spotify.com/track/{tid}" if tid else "",
+        })
+    return out
+
+
+def _spotify_tracks(url: str) -> tuple[str | None, list[tuple[str, str]]]:
+    """Resolve a Spotify track/album/playlist URL to (collection_name, tracks).
+
+    `tracks` is a list of (title, artist). Uses the public embed page's
+    `__NEXT_DATA__` JSON — works for single tracks, albums and playlists with
+    no Spotify API credentials. Falls back to Open Graph scraping for a lone
+    track when the embed payload can't be parsed.
+    """
+    if not _SPOTIFY_ENTITY_RE.search(url):
+        og = _scrape_spotify_og(url)
+        return (None, [og]) if og else (None, [])
+
+    entity = _spotify_embed_entity(url)
+    if not entity:
+        og = _scrape_spotify_og(url)
+        return (None, [og]) if og else (None, [])
+
+    name = (entity.get("title") or entity.get("name") or "").strip() or None
+    tracks: list[tuple[str, str]] = []
+    track_list = entity.get("trackList") or []
+    if track_list:
+        for t in track_list:
+            title = (t.get("title") or "").strip()
+            artist = (t.get("subtitle") or "").strip()
+            if title:
+                tracks.append((title, artist))
+    else:
+        title = (entity.get("title") or "").strip()
+        artist = (entity.get("subtitle") or "").strip()
+        if title:
+            tracks.append((title, artist))
+    return name, tracks
+
+
 def download_spotify(
     url: str,
     audio_format: str = "mp3",
     output_dir: str | None = None,
     client_id: str = "",
     client_secret: str = "",
-) -> tuple[bool, str, str | None]:
-    """Download a Spotify track by scraping metadata then searching YouTube via yt-dlp.
+    cancel_check=None,
+    status_cb=None,
+) -> tuple[bool, str, list[str]]:
+    """Download a Spotify track, album or playlist.
 
+    Scrapes track metadata then searches YouTube via yt-dlp for each track.
     No Spotify API credentials required — avoids all rate-limit issues.
-    Returns (success, error_message, file_path).
+    Returns (success, message, file_paths).
     """
-    info = _scrape_spotify_track(url)
-    if not info:
-        return False, "Could not read track info from Spotify page.", None
-
-    track_title, artist = info
-    query = f"{artist} - {track_title}".strip(" -") if artist else track_title
-    print(f"Spotify: searching YouTube for: {query}")
+    _name, tracks = _spotify_tracks(url)
+    if not tracks:
+        return (
+            False,
+            "Could not read tracks from Spotify. Paste a track, album, or playlist link.",
+            [],
+        )
 
     fmt = audio_format if audio_format in ("mp3", "wav", "aac", "flac", "ogg", "opus", "m4a") else "mp3"
     output_template = (
         os.path.join(output_dir, "%(title)s.%(ext)s") if output_dir else "%(title)s.%(ext)s"
     )
 
-    final_path: list[str] = []
+    files: list[str] = []
+    errors: list[str] = []
+    last_error: str = ""
+    total = len(tracks)
 
-    def _post_hook(filepath: str) -> None:
-        final_path.append(filepath)
+    for i, (title, artist) in enumerate(tracks, 1):
+        if cancel_check and cancel_check():
+            break
+        query = f"{artist} - {title}".strip(" -") if artist else title
+        if status_cb:
+            status_cb(
+                f"[spotify] {i}/{total}: {query}" if total > 1
+                else f"[spotify] searching: {query}"
+            )
+        print(f"Spotify: searching YouTube for: {query}")
 
-    ydl_opts = {
-        "format": "bestaudio/best",
-        "outtmpl": output_template,
-        "quiet": True,
-        "postprocessors": [
-            {"key": "FFmpegExtractAudio", "preferredcodec": fmt, "preferredquality": "320"}
-        ],
-        "postprocessor_args": ["-loglevel", "error"],
-        "ffmpeg_location": os.path.dirname(ffmpeg_path),
-        "post_hooks": [_post_hook],
-    }
+        final_path: list[str] = []
+        ydl_opts = {
+            "format": "bestaudio/best",
+            "outtmpl": output_template,
+            "quiet": True,
+            "noplaylist": True,
+            "postprocessors": [
+                {"key": "FFmpegExtractAudio", "preferredcodec": fmt, "preferredquality": "320"}
+            ],
+            "postprocessor_args": ["-loglevel", "error"],
+            "ffmpeg_location": os.path.dirname(ffmpeg_path),
+            "post_hooks": [final_path.append],
+        }
+        try:
+            with YoutubeDL(ydl_opts) as ydl:
+                ydl.download([f"ytsearch1:{query}"])
+            if final_path:
+                files.append(final_path[-1])
+            else:
+                errors.append(query)
+                last_error = "no YouTube match found"
+        except Exception as e:
+            _log.warning("Spotify track download failed (%s): %s", query, e)
+            errors.append(query)
+            last_error = str(e)
 
-    try:
-        with YoutubeDL(ydl_opts) as ydl:
-            ydl.download([f"ytsearch1:{query}"])
-        fp = final_path[-1] if final_path else None
-        return True, "", fp
-    except Exception as e:
-        return False, str(e), None
+    if not files:
+        detail = f" ({last_error})" if last_error else ""
+        return False, f"No tracks could be downloaded from Spotify.{detail}", []
+    msg = "" if not errors else f"{len(errors)} of {total} track(s) failed."
+    return True, msg, files
 
 
 # ---------------------------------------------------------------------------
@@ -567,16 +712,30 @@ def download_media(
         error_code and warning are None for non-generic platforms.
     """
     if platform == "spotify":
-        print("Detected Spotify URL — using spotdl")
+        print("Detected Spotify URL — resolving via metadata + YouTube search")
         try:
             from core.settings import SettingsManager
             _s = SettingsManager.load()
             _cid, _csec = _s.spotify_client_id, _s.spotify_client_secret
         except Exception:
             _cid, _csec = "", ""
-        ok, err, fp = download_spotify(url, audio_format, output_dir, _cid, _csec)
+        ok, msg, files = download_spotify(
+            url, audio_format, output_dir, _cid, _csec,
+            cancel_check=cancel_check, status_cb=status_cb,
+        )
+        if not ok:
+            return {"success": False, "file_path": None, "file_size": None,
+                    "error_code": None, "warning": msg or None}
+        if len(files) > 1:
+            return {
+                "success": True, "file_path": output_dir or ".", "file_size": None,
+                "error_code": None, "warning": msg or None,
+                "is_playlist": True, "playlist_count": len(files),
+                "playlist_files": files,
+            }
+        fp = files[0] if files else None
         sz = os.path.getsize(fp) if fp and os.path.exists(fp) else None
-        return {"success": ok, "file_path": fp, "file_size": sz, "error_code": None, "warning": err or None}
+        return {"success": ok, "file_path": fp, "file_size": sz, "error_code": None, "warning": msg or None}
 
     url = normalize_url(url)
 
@@ -727,7 +886,10 @@ def download_media(
                 "error_code": None, "warning": sub_warning}
     except Exception as e:
         _log.error("Download error: %s", e)
-        return {"success": False, "file_path": None, "file_size": None, "error_code": None, "warning": None}
+        return {
+            "success": False, "file_path": None, "file_size": None,
+            "error_code": _classify_download_error(str(e)), "warning": None,
+        }
 
 
 # ---------------------------------------------------------------------------

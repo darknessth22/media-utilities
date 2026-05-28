@@ -38,7 +38,7 @@ except Exception as _mm_exc:  # ImportError or DLL load failure (OSError)
     _MULTIMEDIA_AVAILABLE = False
 
 from core.i18n import tr
-from core.downloader import download_media, fetch_playlist_entries, get_available_formats, get_available_subtitles, get_platform, get_preview_stream_url
+from core.downloader import download_media, fetch_playlist_entries, fetch_spotify_entries, get_available_formats, get_available_subtitles, get_platform, get_preview_stream_url
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 from gui.presets_bar import PresetsBar
@@ -54,6 +54,7 @@ _GENERIC_ERROR_MESSAGES: dict[str, str] = {
     "download_failed": "Download failed. Check the URL or your network.",
     "cancelled": "Download cancelled.",
     "unsupported_platform": "This site is not supported. Supported: YouTube, YouTube Music, Spotify, Facebook, Instagram, TikTok, Twitter/X, LinkedIn, Twitch.",
+    "unsupported_url": "yt-dlp couldn't recognize this link. For Facebook groups, open the specific video or post and copy its direct link (a profile or group page has no single video). Updating yt-dlp in Settings may also help.",
     # Codes emitted by core.downloader._classify_download_error
     "geo_blocked": "This video is not available in your region. Try a VPN or different cookies.",
     "paywall": "This video requires login, subscription, or age confirmation. Set cookies in Settings.",
@@ -313,7 +314,13 @@ class DownloadSection(QScrollArea):
         return card
 
     def _is_playlist_url(self, url: str) -> bool:
-        return bool(re.search(r'[?&]list=', url)) and ('youtube.com' in url or 'youtu.be' in url)
+        if re.search(r'[?&]list=', url) and ('youtube.com' in url or 'youtu.be' in url):
+            return True
+        # Spotify albums and playlists are multi-track collections.
+        return bool(re.search(r'open\.spotify\.com/(?:intl-[a-z]{2}/)?(?:album|playlist)/', url))
+
+    def _is_spotify_collection_url(self, url: str) -> bool:
+        return bool(re.search(r'open\.spotify\.com/(?:intl-[a-z]{2}/)?(?:album|playlist)/', url))
 
     def _build_playlist_card(self) -> QFrame:
         self._playlist_card = _card()
@@ -1006,7 +1013,8 @@ class DownloadSection(QScrollArea):
         self._deselect_all_btn.setVisible(False)
         self._download_selected_btn.setVisible(False)
         _url = url
-        worker = Worker(lambda: fetch_playlist_entries(_url))
+        _fetch = fetch_spotify_entries if self._is_spotify_collection_url(_url) else fetch_playlist_entries
+        worker = Worker(lambda: _fetch(_url))
         worker.signals.result.connect(self._on_playlist_loaded)
         worker.signals.error.connect(self._on_playlist_error)
         worker.start()

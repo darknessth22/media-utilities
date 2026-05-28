@@ -1,0 +1,13 @@
+# AI Photo Restore — runs on shared torch_runtime (CUDA variant).
+# torch + torchvision + numpy live in torch_runtime; --no-deps in registry.
+# Same packages as CPU variant — none of these ship CUDA-specific wheels.
+codeformer-pip==0.0.4
+einops==0.8.0
+lpips==0.1.4
+gdown==5.2.0
+onnxruntime==1.20.1
+zeroscratches==1.0.2
+huggingface-hub==0.26.0
+filelock==3.16.1
+fsspec==2024.10.0
+typing-extensions==4.12.2

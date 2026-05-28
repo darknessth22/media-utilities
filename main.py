@@ -68,6 +68,10 @@ from utils import model_manager
 _RECONCILE_RESULT = model_manager.reconcile_on_launch()
 model_manager.ensure_ai_packages_on_path()
 
+# Put any user-updated yt-dlp on sys.path before any import touches it.
+from utils.ytdlp_updater import activate_user_ytdlp
+activate_user_ytdlp()
+
 # Single-instance mutex — installer uses this name to detect a running instance.
 # If the mutex already exists, another Videl is running: bail out before any UI
 # (incl. splash) is created so a second instance cannot spawn a duplicate splash.

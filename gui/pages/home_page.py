@@ -60,6 +60,7 @@ _TOOL_COLOR: dict[str, str] = {
     "subtitles":        "#14B8A6",
     "transcript":       "#0891B2",
     "image_editor":     "#D946EF",
+    "photo_restore":    "#FB7185",
     "history":          "#6B7280",
 }
 
@@ -88,6 +89,7 @@ _TOOL_CATEGORY: dict[str, str] = {
     "subtitles": "video",
     "transcript": "audio",
     "image_editor": "image",
+    "photo_restore": "image",
 }
 
 # File-extension → tool routing for the home drop-zone. Picked so the most
@@ -131,7 +133,8 @@ _ALL_TOOLS_META: list[tuple[str, str, str, str, int]] = [
     ("subtitles",       "subtitles.svg",       "tool_subtitles_name",       "tool_subtitles_desc",      20),
     ("transcript",      "transcript.svg",      "tool_transcript_name",      "tool_transcript_desc",     21),
     ("image_editor",    "image_editor.svg",    "tool_image_editor_name",    "tool_image_editor_desc",   22),
-    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        23),
+    ("photo_restore",   "photo_restore.svg",   "tool_photo_restore_name",   "tool_photo_restore_desc",  23),
+    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        24),
 ]
 
 
