@@ -1,13 +1,12 @@
 name: Build Videl
 
 on:
+  # Release artifacts only build on version tags — one tag = one Win+Linux build.
+  # Plain branch pushes run tests via ci.yml, not the heavy build.
   push:
-    branches: [master, main, phase1/security-stability, 001-linux-build]
     tags: ['v*']
   workflow_dispatch:
 
-# Dedupe parallel runs: if a tag push and the branch push share the same SHA
-# (typical "push master + push tag" flow), keep only one in flight.
 concurrency:
   group: build-${{ github.sha }}
   cancel-in-progress: true

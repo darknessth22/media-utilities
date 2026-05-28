@@ -1,11 +1,9 @@
 name: Build Android APK
 
 on:
+  # Android APK builds on version tags too — one tag = one APK, attached to the
+  # same release as the Windows/Linux assets.
   push:
-    branches: [mobile-android]
-    paths:
-      - 'mobile/**'
-      - '.github/workflows/android.yml'
     tags: ['v*']
   workflow_dispatch:
 
