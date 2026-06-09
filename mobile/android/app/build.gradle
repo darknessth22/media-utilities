@@ -22,21 +22,12 @@ android {
 
     signingConfigs {
         release {
-            def ksFile = System.getenv("KEYSTORE_PATH")
-            def ksPass = System.getenv("KEYSTORE_PASSWORD")
-            def kPass  = System.getenv("KEY_PASSWORD")
-            if (ksFile && new File(ksFile).exists()) {
-                storeFile     file(ksFile)
-                storePassword ksPass
-                keyAlias      "videl"
-                keyPassword   kPass ?: ksPass
-            } else {
-                // fallback to debug signing for local dev builds
-                storeFile     signingConfigs.debug.storeFile
-                storePassword signingConfigs.debug.storePassword
-                keyAlias      signingConfigs.debug.keyAlias
-                keyPassword   signingConfigs.debug.keyPassword
-            }
+            def ksPath = System.getenv("KEYSTORE_PATH") ?: ""
+            def ksPass = System.getenv("KEYSTORE_PASSWORD") ?: ""
+            storeFile     ksPath ? file(ksPath) : signingConfigs.debug.storeFile
+            storePassword ksPass ?: signingConfigs.debug.storePassword
+            keyAlias      ksPass ? "videl" : signingConfigs.debug.keyAlias
+            keyPassword   ksPass ?: signingConfigs.debug.keyPassword
         }
     }
 
