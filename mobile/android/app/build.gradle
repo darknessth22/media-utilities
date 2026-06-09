@@ -20,6 +20,26 @@ android {
         jvmTarget = "17"
     }
 
+    signingConfigs {
+        release {
+            def ksFile = System.getenv("KEYSTORE_PATH")
+            def ksPass = System.getenv("KEYSTORE_PASSWORD")
+            def kPass  = System.getenv("KEY_PASSWORD")
+            if (ksFile && new File(ksFile).exists()) {
+                storeFile     file(ksFile)
+                storePassword ksPass
+                keyAlias      "videl"
+                keyPassword   kPass ?: ksPass
+            } else {
+                // fallback to debug signing for local dev builds
+                storeFile     signingConfigs.debug.storeFile
+                storePassword signingConfigs.debug.storePassword
+                keyAlias      signingConfigs.debug.keyAlias
+                keyPassword   signingConfigs.debug.keyPassword
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.videl.mobile"
         minSdk = 29
@@ -40,7 +60,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.debug
+            signingConfig = signingConfigs.release
             minifyEnabled false
             shrinkResources false
         }
