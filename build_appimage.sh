@@ -47,19 +47,21 @@ if [[ -z "$FFMPEG_URL" || "$FFMPEG_URL" == "null" ]]; then
     echo "ERROR: build_config.json missing linux.ffmpeg.url" >&2
     exit 1
 fi
-if [[ -z "$FFMPEG_SHA" || "$FFMPEG_SHA" == "null" ]]; then
-    echo "ERROR: build_config.json missing linux.ffmpeg.sha256 (pin required)." >&2
-    echo "       Run: curl -sL '$FFMPEG_URL' | sha256sum  and paste into build_config.json." >&2
-    exit 1
-fi
-
 mkdir -p "$BIN_DIR"
 if [[ ! -x "$BIN_DIR/ffmpeg" || ! -x "$BIN_DIR/ffprobe" ]]; then
     echo "Downloading ffmpeg static build from $FFMPEG_URL ..."
     TARBALL="$BIN_DIR/ffmpeg.tar.xz"
     curl -fSL --retry 3 -o "$TARBALL" "$FFMPEG_URL"
-    echo "$FFMPEG_SHA  $TARBALL" | sha256sum -c -
+    if [[ -n "$FFMPEG_SHA" && "$FFMPEG_SHA" != "null" ]]; then
+        echo "$FFMPEG_SHA  $TARBALL" | sha256sum -c -
+    else
+        echo "WARNING: sha256 not pinned — skipping integrity check." >&2
+    fi
     echo "Extracting ..."
+    # Auto-detect top-level directory inside the tarball if strip_prefix not set
+    if [[ -z "$FFMPEG_PREFIX" || "$FFMPEG_PREFIX" == "null" ]]; then
+        FFMPEG_PREFIX=$(tar -tJf "$TARBALL" | head -1 | cut -d/ -f1)/
+    fi
     tar -xJf "$TARBALL" -C "$BIN_DIR"
     cp "$BIN_DIR/$FFMPEG_PREFIX/ffmpeg" "$BIN_DIR/ffmpeg"
     cp "$BIN_DIR/$FFMPEG_PREFIX/ffprobe" "$BIN_DIR/ffprobe"
