@@ -156,7 +156,7 @@ class _Handle extends StatelessWidget {
 
 // ── Audio-only player card ────────────────────────────────────────────────────
 class _AudioPlayer extends StatefulWidget {
-  const _AudioPlayer({required this.path, required this.onPositionChanged});
+  const _AudioPlayer({super.key, required this.path, required this.onPositionChanged});
   final String path;
   final ValueChanged<Duration> onPositionChanged;
   @override
@@ -358,9 +358,6 @@ class _TrimPageState extends State<TrimPage> {
   double _pct = 0;
   String _status = 'Pick a video or audio file';
 
-  final _audioKey = GlobalKey<_AudioPlayerState>();
-  final _videoKey = GlobalKey<VidelScrubberState>();
-
   Future<bool> _ensureStorage() async {
     if (await Permission.manageExternalStorage.isGranted) return true;
     final r = await Permission.manageExternalStorage.request();
@@ -394,19 +391,7 @@ class _TrimPageState extends State<TrimPage> {
   }
 
   void _onPositionChanged(Duration d) {
-    setState(() {
-      _pos = d;
-      if (_mediaDur.inMilliseconds == 0 && d > Duration.zero) {
-        // fallback: grab duration from player if probe returned 0
-        final dur = _isAudio
-            ? _audioKey.currentState?.duration
-            : _videoKey.currentState?.duration;
-        if (dur != null && dur > Duration.zero) {
-          _mediaDur = dur;
-          if (_endSec <= 1) _endSec = dur.inSeconds.toDouble();
-        }
-      }
-    });
+    setState(() => _pos = d);
   }
 
   Future<void> _run() async {
@@ -501,13 +486,11 @@ class _TrimPageState extends State<TrimPage> {
             )
           else if (_isAudio)
             _AudioPlayer(
-              key: _audioKey,
               path: _input!,
               onPositionChanged: _onPositionChanged,
             )
           else
             VidelScrubber(
-              key: _videoKey,
               path: _input!,
               onPositionChanged: _onPositionChanged,
             ),
