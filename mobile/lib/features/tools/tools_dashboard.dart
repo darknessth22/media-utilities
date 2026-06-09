@@ -16,7 +16,7 @@ class _Tool {
 final _tools = <_Tool>[
   _Tool(Icons.cloud_download_rounded, 'Downloader', 'yt-dlp · video & MP3',
       (_) => const DownloaderPage(), VidelColors.accent),
-  _Tool(Icons.content_cut_rounded, 'Trim', 'cut start / end',
+  _Tool(Icons.content_cut_rounded, 'Trim', 'video & audio · cut start / end',
       (_) => const TrimPage(), const Color(0xFFEAB308)),
   _Tool(Icons.crop_rounded, 'Crop', 'rectangle crop',
       (_) => const CropPage(), const Color(0xFFEC4899)),

@@ -31,6 +31,316 @@ String _hms(int s) {
 // ────────────────────────────────────────────────────────────────────────
 // TRIM
 
+const _audioExts = {'mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a', 'opus', 'wma'};
+const _videoExts = {'mp4', 'mkv', 'avi', 'mov', 'webm', 'flv', 'ts', 'm4v'};
+
+bool _isAudioFile(String path) =>
+    _audioExts.contains(p.extension(path).toLowerCase().replaceFirst('.', ''));
+
+// ── Trim range bar ────────────────────────────────────────────────────────────
+// Shows a draggable start/end handle over the full duration.
+class _TrimRangeBar extends StatefulWidget {
+  const _TrimRangeBar({
+    required this.durationSec,
+    required this.startSec,
+    required this.endSec,
+    required this.currentSec,
+    required this.onStartChanged,
+    required this.onEndChanged,
+  });
+  final double durationSec;
+  final double startSec;
+  final double endSec;
+  final double currentSec;
+  final ValueChanged<double> onStartChanged;
+  final ValueChanged<double> onEndChanged;
+
+  @override
+  State<_TrimRangeBar> createState() => _TrimRangeBarState();
+}
+
+class _TrimRangeBarState extends State<_TrimRangeBar> {
+  static const _handleW = 18.0;
+  static const _barH = 36.0;
+
+  double _clamp(double v) => v.clamp(0.0, widget.durationSec);
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.durationSec <= 0) return const SizedBox(height: _barH);
+    return LayoutBuilder(builder: (ctx, box) {
+      final trackW = box.maxWidth - _handleW * 2;
+      final startFrac = (widget.startSec / widget.durationSec).clamp(0.0, 1.0);
+      final endFrac = (widget.endSec / widget.durationSec).clamp(0.0, 1.0);
+      final curFrac = (widget.currentSec / widget.durationSec).clamp(0.0, 1.0);
+
+      return SizedBox(
+        height: _barH,
+        child: Stack(alignment: Alignment.centerLeft, children: [
+          // Full track background
+          Positioned(
+            left: _handleW / 2,
+            right: _handleW / 2,
+            child: Container(
+              height: 6,
+              decoration: BoxDecoration(
+                color: VidelColors.border,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+          ),
+          // Selected region highlight
+          Positioned(
+            left: _handleW / 2 + startFrac * trackW,
+            width: (endFrac - startFrac) * trackW,
+            child: Container(
+              height: 6,
+              color: VidelColors.accent.withOpacity(0.55),
+            ),
+          ),
+          // Playhead
+          Positioned(
+            left: _handleW / 2 + curFrac * trackW - 1,
+            child: Container(width: 2, height: _barH, color: Colors.white54),
+          ),
+          // Start handle
+          Positioned(
+            left: startFrac * trackW,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragUpdate: (d) {
+                final newFrac = ((startFrac * trackW + d.delta.dx) / trackW)
+                    .clamp(0.0, endFrac - 0.01);
+                widget.onStartChanged(
+                    _clamp(newFrac * widget.durationSec));
+              },
+              child: _Handle(icon: Icons.chevron_right_rounded),
+            ),
+          ),
+          // End handle
+          Positioned(
+            left: endFrac * trackW,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragUpdate: (d) {
+                final newFrac = ((endFrac * trackW + d.delta.dx) / trackW)
+                    .clamp(startFrac + 0.01, 1.0);
+                widget.onEndChanged(
+                    _clamp(newFrac * widget.durationSec));
+              },
+              child: _Handle(icon: Icons.chevron_left_rounded),
+            ),
+          ),
+        ]),
+      );
+    });
+  }
+}
+
+class _Handle extends StatelessWidget {
+  const _Handle({required this.icon});
+  final IconData icon;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 18,
+      height: 36,
+      decoration: BoxDecoration(
+        color: VidelColors.accent,
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Icon(icon, size: 14, color: Colors.white),
+    );
+  }
+}
+
+// ── Audio-only player card ────────────────────────────────────────────────────
+class _AudioPlayer extends StatefulWidget {
+  const _AudioPlayer({required this.path, required this.onPositionChanged});
+  final String path;
+  final ValueChanged<Duration> onPositionChanged;
+  @override
+  State<_AudioPlayer> createState() => _AudioPlayerState();
+}
+
+class _AudioPlayerState extends State<_AudioPlayer> {
+  VideoPlayerController? _vp; // video_player handles audio too
+  Duration _pos = Duration.zero;
+  Duration _dur = Duration.zero;
+  bool _loaded = false;
+
+  Duration get position => _pos;
+  Duration get duration => _dur;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AudioPlayer old) {
+    super.didUpdateWidget(old);
+    if (old.path != widget.path) {
+      _vp?.dispose();
+      _loaded = false;
+      _init();
+    }
+  }
+
+  Future<void> _init() async {
+    final c = VideoPlayerController.file(File(widget.path));
+    await c.initialize();
+    c.setVolume(1.0);
+    c.addListener(() {
+      if (!mounted) return;
+      setState(() => _pos = c.value.position);
+      widget.onPositionChanged(c.value.position);
+    });
+    setState(() {
+      _vp = c;
+      _dur = c.value.duration;
+      _loaded = true;
+    });
+  }
+
+  @override
+  void dispose() {
+    _vp?.dispose();
+    super.dispose();
+  }
+
+  String _fmt(Duration d) {
+    final s = d.inSeconds;
+    final h = s ~/ 3600;
+    final m = (s % 3600) ~/ 60;
+    final sec = s % 60;
+    final t =
+        '${m.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}';
+    return h > 0 ? '$h:$t' : t;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) {
+      return Container(
+        height: 80,
+        decoration: BoxDecoration(
+          color: VidelColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: VidelColors.border),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    final playing = _vp?.value.isPlaying ?? false;
+    final frac = _dur.inMilliseconds == 0
+        ? 0.0
+        : (_pos.inMilliseconds / _dur.inMilliseconds).clamp(0.0, 1.0);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: VidelColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: VidelColors.border),
+      ),
+      child: Column(children: [
+        // Waveform placeholder + play button row
+        Row(children: [
+          IconButton(
+            onPressed: () => playing ? _vp!.pause() : _vp!.play(),
+            icon: Icon(
+              playing
+                  ? Icons.pause_circle_filled_rounded
+                  : Icons.play_circle_filled_rounded,
+              size: 40,
+              color: VidelColors.accent,
+            ),
+            padding: EdgeInsets.zero,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Simple waveform bar (visual placeholder — real waveform
+                  // would need ffmpeg thumbnail extraction)
+                  _WaveformBar(progress: frac),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(_fmt(_pos),
+                          style: const TextStyle(
+                              fontSize: 10,
+                              color: VidelColors.textSecondary,
+                              fontFamily: 'monospace')),
+                      Text(_fmt(_dur),
+                          style: const TextStyle(
+                              fontSize: 10,
+                              color: VidelColors.textSecondary,
+                              fontFamily: 'monospace')),
+                    ],
+                  ),
+                ]),
+          ),
+        ]),
+        // Scrub slider
+        SliderTheme(
+          data: SliderThemeData(
+              trackHeight: 2,
+              overlayShape: SliderComponentShape.noOverlay,
+              thumbShape:
+                  const RoundSliderThumbShape(enabledThumbRadius: 6)),
+          child: Slider(
+            value: frac,
+            onChanged: (v) {
+              final pos =
+                  Duration(milliseconds: (v * _dur.inMilliseconds).toInt());
+              _vp?.seekTo(pos);
+            },
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _WaveformBar extends StatelessWidget {
+  const _WaveformBar({required this.progress});
+  final double progress;
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (_, box) {
+      const barCount = 40;
+      final barW = (box.maxWidth - barCount * 2) / barCount;
+      final playedBars = (progress * barCount).round();
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: List.generate(barCount, (i) {
+          // Pseudo-random heights for visual variety (deterministic)
+          final h = 8.0 + 16.0 * (0.4 + 0.6 * math.sin(i * 1.3 + i * 0.7).abs());
+          return Container(
+            width: barW,
+            height: h,
+            margin: const EdgeInsets.symmetric(horizontal: 1),
+            decoration: BoxDecoration(
+              color: i < playedBars
+                  ? VidelColors.accent
+                  : VidelColors.border,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          );
+        }),
+      );
+    });
+  }
+}
+
+// ── TrimPage ─────────────────────────────────────────────────────────────────
+
 class TrimPage extends StatefulWidget {
   const TrimPage({super.key});
   @override
@@ -39,11 +349,17 @@ class TrimPage extends StatefulWidget {
 
 class _TrimPageState extends State<TrimPage> {
   String? _input;
+  bool _isAudio = false;
   Duration _pos = Duration.zero;
-  int _start = 0, _end = 60;
+  Duration _mediaDur = Duration.zero;
+  double _startSec = 0;
+  double _endSec = 60;
   bool _busy = false;
   double _pct = 0;
-  String _status = 'Pick a video';
+  String _status = 'Pick a video or audio file';
+
+  final _audioKey = GlobalKey<_AudioPlayerState>();
+  final _videoKey = GlobalKey<VidelScrubberState>();
 
   Future<bool> _ensureStorage() async {
     if (await Permission.manageExternalStorage.isGranted) return true;
@@ -54,11 +370,42 @@ class _TrimPageState extends State<TrimPage> {
   }
 
   Future<void> _pick() async {
-    final r = await FilePicker.platform.pickFiles(type: FileType.video);
+    final r = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: [
+        ..._videoExts,
+        ..._audioExts,
+      ],
+    );
     if (r == null) return;
+    final path = r.files.single.path!;
+    final audio = _isAudioFile(path);
+    // Probe duration so we can initialise end handle correctly
+    final durSec = await FfmpegRunner.duration(path);
     setState(() {
-      _input = r.files.single.path;
-      _status = p.basename(_input!);
+      _input = path;
+      _isAudio = audio;
+      _pos = Duration.zero;
+      _mediaDur = Duration(milliseconds: (durSec * 1000).toInt());
+      _startSec = 0;
+      _endSec = durSec > 0 ? durSec : 60;
+      _status = p.basename(path);
+    });
+  }
+
+  void _onPositionChanged(Duration d) {
+    setState(() {
+      _pos = d;
+      if (_mediaDur.inMilliseconds == 0 && d > Duration.zero) {
+        // fallback: grab duration from player if probe returned 0
+        final dur = _isAudio
+            ? _audioKey.currentState?.duration
+            : _videoKey.currentState?.duration;
+        if (dur != null && dur > Duration.zero) {
+          _mediaDur = dur;
+          if (_endSec <= 1) _endSec = dur.inSeconds.toDouble();
+        }
+      }
     });
   }
 
@@ -68,10 +415,25 @@ class _TrimPageState extends State<TrimPage> {
       setState(() => _status = 'Storage permission required');
       return;
     }
-    final outDir = '/storage/emulated/0/Movies/Videl';
+    final ext = _isAudio
+        ? p.extension(_input!).toLowerCase().replaceFirst('.', '')
+        : 'mp4';
+    final subDir =
+        _isAudio ? 'Music/Videl' : 'Movies/Videl';
+    final outDir = '/storage/emulated/0/$subDir';
     await Directory(outDir).create(recursive: true);
-    final out =
-        p.join(outDir, '${p.basenameWithoutExtension(_input!)}_trim.mp4');
+    final out = p.join(
+        outDir, '${p.basenameWithoutExtension(_input!)}_trim.$ext');
+
+    final startInt = _startSec.toInt();
+    final endInt = _endSec.toInt();
+    final dur = (endInt - startInt).clamp(1, 999999).toDouble();
+
+    // Stream-copy for both audio and video — fast & lossless.
+    // For audio the container is preserved so -c copy works for all formats.
+    final cmd =
+        '-y -ss $startInt -to $endInt -i "$_input" -c copy "$out"';
+
     setState(() {
       _busy = true;
       _pct = 0;
@@ -80,16 +442,14 @@ class _TrimPageState extends State<TrimPage> {
     await PythonRunner.fgStart();
     String s = 'success';
     try {
-      final dur = (_end - _start).clamp(1, 99999).toDouble();
-      await FfmpegRunner.run(
-        '-y -ss $_start -to $_end -i "$_input" -c copy "$out"',
-        durationSec: dur,
-        onProgress: (pp) {
-          if (!mounted) return;
-          setState(() => _pct = pp);
-          PythonRunner.fgUpdate(title: 'Trim', text: 'Trimming', pct: pp.toInt());
-        },
-      );
+      await FfmpegRunner.run(cmd,
+          durationSec: dur,
+          onProgress: (pp) {
+            if (!mounted) return;
+            setState(() => _pct = pp);
+            PythonRunner.fgUpdate(
+                title: 'Trim', text: 'Trimming', pct: pp.toInt());
+          });
       await PythonRunner.mediaScan(out);
       setState(() => _status = 'Saved · ${p.basename(out)}');
     } catch (e) {
@@ -108,12 +468,17 @@ class _TrimPageState extends State<TrimPage> {
 
   @override
   Widget build(BuildContext context) {
-    final cur = _pos.inSeconds;
+    final curSec = _pos.inMilliseconds / 1000.0;
+    final durSec = _mediaDur.inMilliseconds / 1000.0;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Trim')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+          // ── Preview area ────────────────────────────────────────────
           if (_input == null)
             Container(
               height: 180,
@@ -123,60 +488,120 @@ class _TrimPageState extends State<TrimPage> {
                 border: Border.all(color: VidelColors.border),
               ),
               child: const Center(
-                child: Icon(Icons.movie_outlined,
-                    size: 64, color: VidelColors.border),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.cut_rounded, size: 48, color: VidelColors.border),
+                    SizedBox(height: 8),
+                    Text('Pick a video or audio file',
+                        style: TextStyle(color: VidelColors.textMuted)),
+                  ],
+                ),
               ),
+            )
+          else if (_isAudio)
+            _AudioPlayer(
+              key: _audioKey,
+              path: _input!,
+              onPositionChanged: _onPositionChanged,
             )
           else
             VidelScrubber(
+              key: _videoKey,
               path: _input!,
-              onPositionChanged: (d) => setState(() => _pos = d),
+              onPositionChanged: _onPositionChanged,
             ),
+
           const SizedBox(height: 12),
+
+          // ── Trim range bar ──────────────────────────────────────────
+          if (_input != null) ...[
+            _TrimRangeBar(
+              durationSec: durSec,
+              startSec: _startSec,
+              endSec: _endSec,
+              currentSec: curSec,
+              onStartChanged: (v) => setState(() => _startSec = v),
+              onEndChanged: (v) => setState(() => _endSec = v),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(_hms(_startSec.toInt()),
+                    style: const TextStyle(
+                        fontSize: 11,
+                        color: VidelColors.accent,
+                        fontFamily: 'monospace')),
+                Text(
+                    'Length: ${_hms((_endSec - _startSec).clamp(0, 999999).toInt())}',
+                    style: const TextStyle(
+                        fontSize: 11, color: VidelColors.textSecondary)),
+                Text(_hms(_endSec.toInt()),
+                    style: const TextStyle(
+                        fontSize: 11,
+                        color: VidelColors.accent,
+                        fontFamily: 'monospace')),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // ── File picker ─────────────────────────────────────────────
           OutlinedButton.icon(
-            onPressed: _pick,
-            icon: const Icon(Icons.video_file_outlined),
-            label: Text(_input == null ? 'Pick video' : 'Change video'),
+            onPressed: _busy ? null : _pick,
+            icon: const Icon(Icons.file_open_outlined),
+            label: Text(_input == null
+                ? 'Pick video / audio'
+                : 'Change file'),
           ),
           const SizedBox(height: 12),
+
+          // ── Time cards ──────────────────────────────────────────────
           Row(children: [
             Expanded(
               child: _TimeCard(
                 label: 'Start',
-                seconds: _start,
+                seconds: _startSec.toInt(),
                 onUseCurrent: _input == null
                     ? null
-                    : () => setState(() => _start = cur),
-                onChanged: (v) => setState(() => _start = v),
+                    : () => setState(
+                        () => _startSec = curSec.clamp(0, _endSec - 1)),
+                onChanged: (v) => setState(
+                    () => _startSec = v.toDouble().clamp(0, _endSec - 1)),
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
               child: _TimeCard(
                 label: 'End',
-                seconds: _end,
+                seconds: _endSec.toInt(),
                 onUseCurrent: _input == null
                     ? null
-                    : () => setState(() => _end = cur),
-                onChanged: (v) => setState(() => _end = v),
+                    : () => setState(() =>
+                        _endSec = curSec.clamp(_startSec + 1, durSec)),
+                onChanged: (v) => setState(() =>
+                    _endSec = v.toDouble().clamp(_startSec + 1, durSec > 0 ? durSec : 999999)),
               ),
             ),
           ]),
-          const SizedBox(height: 6),
-          Text('Length: ${_hms((_end - _start).clamp(0, 99999))}',
-              style: const TextStyle(
-                  color: VidelColors.textSecondary, fontSize: 12)),
+
           const SizedBox(height: 16),
+
+          // ── Action button ───────────────────────────────────────────
           ElevatedButton.icon(
             onPressed: (_busy || _input == null) ? null : _run,
             icon: const Icon(Icons.content_cut_rounded),
             label: const Text('Trim'),
           ),
           const SizedBox(height: 12),
-          if (_busy) LinearProgressIndicator(value: _pct == 0 ? null : _pct / 100),
+          if (_busy)
+            LinearProgressIndicator(
+                value: _pct == 0 ? null : _pct / 100),
           const SizedBox(height: 6),
           Text(_status,
-              style: const TextStyle(color: VidelColors.textSecondary)),
+              style:
+                  const TextStyle(color: VidelColors.textSecondary)),
         ]),
       ),
     );
@@ -184,11 +609,12 @@ class _TrimPageState extends State<TrimPage> {
 }
 
 class _TimeCard extends StatelessWidget {
-  const _TimeCard(
-      {required this.label,
-      required this.seconds,
-      required this.onUseCurrent,
-      required this.onChanged});
+  const _TimeCard({
+    required this.label,
+    required this.seconds,
+    required this.onUseCurrent,
+    required this.onChanged,
+  });
   final String label;
   final int seconds;
   final VoidCallback? onUseCurrent;
@@ -215,14 +641,15 @@ class _TimeCard extends StatelessWidget {
           keyboardType: TextInputType.number,
           style: const TextStyle(
               fontWeight: FontWeight.w700, fontFamily: 'monospace'),
-          decoration: const InputDecoration(
-              isDense: true, suffixText: 's'),
+          decoration:
+              const InputDecoration(isDense: true, suffixText: 's'),
           onChanged: (v) => onChanged(int.tryParse(v) ?? seconds),
         ),
         TextButton.icon(
           onPressed: onUseCurrent,
           icon: const Icon(Icons.flag_rounded, size: 14),
-          label: const Text('Use current', style: TextStyle(fontSize: 11)),
+          label:
+              const Text('Use current', style: TextStyle(fontSize: 11)),
           style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               minimumSize: const Size(0, 30)),
