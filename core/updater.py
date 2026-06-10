@@ -118,16 +118,18 @@ class UpdateChecker(QThread):
             _log.debug("UpdateChecker: silent fail (%s)", exc)
             return
 
-        tag = (payload.get("tag_name") or "").lstrip("vV").strip()
+        raw_tag = (payload.get("tag_name") or "").lstrip("vV").strip()
         html_url = payload.get("html_url") or STOREFRONT_URL
-        if not tag:
+        if not raw_tag:
             return
 
+        # Strip non-numeric suffixes like "-desktop", "-rc1" that PEP 440 rejects.
+        tag = raw_tag.split("-")[0]
         try:
             if Version(tag) <= Version(APP_VERSION):
                 return
         except InvalidVersion:
-            _log.debug("UpdateChecker: bad tag %r", tag)
+            _log.debug("UpdateChecker: bad tag %r", raw_tag)
             return
 
         self.update_available.emit(tag, html_url)
