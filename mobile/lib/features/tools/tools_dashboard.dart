@@ -20,7 +20,7 @@ final _tools = <_Tool>[
       (_) => const TrimPage(), const Color(0xFFEAB308)),
   _Tool(Icons.crop_rounded, 'Crop', 'rectangle crop',
       (_) => const CropPage(), const Color(0xFFEC4899)),
-  _Tool(Icons.swap_horiz_rounded, 'Convert', 'mp4 / mov / mkv / webm',
+  _Tool(Icons.swap_horiz_rounded, 'Convert', 'video · audio · image',
       (_) => const ConvertPage(), const Color(0xFF06B6D4)),
   _Tool(Icons.merge_rounded, 'Merge', 'concat videos',
       (_) => const MergePage(), const Color(0xFFA855F7)),

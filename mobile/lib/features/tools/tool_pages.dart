@@ -884,6 +884,44 @@ class _CropPageState extends State<CropPage> {
 // ────────────────────────────────────────────────────────────────────────
 // CONVERT FORMAT
 
+// ── Convert format tables ─────────────────────────────────────────────────────
+
+const _cvtVideoFmts = ['mp4', 'mkv', 'mov', 'webm', 'avi'];
+const _cvtAudioFmts = ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'];
+const _cvtImageFmts = ['jpg', 'png', 'bmp', 'gif'];
+
+const _cvtVideoExts = {
+  'mp4', 'mkv', 'avi', 'mov', 'webm', 'flv', 'ts', 'm4v'
+};
+const _cvtAudioExts = {
+  'mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a', 'opus', 'wma'
+};
+const _cvtImageExts = {'jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp'};
+
+String _cvtDetectType(String path) {
+  final ext = p.extension(path).toLowerCase().replaceFirst('.', '');
+  if (_cvtVideoExts.contains(ext)) return 'video';
+  if (_cvtAudioExts.contains(ext)) return 'audio';
+  if (_cvtImageExts.contains(ext)) return 'image';
+  return 'unknown';
+}
+
+/// Build FFmpeg command for audio/video conversion.
+String _cvtFfmpegCmd(String input, String output, String targetFmt) {
+  final isWebm = targetFmt == 'webm';
+  final isAudioOut = _cvtAudioFmts.contains(targetFmt);
+  final srcIsVideo = _cvtVideoExts.contains(
+    p.extension(input).toLowerCase().replaceFirst('.', ''),
+  );
+  if (isWebm) {
+    return '-y -i "$input" -c:v libvpx-vp9 -c:a libopus "$output"';
+  }
+  if (srcIsVideo && isAudioOut) {
+    return '-y -i "$input" -vn "$output"';
+  }
+  return '-y -i "$input" -c copy "$output"';
+}
+
 class ConvertPage extends StatefulWidget {
   const ConvertPage({super.key});
   @override
@@ -891,31 +929,258 @@ class ConvertPage extends StatefulWidget {
 }
 
 class _ConvertPageState extends State<ConvertPage> {
-  String _target = 'mp4';
-  static const _exts = ['mp4', 'mov', 'mkv', 'webm'];
+  String? _input;
+  String _mediaType = 'unknown';
+  String _target = '';
+  bool _busy = false;
+  double _pct = 0;
+  String _status = 'Pick a file to begin';
+
+  Future<bool> _ensureStorage() async {
+    if (await Permission.manageExternalStorage.isGranted) return true;
+    final r = await Permission.manageExternalStorage.request();
+    if (r.isGranted) return true;
+    if (r.isPermanentlyDenied) await openAppSettings();
+    return false;
+  }
+
+  Future<void> _pick() async {
+    final r = await FilePicker.platform.pickFiles(type: FileType.any);
+    if (r == null) return;
+    final path = r.files.first.path!;
+    final mt = _cvtDetectType(path);
+    String defaultTarget = '';
+    if (mt == 'video') defaultTarget = 'mp4';
+    if (mt == 'audio') defaultTarget = 'mp3';
+    if (mt == 'image') defaultTarget = 'jpg';
+    setState(() {
+      _input = path;
+      _mediaType = mt;
+      _target = defaultTarget;
+      _status = p.basename(path);
+    });
+  }
+
+  Future<void> _run() async {
+    if (_input == null || _target.isEmpty) return;
+    if (_mediaType == 'unknown') {
+      setState(() => _status = 'Unsupported file type');
+      return;
+    }
+    if (!await _ensureStorage()) {
+      setState(() => _status = 'Storage permission required');
+      return;
+    }
+
+    final base = p.basenameWithoutExtension(_input!);
+    final String outDir;
+    if (_mediaType == 'video') {
+      outDir = '/storage/emulated/0/Movies/Videl';
+    } else if (_mediaType == 'audio') {
+      outDir = '/storage/emulated/0/Music/Videl';
+    } else {
+      outDir = '/storage/emulated/0/Pictures/Videl';
+    }
+    await Directory(outDir).create(recursive: true);
+    final out = p.join(outDir, '${base}_$_target.$_target');
+
+    setState(() {
+      _busy = true;
+      _pct = 0;
+      _status = 'Converting...';
+    });
+    await PythonRunner.fgStart();
+    String jobStatus = 'success';
+    try {
+      if (_mediaType == 'image') {
+        await _convertImage(_input!, out, _target);
+      } else {
+        final cmd = _cvtFfmpegCmd(_input!, out, _target);
+        final dur = await FfmpegRunner.duration(_input!);
+        await FfmpegRunner.run(cmd, durationSec: dur, onProgress: (prog) {
+          if (!mounted) return;
+          setState(() => _pct = prog);
+          PythonRunner.fgUpdate(title: 'Convert', text: 'Converting', pct: prog.toInt());
+        });
+      }
+      await PythonRunner.mediaScan(out);
+      setState(() => _status = 'Saved · ${p.basename(out)}');
+    } catch (e) {
+      jobStatus = 'failed';
+      setState(() => _status = 'Failed: $e');
+    } finally {
+      await PythonRunner.fgStop();
+      await RecentJobs.add(RecentJob(
+        tool: 'convert',
+        input: _input!,
+        output: jobStatus == 'success' ? out : '',
+        status: jobStatus,
+      ));
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _convertImage(String src, String out, String fmt) async {
+    final bytes = await File(src).readAsBytes();
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) throw Exception('Could not decode image');
+    final List<int> encoded;
+    switch (fmt) {
+      case 'jpg':
+        encoded = img.encodeJpg(decoded, quality: 92);
+        break;
+      case 'png':
+        encoded = img.encodePng(decoded);
+        break;
+      case 'gif':
+        encoded = img.encodeGif(decoded);
+        break;
+      case 'bmp':
+        encoded = img.encodeBmp(decoded);
+        break;
+      default:
+        encoded = img.encodeJpg(decoded, quality: 92);
+    }
+    await File(out).writeAsBytes(encoded);
+  }
+
+  List<String> get _formats {
+    if (_mediaType == 'video') return _cvtVideoFmts;
+    if (_mediaType == 'audio') return _cvtAudioFmts;
+    if (_mediaType == 'image') return _cvtImageFmts;
+    return [];
+  }
 
   @override
   Widget build(BuildContext context) {
-    return ToolShell(
-      title: 'Convert',
-      icon: Icons.swap_horiz_rounded,
-      toolKey: 'convert',
-      outputExt: _target,
-      outputDir: 'Movies/Videl',
-      suffix: '_$_target',
-      buildCommand: (i, o) => _target == 'webm'
-          ? '-y -i "$i" -c:v libvpx-vp9 -c:a libopus "$o"'
-          : '-y -i "$i" -c copy "$o"',
-      paramsBuilder: (ctx) => Wrap(
-        spacing: 8,
-        children: _exts
-            .map((e) => ChoiceChip(
-                  label: Text(e.toUpperCase()),
-                  selected: _target == e,
-                  selectedColor: VidelColors.accent.withOpacity(0.3),
-                  onSelected: (_) => setState(() => _target = e),
-                ))
-            .toList(),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Convert')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          // Hero
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [
+                VidelColors.accent.withOpacity(0.15),
+                VidelColors.surface,
+              ]),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: VidelColors.border),
+            ),
+            child: Row(children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                      colors: [VidelColors.accent, VidelColors.accentPressed]),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.swap_horiz_rounded, size: 26, color: Colors.white),
+              ),
+              const SizedBox(width: 14),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Convert',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                Text(
+                  _mediaType == 'unknown' ? 'video · audio · image' : _mediaType,
+                  style: const TextStyle(
+                      fontSize: 12, color: VidelColors.textSecondary),
+                ),
+              ]),
+            ]),
+          ),
+          const SizedBox(height: 16),
+          // File picker
+          InkWell(
+            onTap: _busy ? null : _pick,
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: VidelColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _input == null
+                      ? VidelColors.border
+                      : VidelColors.accent.withOpacity(0.5),
+                  width: _input == null ? 1 : 1.5,
+                ),
+              ),
+              child: Row(children: [
+                const Icon(Icons.attach_file_rounded,
+                    color: VidelColors.accent, size: 22),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _input == null ? 'Tap to pick file' : p.basename(_input!),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+          // Format chips (shown only after file picked)
+          if (_formats.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: VidelColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: VidelColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Output format',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: VidelColors.textSecondary,
+                          letterSpacing: 0.8)),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _formats
+                        .map((e) => ChoiceChip(
+                              label: Text(e.toUpperCase()),
+                              selected: _target == e,
+                              selectedColor: VidelColors.accent.withOpacity(0.3),
+                              onSelected: _busy
+                                  ? null
+                                  : (_) => setState(() => _target = e),
+                            ))
+                        .toList(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: (_busy || _input == null || _target.isEmpty) ? null : _run,
+            icon: const Icon(Icons.swap_horiz_rounded),
+            label: const Text('Convert'),
+          ),
+          const SizedBox(height: 14),
+          if (_busy)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                minHeight: 6,
+                value: (_mediaType == 'image' || _pct == 0) ? null : _pct / 100,
+              ),
+            ),
+          const SizedBox(height: 8),
+          Text(_status,
+              style: const TextStyle(color: VidelColors.textSecondary)),
+        ]),
       ),
     );
   }
