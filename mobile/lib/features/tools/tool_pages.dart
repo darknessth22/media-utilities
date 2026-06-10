@@ -1324,6 +1324,46 @@ class MutePage extends StatelessWidget {
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// EXTRACT AUDIO
+
+class ExtractAudioPage extends StatefulWidget {
+  const ExtractAudioPage({super.key});
+  @override
+  State<ExtractAudioPage> createState() => _ExtractAudioPageState();
+}
+
+class _ExtractAudioPageState extends State<ExtractAudioPage> {
+  String _fmt = 'mp3';
+  static const _fmts = ['mp3', 'm4a', 'aac', 'flac', 'wav', 'ogg'];
+
+  String _ffmpegCmd(String i, String o) => '-y -i "$i" -vn "$o"';
+
+  @override
+  Widget build(BuildContext context) {
+    return ToolShell(
+      title: 'Extract Audio',
+      icon: Icons.audio_file_rounded,
+      toolKey: 'extract_audio',
+      outputExt: _fmt,
+      outputDir: 'Music/Videl',
+      suffix: '_audio',
+      buildCommand: _ffmpegCmd,
+      paramsBuilder: (ctx) => Wrap(
+        spacing: 8,
+        children: _fmts
+            .map((e) => ChoiceChip(
+                  label: Text(e.toUpperCase()),
+                  selected: _fmt == e,
+                  selectedColor: VidelColors.accent.withOpacity(0.3),
+                  onSelected: (_) => setState(() => _fmt = e),
+                ))
+            .toList(),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // GIF CREATOR
 
 class GifPage extends StatefulWidget {

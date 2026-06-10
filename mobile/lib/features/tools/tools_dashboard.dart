@@ -26,6 +26,8 @@ final _tools = <_Tool>[
       (_) => const MergePage(), const Color(0xFFA855F7)),
   _Tool(Icons.volume_off_rounded, 'Mute', 'strip audio',
       (_) => const MutePage(), const Color(0xFF8B5CF6)),
+  _Tool(Icons.audio_file_rounded, 'Extract Audio', 'video → mp3 / m4a / flac',
+      (_) => const ExtractAudioPage(), const Color(0xFF22C55E)),
   _Tool(Icons.gif_box_rounded, 'GIF', 'video → gif',
       (_) => const GifPage(), const Color(0xFFF97316)),
   _Tool(Icons.image_outlined, 'Frame Grab', 'video → still png',
