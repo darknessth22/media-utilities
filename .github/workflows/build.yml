@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build-windows:
     runs-on: windows-latest
-    if: false
+    if: ${{ github.ref != 'refs/heads/001-linux-build' && !contains(github.event.head_commit.message, '[skip-windows]') }}
     permissions:
       contents: write
 
@@ -180,7 +180,6 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-22.04
-    if: false
     permissions:
       contents: write
 
