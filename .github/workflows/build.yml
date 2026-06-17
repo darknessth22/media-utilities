@@ -162,18 +162,14 @@ jobs:
         if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          # Publish to the actual git tag that triggered the build so the
-          # Windows/Linux/Android assets always land on the SAME release, even
-          # if version.py and the tag momentarily disagree. Falls back to the
-          # version string for manual workflow_dispatch runs.
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', steps.version.outputs.version) }}
           name: ${{ startsWith(github.ref, 'refs/tags/') && format('Videl {0}', github.ref_name) || format('Videl v{0}', steps.version.outputs.version) }}
           prerelease: false
+          # append_body preserves any body already written by another workflow
+          # (e.g. Android) so concurrent jobs don't overwrite each other.
+          append_body: true
           body: |
-            Built from `${{ github.ref_name }}` @ `${{ github.sha }}`.
-
-            **Installer:** `Videl_Setup.exe`
-            **Signed manifest:** `Videl_Setup.exe.sig.json` (Ed25519, verified by in-app updater)
+            **Windows:** `Videl_Setup.exe` · `Videl_Setup.exe.sig.json`
           files: |
             artifacts/clean/Videl_Setup.exe
             artifacts/clean/Videl_Setup.exe.sig.json
@@ -270,18 +266,12 @@ jobs:
         if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          # Publish to the actual git tag that triggered the build so the
-          # Windows/Linux/Android assets always land on the SAME release, even
-          # if version.py and the tag momentarily disagree. Falls back to the
-          # version string for manual workflow_dispatch runs.
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', steps.version.outputs.version) }}
           name: ${{ startsWith(github.ref, 'refs/tags/') && format('Videl {0}', github.ref_name) || format('Videl v{0}', steps.version.outputs.version) }}
           prerelease: false
+          append_body: true
           body: |
-            Built from `${{ github.ref_name }}` @ `${{ github.sha }}`.
-
-            **Linux AppImage:** `Videl-x86_64.AppImage`
-            **Signed manifest:** `Videl-x86_64.AppImage.sig.json` (Ed25519, verified by in-app updater)
+            **Linux:** `Videl-x86_64.AppImage` · `Videl-x86_64.AppImage.sig.json`
           files: |
             dist/Videl-x86_64.AppImage
             dist/Videl-x86_64.AppImage.sig.json

@@ -77,14 +77,12 @@ jobs:
       - name: Publish release
         uses: ncipollo/release-action@v1
         with:
-          # Tag build → attach the APK to that version's release (alongside the
-          # Windows/Linux assets from build.yml). Branch build → rolling latest.
           tag: ${{ github.ref_type == 'tag' && github.ref_name || 'android-latest' }}
           name: ${{ github.ref_type == 'tag' && format('Videl {0}', github.ref_name) || 'Videl Android (Latest)' }}
           body: |
             **Videl Android — arm64-v8a sideload build**
 
-            Auto-built from `mobile-android` branch · commit `${{ github.sha }}`.
+            Auto-built from `${{ github.ref_name }}` · commit `${{ github.sha }}`.
 
             ## Install
             1. Download `videl-android-arm64-v8a.apk` below
@@ -92,8 +90,15 @@ jobs:
             3. Open the APK → tap **Install**
 
             Requires Android 10+ (API 29). ARM64 only.
+          # allowUpdates lets the action upsert the release if it already exists
+          # (e.g. Windows/Linux built first on a shared v* tag).
           allowUpdates: true
-          replacesArtifacts: true
+          # NEVER replace existing artifacts — Windows/Linux files must survive.
+          replacesArtifacts: false
           removeArtifacts: false
+          # Only overwrite the body when this is a standalone android-* tag.
+          # On shared v* tags the Windows build already set the body; skip it.
+          omitBody: ${{ !startsWith(github.ref_name, 'android-') }}
+          omitName: ${{ !startsWith(github.ref_name, 'android-') }}
           artifacts: out/videl-android-arm64-v8a.apk
           token: ${{ secrets.GITHUB_TOKEN }}
