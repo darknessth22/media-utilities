@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/videl_theme.dart';
 import 'core/native_bridges/python_runner.dart';
+import 'core/update_checker.dart';
 import 'features/downloader/downloader_page.dart';
 import 'features/onboarding/onboarding_page.dart';
 import 'shared/widgets/home_shell.dart';
@@ -14,13 +15,13 @@ Future<void> main() async {
 
 final _navKey = GlobalKey<NavigatorState>();
 
-class VidelApp extends StatefulWidget {
+class VidelApp extends ConsumerStatefulWidget {
   const VidelApp({super.key});
   @override
-  State<VidelApp> createState() => _VidelAppState();
+  ConsumerState<VidelApp> createState() => _VidelAppState();
 }
 
-class _VidelAppState extends State<VidelApp> {
+class _VidelAppState extends ConsumerState<VidelApp> {
   bool? _needsOnboarding;
 
   @override
@@ -31,6 +32,11 @@ class _VidelAppState extends State<VidelApp> {
     });
     _handlePending();
     ShareBridge.incoming().listen(_openDownloader);
+    // Kick off update check in background after a short delay so it doesn't
+    // race with the splash/onboarding transition.
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) ref.read(updateProvider.notifier).check();
+    });
   }
 
   Future<void> _handlePending() async {

@@ -1,10 +1,12 @@
 name: Build Android APK
 
 on:
-  # Android APK builds on version tags too — one tag = one APK, attached to the
-  # same release as the Windows/Linux assets.
+  # v* tags: build alongside Windows/Linux in a full release.
+  # android-* tags: mobile-only build without triggering build.yml.
   push:
-    tags: ['v*']
+    tags:
+      - 'v*'
+      - 'android-*'
   workflow_dispatch:
 
 permissions:

@@ -2,9 +2,11 @@ name: Build Videl
 
 on:
   # Release artifacts only build on version tags — one tag = one Win+Linux build.
-  # Plain branch pushes run tests via ci.yml, not the heavy build.
+  # android-* tags trigger only the Android workflow, not this one.
   push:
-    tags: ['v*']
+    tags:
+      - 'v*'
+      - '!android-*'
   workflow_dispatch:
 
 concurrency:

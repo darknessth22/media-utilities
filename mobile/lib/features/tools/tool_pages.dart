@@ -886,7 +886,7 @@ class _CropPageState extends State<CropPage> {
 
 // ── Convert format tables ─────────────────────────────────────────────────────
 
-const _cvtVideoFmts = ['mp4', 'mkv', 'mov', 'webm', 'avi'];
+const _cvtVideoFmts = ['mp4', 'mkv', 'mov', 'webm', 'avi', 'mp3'];
 const _cvtAudioFmts = ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'];
 const _cvtImageFmts = ['jpg', 'png', 'bmp', 'gif'];
 
@@ -973,8 +973,12 @@ class _ConvertPageState extends State<ConvertPage> {
     }
 
     final base = p.basenameWithoutExtension(_input!);
+    // video→audio conversion goes to Music, not Movies
+    final isExtractAudio = _mediaType == 'video' && _cvtAudioFmts.contains(_target);
     final String outDir;
-    if (_mediaType == 'video') {
+    if (isExtractAudio) {
+      outDir = '/storage/emulated/0/Music/Videl';
+    } else if (_mediaType == 'video') {
       outDir = '/storage/emulated/0/Movies/Videl';
     } else if (_mediaType == 'audio') {
       outDir = '/storage/emulated/0/Music/Videl';

@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/videl_theme.dart';
+import '../../core/update_checker.dart';
 import '../../features/downloader/downloader_page.dart';
 import '../../features/history/history_page.dart';
 import '../../features/tools/tools_dashboard.dart';
 
+export '../../core/update_checker.dart' show updateProvider;
+
 enum _Section { home, tools, history }
 
-class HomeShell extends StatefulWidget {
+class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
   @override
-  State<HomeShell> createState() => _HomeShellState();
+  ConsumerState<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends ConsumerState<HomeShell> {
   _Section _section = _Section.home;
 
   String _titleOf(_Section s) {
@@ -38,8 +43,21 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
+  void _showUpdateSheet(BuildContext context, UpdateInfo info) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: VidelColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _UpdateSheet(info: info),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final update = ref.watch(updateProvider);
+
     return Scaffold(
       drawer: _VidelDrawer(
         active: _section,
@@ -65,19 +83,176 @@ class _HomeShellState extends State<HomeShell> {
                   fontWeight: FontWeight.w700,
                   fontSize: 20)),
         ]),
+        actions: [
+          if (update.hasUpdate)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _UpdateBadge(
+                version: update.info!.latestVersion,
+                onTap: () => _showUpdateSheet(context, update.info!),
+              ),
+            ),
+        ],
       ),
-      body: _body(),
+      body: Column(
+        children: [
+          Expanded(child: _body()),
+        ],
+      ),
     );
   }
 }
 
-class _VidelDrawer extends StatelessWidget {
+// ── Update badge in AppBar ─────────────────────────────────────────────────
+
+class _UpdateBadge extends StatelessWidget {
+  const _UpdateBadge({required this.version, required this.onTap});
+  final String version;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: VidelColors.accent.withOpacity(0.18),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: VidelColors.accent.withOpacity(0.5)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.system_update_rounded,
+              size: 13, color: VidelColors.accent),
+          const SizedBox(width: 5),
+          Text('v$version',
+              style: const TextStyle(
+                  fontSize: 11,
+                  color: VidelColors.accent,
+                  fontWeight: FontWeight.w700)),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── Update bottom sheet ────────────────────────────────────────────────────
+
+class _UpdateSheet extends ConsumerWidget {
+  const _UpdateSheet({required this.info});
+  final UpdateInfo info;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: VidelColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Header
+          Row(children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [VidelColors.accent, VidelColors.accentPressed]),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.system_update_rounded,
+                  size: 24, color: Colors.white),
+            ),
+            const SizedBox(width: 14),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Update available',
+                  style: TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w700)),
+              Text('v${kAppVersion}  →  v${info.latestVersion}',
+                  style: const TextStyle(
+                      fontSize: 12, color: VidelColors.textSecondary)),
+            ]),
+          ]),
+          const SizedBox(height: 16),
+
+          // Release notes
+          if (info.releaseNotes.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: VidelColors.raised,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: VidelColors.border),
+              ),
+              child: Text(
+                info.releaseNotes,
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: VidelColors.textSecondary,
+                    height: 1.5),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+
+          // Download button
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(context);
+              final uri = Uri.parse(info.apkUrl);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri,
+                    mode: LaunchMode.externalApplication);
+              }
+            },
+            icon: const Icon(Icons.download_rounded, size: 18),
+            label: Text('Download v${info.latestVersion}'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Skip this version
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ref.read(updateProvider.notifier).dismiss(skipVersion: true);
+            },
+            child: const Text('Skip this version',
+                style: TextStyle(color: VidelColors.textSecondary)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Drawer ─────────────────────────────────────────────────────────────────
+
+class _VidelDrawer extends ConsumerWidget {
   const _VidelDrawer({required this.active, required this.onPick});
   final _Section active;
   final ValueChanged<_Section> onPick;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final update = ref.watch(updateProvider);
+
     return Drawer(
       backgroundColor: VidelColors.sidebar,
       child: SafeArea(
@@ -132,12 +307,34 @@ class _VidelDrawer extends StatelessWidget {
               active: active == _Section.history,
               onTap: () => onPick(_Section.history),
             ),
+            // Update nav item (shown only when update available)
+            if (update.hasUpdate)
+              _NavItem(
+                icon: Icons.system_update_rounded,
+                label: 'Update v${update.info!.latestVersion}',
+                active: false,
+                accent: true,
+                onTap: () {
+                  Navigator.pop(context);
+                  showModalBottomSheet(
+                    context: context,
+                    backgroundColor: VidelColors.surface,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(20)),
+                    ),
+                    builder: (_) => _UpdateSheet(info: update.info!),
+                  );
+                },
+              ),
             const Spacer(),
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('v0.1.0',
-                  style:
-                      TextStyle(color: VidelColors.textMuted, fontSize: 11)),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'v$kAppVersion',
+                style: const TextStyle(
+                    color: VidelColors.textMuted, fontSize: 11),
+              ),
             ),
           ],
         ),
@@ -147,43 +344,63 @@ class _VidelDrawer extends StatelessWidget {
 }
 
 class _NavItem extends StatelessWidget {
-  const _NavItem(
-      {required this.icon,
-      required this.label,
-      required this.active,
-      required this.onTap});
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.accent = false,
+  });
   final IconData icon;
   final String label;
   final bool active;
+  final bool accent;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final color = accent
+        ? VidelColors.accent
+        : active
+            ? VidelColors.accent
+            : VidelColors.textSecondary;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: Material(
-        color:
-            active ? VidelColors.accent.withOpacity(0.15) : Colors.transparent,
+        color: active
+            ? VidelColors.accent.withOpacity(0.15)
+            : accent
+                ? VidelColors.accent.withOpacity(0.08)
+                : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(children: [
-              Icon(icon,
-                  size: 20,
-                  color: active
-                      ? VidelColors.accent
-                      : VidelColors.textSecondary),
+              Icon(icon, size: 20, color: color),
               const SizedBox(width: 14),
-              Text(label,
-                  style: TextStyle(
-                      color: active
-                          ? VidelColors.accent
-                          : VidelColors.textPrimary,
-                      fontWeight:
-                          active ? FontWeight.w700 : FontWeight.w500)),
+              Expanded(
+                child: Text(label,
+                    style: TextStyle(
+                        color: (active || accent)
+                            ? VidelColors.accent
+                            : VidelColors.textPrimary,
+                        fontWeight: (active || accent)
+                            ? FontWeight.w700
+                            : FontWeight.w500)),
+              ),
+              if (accent)
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: VidelColors.accent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
             ]),
           ),
         ),
@@ -191,6 +408,8 @@ class _NavItem extends StatelessWidget {
     );
   }
 }
+
+// ── Home page ──────────────────────────────────────────────────────────────
 
 class _HomePage extends StatelessWidget {
   const _HomePage();

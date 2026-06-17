@@ -31,7 +31,7 @@ def list_formats(url):
         })
 
 
-def download(url, out_dir, fmt, callback):
+def download(url, out_dir, fmt, callback, start_time=None, end_time=None):
     os.makedirs(out_dir, exist_ok=True)
 
     def hook(d):
@@ -45,19 +45,24 @@ def download(url, out_dir, fmt, callback):
             except Exception:
                 pass
 
+    has_range = start_time is not None and end_time is not None
+    name_tpl = (
+        "%(title).150B [%(id)s]_trim_{start}s_{end}s.%(ext)s".format(
+            start=int(start_time), end=int(end_time)
+        )
+        if has_range
+        else "%(title).150B [%(id)s].%(ext)s"
+    )
+
     opts = {
         "format": fmt,
-        # Append the unique video id so multiple posts from the same account
-        # don't collide — Instagram/TikTok return an identical title
-        # ("Video by <account>") for every video, which overwrote prior files.
-        "outtmpl": os.path.join(out_dir, "%(title).150B [%(id)s].%(ext)s"),
+        "outtmpl": os.path.join(out_dir, name_tpl),
         "progress_hooks": [hook],
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
-        # Speed levers.
-        "concurrent_fragment_downloads": 16,  # parallelize DASH/HLS chunks
-        "http_chunk_size": 10485760,           # 10 MB chunks
+        "concurrent_fragment_downloads": 16,
+        "http_chunk_size": 10485760,
         "retries": 10,
         "fragment_retries": 10,
         "buffersize": 1024 * 64,
@@ -65,6 +70,12 @@ def download(url, out_dir, fmt, callback):
         "ratelimit": None,
         "socket_timeout": 20,
     }
+    if has_range:
+        opts["download_sections"] = [
+            {"start_time": float(start_time), "end_time": float(end_time)}
+        ]
+        opts["force_keyframes_at_cuts"] = True
+
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=True)
         return ydl.prepare_filename(info)
