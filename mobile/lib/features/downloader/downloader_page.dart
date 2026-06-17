@@ -30,6 +30,7 @@ class _DownloaderPageState extends State<DownloaderPage>
   bool _busy = false;
   String _title = '';
   int _duration = 0; // seconds
+  String _streamUrl = ''; // direct stream URL for preview
   List<Map<String, dynamic>> _formats = [];
 
   // Time range
@@ -175,6 +176,7 @@ class _DownloaderPageState extends State<DownloaderPage>
       setState(() {
         _title = res['title'] as String? ?? '';
         _duration = dur;
+        _streamUrl = res['stream_url'] as String? ?? '';
         _rangeStart = 0;
         _rangeEnd = dur.toDouble();
         _formats = List<Map<String, dynamic>>.from(
@@ -189,12 +191,18 @@ class _DownloaderPageState extends State<DownloaderPage>
   }
 
   Future<void> _loadPreview() async {
-    final url = _urlCtrl.text.trim();
-    if (url.isEmpty) return;
+    if (_streamUrl.isEmpty) {
+      setState(() => _status = 'No stream URL available for preview');
+      return;
+    }
     setState(() => _previewLoading = true);
     try {
       _previewCtrl?.dispose();
-      final ctrl = VideoPlayerController.networkUrl(Uri.parse(url));
+      _previewCtrl = null;
+      final ctrl = VideoPlayerController.networkUrl(
+        Uri.parse(_streamUrl),
+        httpHeaders: {'User-Agent': 'Mozilla/5.0'},
+      );
       await ctrl.initialize();
       ctrl.setVolume(1.0);
       ctrl.addListener(() {
@@ -204,8 +212,11 @@ class _DownloaderPageState extends State<DownloaderPage>
         _previewCtrl = ctrl;
         _previewLoading = false;
       });
-    } catch (_) {
-      setState(() => _previewLoading = false);
+    } catch (e) {
+      setState(() {
+        _previewLoading = false;
+        _status = 'Preview failed: stream URL may have expired';
+      });
     }
   }
 
