@@ -42,6 +42,10 @@ class RateLimited(Exception):
     """Raised when GitHub rate limits persist past all retries."""
 
 
+class ShardFull(Exception):
+    """Raised when a shard release has hit GitHub's 1000-asset cap."""
+
+
 def _sha256(path: str) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -60,6 +64,12 @@ def _gh(args: list[str], repo: str) -> subprocess.CompletedProcess:
 def _is_rate_limit(res: subprocess.CompletedProcess) -> bool:
     blob = ((res.stdout or "") + (res.stderr or "")).lower()
     return res.returncode != 0 and ("rate limit" in blob or "http 403" in blob)
+
+
+def _is_asset_cap(res: subprocess.CompletedProcess) -> bool:
+    """HTTP 422 with 'file_count limited' means the shard release hit 1000 assets."""
+    blob = ((res.stdout or "") + (res.stderr or "")).lower()
+    return res.returncode != 0 and ("http 422" in blob or "file_count limited" in blob)
 
 
 def _ensure_release(repo: str, tag: str) -> None:
@@ -91,6 +101,8 @@ def _upload_batch(repo: str, tag: str, paths: list[str]) -> None:
         res = _gh(["release", "upload", tag, "--clobber", *paths], repo)
         if res.returncode == 0:
             return
+        if _is_asset_cap(res):
+            raise ShardFull(tag)
         if _is_rate_limit(res):
             if attempt < _MAX_RETRIES - 1:
                 wait = _BACKOFF_SEC * (attempt + 1)
@@ -147,6 +159,7 @@ def main() -> int:
     print(f"Tree has {len(by_sha)} unique blobs to distribute across 16 shards.")
 
     total_uploaded = 0
+    full_shards: list[str] = []
     try:
         for char in _SHARD_CHARS:
             tag = f"files-store-{char}"
@@ -158,8 +171,14 @@ def main() -> int:
             missing = {sha: src for sha, src in shard.items() if sha not in have}
             print(f"  {tag}: {len(shard)} blobs, {len(have)} present, {len(missing)} new")
             if missing:
-                _upload_shard(args.repo, tag, missing)
-                total_uploaded += len(missing)
+                try:
+                    _upload_shard(args.repo, tag, missing)
+                    total_uploaded += len(missing)
+                except ShardFull:
+                    full_shards.append(tag)
+                    print(f"  WARNING: {tag} has hit GitHub's 1000-asset cap — "
+                          f"skipping remaining blobs for this shard. Delta updates "
+                          f"fall back to full installer for blobs in this shard.")
     except RateLimited:
         print(f"\nWARNING: GitHub rate limit hit after {total_uploaded} upload(s) "
               f"this run. Blob store is PARTIALLY seeded — remaining blobs upload "
@@ -167,6 +186,10 @@ def main() -> int:
               f"to the full installer for any blob not yet present. To seed the "
               f"whole store in one run, set GH_TOKEN to a PAT (5000 req/hour).")
         return 0
+
+    if full_shards:
+        print(f"\nWARNING: {len(full_shards)} shard(s) are full: {', '.join(full_shards)}. "
+              f"Consider increasing shard count (SHARD_CHARS) to spread blobs thinner.")
 
     print(f"Blob upload complete. {total_uploaded} new blob(s) uploaded.")
     return 0
