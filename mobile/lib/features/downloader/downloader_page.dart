@@ -184,7 +184,7 @@ class _DownloaderPageState extends State<DownloaderPage>
         _status = 'Pick a format to download';
       });
     } catch (e) {
-      setState(() => _status = 'Failed: $e');
+      _showError(e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -234,39 +234,36 @@ class _DownloaderPageState extends State<DownloaderPage>
       _pct = 0;
     });
 
-    final double? start = _useRange ? _rangeStart : null;
-    final double? end = _useRange ? _rangeEnd : null;
-
     try {
       final url = _urlCtrl.text.trim();
       final videoFmt = f == null ? 'bv*' : '${f['format_id']}';
+      String out;
       if (f != null && _hasAudio(f)) {
-        final out = await PythonRunner.ytdlpDownload(
-            url: url, outDir: dir, format: videoFmt,
-            startTime: start, endTime: end);
-        await PythonRunner.mediaScan(out);
-        setState(() => _status = 'Saved · ${out.split('/').last}');
-        return;
+        out = await PythonRunner.ytdlpDownload(
+            url: url, outDir: dir, format: videoFmt);
+      } else {
+        setState(() => _status = 'Downloading video + audio...');
+        final results = await Future.wait([
+          PythonRunner.ytdlpDownload(url: url, outDir: dir, format: videoFmt),
+          PythonRunner.ytdlpDownload(url: url, outDir: dir, format: 'ba[ext=m4a]/ba'),
+        ]);
+        final vPath = results[0];
+        final aPath = results[1];
+        setState(() => _status = 'Merging streams...');
+        out = await FfmpegRunner.mux(vPath, aPath);
+        try { File(vPath).deleteSync(); } catch (_) {}
+        try { File(aPath).deleteSync(); } catch (_) {}
       }
-      setState(() => _status = 'Downloading video + audio...');
-      final results = await Future.wait([
-        PythonRunner.ytdlpDownload(
-            url: url, outDir: dir, format: videoFmt,
-            startTime: start, endTime: end),
-        PythonRunner.ytdlpDownload(
-            url: url, outDir: dir, format: 'ba[ext=m4a]/ba',
-            startTime: start, endTime: end),
-      ]);
-      final vPath = results[0];
-      final aPath = results[1];
-      setState(() => _status = 'Merging streams...');
-      final merged = await FfmpegRunner.mux(vPath, aPath);
-      try { File(vPath).deleteSync(); } catch (_) {}
-      try { File(aPath).deleteSync(); } catch (_) {}
-      await PythonRunner.mediaScan(merged);
-      setState(() => _status = 'Saved · ${merged.split('/').last}');
+      if (_useRange) {
+        setState(() => _status = 'Trimming...');
+        final trimmed = await FfmpegRunner.trim(out, _rangeStart, _rangeEnd);
+        try { File(out).deleteSync(); } catch (_) {}
+        out = trimmed;
+      }
+      await PythonRunner.mediaScan(out);
+      setState(() => _status = 'Saved · ${out.split('/').last}');
     } catch (e) {
-      setState(() => _status = 'Failed: $e');
+      _showError(e);
     } finally {
       await PythonRunner.fgStop();
       if (mounted) setState(() => _busy = false);
@@ -287,23 +284,25 @@ class _DownloaderPageState extends State<DownloaderPage>
       _pct = 0;
     });
 
-    final double? start = _useRange ? _rangeStart : null;
-    final double? end = _useRange ? _rangeEnd : null;
-
     try {
       final url = _urlCtrl.text.trim();
       final fmt = f == null ? 'ba' : '${f['format_id']}';
       setState(() => _status = 'Downloading audio...');
-      final src = await PythonRunner.ytdlpDownload(
-          url: url, outDir: dir, format: fmt,
-          startTime: start, endTime: end);
+      String src = await PythonRunner.ytdlpDownload(
+          url: url, outDir: dir, format: fmt);
+      if (_useRange) {
+        setState(() => _status = 'Trimming...');
+        final trimmed = await FfmpegRunner.trim(src, _rangeStart, _rangeEnd);
+        try { File(src).deleteSync(); } catch (_) {}
+        src = trimmed;
+      }
       setState(() => _status = 'Converting to MP3...');
       final mp3 = await FfmpegRunner.toMp3(src);
       try { File(src).deleteSync(); } catch (_) {}
       await PythonRunner.mediaScan(mp3);
       setState(() => _status = 'Saved · ${mp3.split('/').last}');
     } catch (e) {
-      setState(() => _status = 'Failed: $e');
+      _showError(e);
     } finally {
       await PythonRunner.fgStop();
       if (mounted) setState(() => _busy = false);
@@ -312,6 +311,68 @@ class _DownloaderPageState extends State<DownloaderPage>
 
   void _download(Map<String, dynamic>? f) =>
       _filter == _Filter.audio ? _downloadAudio(f) : _downloadVideo(f);
+
+  void _showError(Object e) {
+    final msg = e is PlatformException
+        ? 'PlatformException(${e.code})\n\n${e.message ?? ''}\n\n${e.details ?? ''}'
+        : e.toString();
+    setState(() => _status = 'Failed — tap ⓘ for details');
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: VidelColors.surface,
+        title: const Row(children: [
+          Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 20),
+          SizedBox(width: 8),
+          Text('Error', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        ]),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                constraints: const BoxConstraints(maxHeight: 300),
+                decoration: BoxDecoration(
+                  color: VidelColors.raised,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: VidelColors.border),
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(10),
+                  child: SelectableText(
+                    msg,
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'monospace',
+                        color: VidelColors.textSecondary,
+                        height: 1.5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: msg));
+              Navigator.pop(context);
+              setState(() => _status = 'Error copied to clipboard');
+            },
+            icon: const Icon(Icons.copy_rounded, size: 15),
+            label: const Text('Copy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 
   String _videoLabel(Map<String, dynamic> f) {
     final res = f['resolution'] ?? '';

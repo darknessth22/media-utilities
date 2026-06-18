@@ -56,6 +56,24 @@ class FfmpegRunner {
         double.parse(m.group(3)!);
   }
 
+  // Trim a video/audio file to [startSec, endSec]. Stream-copy — no re-encode.
+  // Returns the trimmed output path.
+  static Future<String> trim(String input, double startSec, double endSec) async {
+    final dir = p.dirname(input);
+    final base = p.basenameWithoutExtension(input);
+    final ext = p.extension(input);
+    final ss = startSec.toInt();
+    final to = endSec.toInt();
+    final out = p.join(dir, '${base}_trim_${ss}s_${to}s$ext');
+    final cmd = '-y -ss $ss -to $to -i "$input" -c copy "$out"';
+    final session = await FFmpegKit.execute(cmd);
+    final rc = await session.getReturnCode();
+    if (!ReturnCode.isSuccess(rc)) {
+      throw Exception('trim failed: ${await session.getAllLogsAsString()}');
+    }
+    return out;
+  }
+
   // Convert any audio file to 192k MP3. Returns mp3 path.
   static Future<String> toMp3(String audioPath) async {
     final dir = p.dirname(audioPath);

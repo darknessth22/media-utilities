@@ -21,19 +21,12 @@ class PythonRunner {
     required String url,
     required String outDir,
     String? format,
-    double? startTime,
-    double? endTime,
   }) async {
-    final args = <String, dynamic>{
+    final res = await _ch.invokeMethod<String>('ytdlp_download', {
       'url': url,
       'out_dir': outDir,
       'format': format ?? 'b',
-    };
-    if (startTime != null && endTime != null) {
-      args['start_time'] = startTime;
-      args['end_time'] = endTime;
-    }
-    final res = await _ch.invokeMethod<String>('ytdlp_download', args);
+    });
     return res ?? '';
   }
 

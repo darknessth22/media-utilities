@@ -171,27 +171,24 @@ class MainActivity : FlutterActivity() {
                         val url = call.argument<String>("url") ?: ""
                         val outDir = call.argument<String>("out_dir") ?: ""
                         val fmt = call.argument<String>("format") ?: "b"
-                        val startTime = call.argument<Double>("start_time")
-                        val endTime = call.argument<Double>("end_time")
                         Thread {
                             try {
                                 val py = Python.getInstance()
                                 val mod = py.getModule("videl_dl")
-                                val cb = object {
-                                    @Suppress("unused")
-                                    fun on_progress(pct: Double, speed: String) {
-                                        runOnUiThread {
-                                            eventSink?.success(
-                                                mapOf("pct" to pct, "speed" to speed)
-                                            )
+                                val res = mod.callAttr(
+                                    "download",
+                                    url, outDir, fmt,
+                                    object {
+                                        @Suppress("unused")
+                                        fun on_progress(pct: Double, speed: String) {
+                                            runOnUiThread {
+                                                eventSink?.success(
+                                                    mapOf("pct" to pct, "speed" to speed)
+                                                )
+                                            }
                                         }
                                     }
-                                }
-                                val res = if (startTime != null && endTime != null) {
-                                    mod.callAttr("download", url, outDir, fmt, cb, startTime, endTime)
-                                } else {
-                                    mod.callAttr("download", url, outDir, fmt, cb)
-                                }
+                                )
                                 runOnUiThread { result.success(res.toString()) }
                             } catch (t: Throwable) {
                                 runOnUiThread { result.error("PY", t.message, null) }

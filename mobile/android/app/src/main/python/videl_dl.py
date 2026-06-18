@@ -51,7 +51,7 @@ def list_formats(url):
         })
 
 
-def download(url, out_dir, fmt, callback, start_time=None, end_time=None):
+def download(url, out_dir, fmt, callback):
     os.makedirs(out_dir, exist_ok=True)
 
     def hook(d):
@@ -65,18 +65,9 @@ def download(url, out_dir, fmt, callback, start_time=None, end_time=None):
             except Exception:
                 pass
 
-    has_range = start_time is not None and end_time is not None
-    name_tpl = (
-        "%(title).150B [%(id)s]_trim_{start}s_{end}s.%(ext)s".format(
-            start=int(start_time), end=int(end_time)
-        )
-        if has_range
-        else "%(title).150B [%(id)s].%(ext)s"
-    )
-
     opts = {
         "format": fmt,
-        "outtmpl": os.path.join(out_dir, name_tpl),
+        "outtmpl": os.path.join(out_dir, "%(title).150B [%(id)s].%(ext)s"),
         "progress_hooks": [hook],
         "noplaylist": True,
         "quiet": True,
@@ -90,18 +81,6 @@ def download(url, out_dir, fmt, callback, start_time=None, end_time=None):
         "ratelimit": None,
         "socket_timeout": 20,
     }
-
-    if has_range:
-        ss = int(start_time)
-        to = int(end_time)
-        # Use FFmpeg as the external downloader so it issues the HTTP request
-        # with -ss/-to — only the segment bytes are transferred, not the full
-        # video.  This is the only approach that reliably minimises download
-        # size across all extractors (YouTube, Instagram, TikTok, etc.).
-        opts["external_downloader"] = "ffmpeg"
-        opts["external_downloader_args"] = {
-            "ffmpeg_i": ["-ss", str(ss), "-to", str(to)],
-        }
 
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=True)
