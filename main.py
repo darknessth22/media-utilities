@@ -31,7 +31,12 @@ else:
     faulthandler.enable()
 
 # Load .env before any package imports that read secrets at import time (e.g. bug reporter).
-_env_path = os.path.join(os.path.dirname(__file__), ".env")
+# In frozen builds (PyInstaller onedir / AppImage) __file__ resolves inside the bundle;
+# use the directory of sys.executable (the real .exe / .AppImage) instead.
+_env_path = os.path.join(
+    os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__)),
+    ".env",
+)
 if os.path.isfile(_env_path):
     with open(_env_path, encoding="utf-8") as _f:
         for _line in _f:

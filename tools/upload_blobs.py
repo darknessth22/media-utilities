@@ -63,7 +63,9 @@ def _gh(args: list[str], repo: str) -> subprocess.CompletedProcess:
 
 def _is_rate_limit(res: subprocess.CompletedProcess) -> bool:
     blob = ((res.stdout or "") + (res.stderr or "")).lower()
-    return res.returncode != 0 and ("rate limit" in blob or "http 403" in blob)
+    return res.returncode != 0 and (
+        "rate limit" in blob or "http 403" in blob or "http 429" in blob
+    )
 
 
 def _is_asset_cap(res: subprocess.CompletedProcess) -> bool:

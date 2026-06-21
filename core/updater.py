@@ -362,13 +362,13 @@ QProgressBar::chunk { background-color: #2563eb; border-radius: 5px; }
 """
 
 
-def _fetch_manifest(url: str = INSTALLER_MANIFEST_URL) -> dict | None:
+def _fetch_manifest(url: str = INSTALLER_MANIFEST_URL, timeout: float = _HTTP_TIMEOUT_SEC) -> dict | None:
     try:
         req = urllib.request.Request(
             url,
             headers={"User-Agent": _USER_AGENT, "Accept": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_SEC) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode("utf-8", errors="replace"))
         if not isinstance(data, dict):
             return None
@@ -702,7 +702,7 @@ def _run_delta_update(parent: QWidget | None, latest: str) -> None:
     full Inno installer when the manifest is missing/unsigned or the delta fails."""
     from core.i18n import tr
 
-    manifest = _fetch_manifest(FILES_MANIFEST_URL)
+    manifest = _fetch_manifest(FILES_MANIFEST_URL, timeout=_DOWNLOAD_TIMEOUT_SEC)
     if manifest is None or not _verify_files_manifest_signature(manifest):
         _log.info("Delta manifest unavailable/unsigned — using full installer.")
         _run_in_app_update(parent, latest)
@@ -764,6 +764,246 @@ def _run_delta_update(parent: QWidget | None, latest: str) -> None:
         if not _launch_applier_and_quit(bat, install_root):
             shutil.rmtree(staging, ignore_errors=True)
             _run_in_app_update(parent, latest)
+
+    downloader.progress.connect(on_progress)
+    downloader.failed.connect(on_failed)
+    downloader.finished_ok.connect(on_ok)
+    progress.canceled.connect(downloader.cancel)
+
+    downloader.start()
+    progress.exec()
+
+
+def _squashfs_tools_available() -> bool:
+    """Return True if unsquashfs and mksquashfs are on PATH."""
+    return shutil.which("unsquashfs") is not None and shutil.which("mksquashfs") is not None
+
+
+def _appimage_runtime_size(appimage_path: str) -> int:
+    """Return byte offset where the squashfs image starts inside the AppImage.
+
+    AppImage Type 2: ELF runtime header ends at the squashfs magic 'hsqs' / 'sqsh'.
+    We scan forward in 512-byte steps from offset 0 looking for the magic.
+    Returns 0 on failure (caller falls back to full download).
+    """
+    SQFS_MAGIC = (b"hsqs", b"sqsh")
+    try:
+        with open(appimage_path, "rb") as fh:
+            # Runtime is typically 150–400 KiB; scan up to 2 MiB.
+            data = fh.read(2 << 20)
+        for magic in SQFS_MAGIC:
+            off = data.find(magic)
+            if off != -1:
+                return off
+    except OSError:
+        pass
+    return 0
+
+
+def _repack_appimage(
+    appimage_path: str, squashfs_root: str, dest: str
+) -> bool:
+    """Repack squashfs_root into a new AppImage at dest.
+
+    Prepends the original AppImage runtime (ELF header before the squashfs)
+    then appends a freshly built squashfs. Returns True on success.
+    """
+    runtime_size = _appimage_runtime_size(appimage_path)
+    if runtime_size == 0:
+        _log.warning("AppImage delta: could not locate squashfs magic, skipping repack")
+        return False
+
+    squashfs_tmp = dest + ".sqfs"
+    try:
+        result = subprocess.run(
+            [
+                "mksquashfs", squashfs_root, squashfs_tmp,
+                "-root-owned", "-noappend",
+                "-comp", "zstd", "-Xcompression-level", "19",
+                "-no-progress",
+            ],
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            _log.warning("mksquashfs failed: %s", result.stderr.decode(errors="replace"))
+            return False
+
+        # Prepend runtime + append new squashfs.
+        with open(appimage_path, "rb") as src, open(dest, "wb") as out:
+            out.write(src.read(runtime_size))
+        with open(squashfs_tmp, "rb") as sqfs, open(dest, "ab") as out:
+            shutil.copyfileobj(sqfs, out)
+
+        os.chmod(dest, 0o755)
+        return True
+    except (OSError, subprocess.SubprocessError) as exc:
+        _log.warning("AppImage repack failed: %s", exc)
+        return False
+    finally:
+        try:
+            os.remove(squashfs_tmp)
+        except OSError:
+            pass
+
+
+def _run_linux_appimage_delta_update(parent: QWidget | None, latest: str) -> None:
+    """Delta-update the AppImage: download only changed blobs, extract the current
+    squashfs, overlay the new files, repack, and replace in place.
+
+    Requires unsquashfs + mksquashfs on PATH. Falls back to _run_linux_appimage_update
+    (full download) if tools are absent, manifest unavailable, or repack fails.
+    """
+    from core.i18n import tr
+
+    appimage_path = _LINUX_APPIMAGE_PATH or ""
+    if not appimage_path or not os.path.isfile(appimage_path):
+        _open_storefront()
+        return
+
+    if not _squashfs_tools_available():
+        _log.info("Delta update: squashfs tools absent — using full AppImage download.")
+        _run_linux_appimage_update(parent, latest)
+        return
+
+    target_dir = os.path.dirname(os.path.abspath(appimage_path)) or "."
+    if not os.access(target_dir, os.W_OK) or not os.access(appimage_path, os.W_OK):
+        _run_linux_appimage_update(parent, latest)
+        return
+
+    files_manifest = _fetch_manifest(FILES_MANIFEST_URL, timeout=_DOWNLOAD_TIMEOUT_SEC)
+    if files_manifest is None or not _verify_files_manifest_signature(files_manifest):
+        _log.info("Delta update: files manifest unavailable/unsigned — using full AppImage download.")
+        _run_linux_appimage_update(parent, latest)
+        return
+
+    # We need the AppImage content to be extracted so we can compare hashes.
+    # unsquashfs -d <dir> <appimage> — squashfs starts mid-file, use offset.
+    runtime_size = _appimage_runtime_size(appimage_path)
+    if runtime_size == 0:
+        _log.info("Delta update: squashfs offset unknown — using full AppImage download.")
+        _run_linux_appimage_update(parent, latest)
+        return
+
+    staging_base = os.path.join(
+        os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"),
+        "Videl", "update-staging", latest,
+    )
+    extract_dir = staging_base + "-extract"
+    blob_dir = staging_base + "-blobs"
+    shutil.rmtree(staging_base, ignore_errors=True)
+    shutil.rmtree(extract_dir, ignore_errors=True)
+    shutil.rmtree(blob_dir, ignore_errors=True)
+    try:
+        os.makedirs(blob_dir, exist_ok=True)
+    except OSError as exc:
+        _log.error("Delta staging mkdir failed: %s", exc)
+        _run_linux_appimage_update(parent, latest)
+        return
+
+    # Extract current AppImage squashfs (offset-aware).
+    try:
+        result = subprocess.run(
+            ["unsquashfs", "-o", str(runtime_size), "-d", extract_dir, appimage_path],
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            _log.warning("unsquashfs failed: %s", result.stderr.decode(errors="replace"))
+            shutil.rmtree(blob_dir, ignore_errors=True)
+            _run_linux_appimage_update(parent, latest)
+            return
+    except (OSError, subprocess.SubprocessError) as exc:
+        _log.warning("unsquashfs error: %s", exc)
+        shutil.rmtree(blob_dir, ignore_errors=True)
+        _run_linux_appimage_update(parent, latest)
+        return
+
+    jobs = _compute_delta(files_manifest, extract_dir)
+    if not jobs:
+        # Already up to date at file level — still need to bump AppImage metadata.
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        shutil.rmtree(blob_dir, ignore_errors=True)
+        _run_linux_appimage_update(parent, latest)
+        return
+
+    total_mb = sum(sz for _, _, sz in jobs) / 1048576
+    _log.info("Delta update: %d files to download (%.1f MiB)", len(jobs), total_mb)
+
+    progress = QProgressDialog(parent)
+    progress.setWindowTitle(tr("update_title"))
+    progress.setLabelText(tr("update_downloading").format(latest=latest))
+    progress.setRange(0, 100)
+    progress.setValue(0)
+    progress.setAutoClose(False)
+    progress.setAutoReset(False)
+    progress.setWindowModality(Qt.WindowModality.ApplicationModal)
+    progress.setMinimumWidth(420)
+    progress.setStyleSheet(_DARK_QSS)
+    progress.setCancelButtonText(tr("update_cancel"))
+
+    downloader = DeltaDownloader(jobs, blob_dir, parent)
+
+    def on_progress(done: int, total: int) -> None:
+        if total > 0:
+            progress.setValue(int(done * 100 / total))
+            progress.setLabelText(
+                tr("update_downloading_progress").format(
+                    done=f"{done / 1048576:.1f}", total=f"{total / 1048576:.1f}"
+                )
+            )
+
+    def _cleanup() -> None:
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        shutil.rmtree(blob_dir, ignore_errors=True)
+
+    def on_failed(msg: str) -> None:
+        progress.close()
+        _cleanup()
+        if msg == "cancelled":
+            return
+        _log.warning("Delta download failed (%s) — using full AppImage download.", msg)
+        _run_linux_appimage_update(parent, latest)
+
+    def on_ok() -> None:
+        progress.close()
+        progress.setLabelText(tr("update_downloading").format(latest=latest))
+
+        # Overlay downloaded blobs onto the extracted AppDir.
+        try:
+            for rel_path, _sha, _size in jobs:
+                src = os.path.join(blob_dir, rel_path)
+                dst = os.path.join(extract_dir, rel_path)
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(src, dst)
+        except OSError as exc:
+            _cleanup()
+            _log.warning("Blob overlay failed (%s) — using full AppImage download.", exc)
+            _run_linux_appimage_update(parent, latest)
+            return
+
+        new_appimage = os.path.join(target_dir, f".Videl-x86_64.AppImage.new-{latest}")
+        ok = _repack_appimage(appimage_path, extract_dir, new_appimage)
+        _cleanup()
+        if not ok:
+            _log.warning("AppImage repack failed — using full AppImage download.")
+            _run_linux_appimage_update(parent, latest)
+            return
+
+        try:
+            os.replace(new_appimage, appimage_path)
+        except OSError as exc:
+            _log.error("AppImage replace failed: %s", exc)
+            try:
+                os.remove(new_appimage)
+            except OSError:
+                pass
+            _run_linux_appimage_update(parent, latest)
+            return
+
+        try:
+            QApplication.quit()
+            os.execv(appimage_path, [appimage_path, *sys.argv[1:]])
+        except OSError as exc:
+            _log.error("os.execv failed: %s", exc)
 
     downloader.progress.connect(on_progress)
     downloader.failed.connect(on_failed)
@@ -936,7 +1176,7 @@ def show_update_modal(parent: QWidget | None, latest: str, _html_url: str) -> No
     if _WIN_FROZEN:
         _run_delta_update(parent, latest)
     elif _LINUX_APPIMAGE:
-        _run_linux_appimage_update(parent, latest)
+        _run_linux_appimage_delta_update(parent, latest)
     else:
         _open_storefront()
 

@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/videl_theme.dart';
 import '../../core/update_checker.dart';
+import '../../features/bug_reporter/bug_reporter_page.dart';
 import '../../features/downloader/downloader_page.dart';
 import '../../features/history/history_page.dart';
 import '../../features/tools/tools_dashboard.dart';
@@ -306,6 +307,18 @@ class _VidelDrawer extends ConsumerWidget {
               label: 'History',
               active: active == _Section.history,
               onTap: () => onPick(_Section.history),
+            ),
+            _NavItem(
+              icon: Icons.bug_report_rounded,
+              label: 'Report a Bug',
+              active: false,
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BugReporterPage()),
+                );
+              },
             ),
             // Update nav item (shown only when update available)
             if (update.hasUpdate)

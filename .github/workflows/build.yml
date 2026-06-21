@@ -92,7 +92,7 @@ jobs:
           # Prefer a PAT (5000 req/hour) so the first full blob seed completes
           # in one run; fall back to GITHUB_TOKEN (~1000/hour — the uploader
           # then seeds incrementally across releases without failing the build).
-          GH_TOKEN: ${{ secrets.VIDEL_BLOB_PAT || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.VIDEL_BLOB_PAT != '' && secrets.VIDEL_BLOB_PAT || secrets.GITHUB_TOKEN }}
         run: python tools/upload_blobs.py dist/Videl --repo ${{ github.repository }}
 
       - name: Pollute venv with AI packages (parity check)
