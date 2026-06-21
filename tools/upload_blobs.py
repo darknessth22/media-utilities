@@ -54,10 +54,20 @@ def _sha256(path: str) -> str:
     return h.hexdigest()
 
 
+def _active_token() -> str:
+    """Return the best available token: GH_TOKEN (PAT) > GITHUB_TOKEN > ''."""
+    return (os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or "").strip()
+
+
 def _gh(args: list[str], repo: str) -> subprocess.CompletedProcess:
+    env = os.environ.copy()
+    token = _active_token()
+    if token:
+        env["GH_TOKEN"] = token
     return subprocess.run(
         ["gh", *args, "--repo", repo],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env,
     )
 
 
@@ -66,6 +76,11 @@ def _is_rate_limit(res: subprocess.CompletedProcess) -> bool:
     return res.returncode != 0 and (
         "rate limit" in blob or "http 403" in blob or "http 429" in blob
     )
+
+
+def _is_auth_error(res: subprocess.CompletedProcess) -> bool:
+    blob = ((res.stdout or "") + (res.stderr or "")).lower()
+    return res.returncode != 0 and ("http 401" in blob or "bad credentials" in blob)
 
 
 def _is_asset_cap(res: subprocess.CompletedProcess) -> bool:
@@ -86,6 +101,12 @@ def _ensure_release(repo: str, tag: str) -> None:
     ], repo)
     if res.returncode != 0:
         print(res.stdout, res.stderr, file=sys.stderr)
+        if _is_auth_error(res):
+            raise SystemExit(
+                "Auth failed (HTTP 401). GH_TOKEN/GITHUB_TOKEN is missing or expired.\n"
+                "Set VIDEL_BLOB_PAT to a valid PAT with 'contents: write' scope, or\n"
+                "ensure the workflow has 'permissions: contents: write'."
+            )
         raise SystemExit(f"Failed to create blob-store release '{tag}'.")
 
 
