@@ -1,7 +1,7 @@
 name: videl_mobile
 description: Videl Mobile — Android sideload build of the Videl media toolkit.
 publish_to: 'none'
-version: 4.2.11+11
+version: 4.2.12+12
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
