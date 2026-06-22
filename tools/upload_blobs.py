@@ -36,6 +36,18 @@ _SHARD_CHARS = "0123456789abcdef"
 _BATCH = 40          # blobs per `gh release upload` invocation
 _MAX_RETRIES = 3     # per-batch retries on a rate-limit error
 _BACKOFF_SEC = 90    # base backoff; grows linearly per retry
+_MAX_OVERFLOW = 9    # files-store-X, files-store-X-1 … files-store-X-9
+
+
+def _shard_tags(char: str) -> list[str]:
+    """Return the ordered list of release tags for a hex shard char.
+
+    Primary: ``files-store-{char}``
+    Overflow: ``files-store-{char}-1``, ``…-2``, … ``…-{_MAX_OVERFLOW}``
+    """
+    return [f"files-store-{char}"] + [
+        f"files-store-{char}-{i}" for i in range(1, _MAX_OVERFLOW + 1)
+    ]
 
 
 class RateLimited(Exception):
@@ -179,29 +191,58 @@ def main() -> int:
             by_sha.setdefault(_sha256(ap), ap)
     if skipped_empty:
         print(f"Skipped {skipped_empty} empty (0-byte) file(s) — no blob needed.")
-    print(f"Tree has {len(by_sha)} unique blobs to distribute across 16 shards.")
+    num_shards = len(_SHARD_CHARS) * (1 + _MAX_OVERFLOW)
+    print(f"Tree has {len(by_sha)} unique blobs to distribute across {len(_SHARD_CHARS)} "
+          f"primary shards (up to {_MAX_OVERFLOW} overflow each).")
 
     total_uploaded = 0
-    full_shards: list[str] = []
     try:
         for char in _SHARD_CHARS:
-            tag = f"files-store-{char}"
             shard = {sha: src for sha, src in by_sha.items() if sha[0] == char}
             if not shard:
                 continue
-            _ensure_release(args.repo, tag)
-            have = _existing_assets(args.repo, tag)
+
+            # Collect blobs already present across ALL tags for this char.
+            tags = _shard_tags(char)
+            have: set[str] = set()
+            existing_by_tag: dict[str, set[str]] = {}
+            for tag in tags:
+                res = _gh(["release", "view", tag], args.repo)
+                if res.returncode != 0:
+                    break  # tag doesn't exist yet — stop scanning
+                assets = _existing_assets(args.repo, tag)
+                existing_by_tag[tag] = assets
+                have |= assets
+
             missing = {sha: src for sha, src in shard.items() if sha not in have}
-            print(f"  {tag}: {len(shard)} blobs, {len(have)} present, {len(missing)} new")
-            if missing:
+            print(f"  shard-{char}: {len(shard)} blobs, {len(have)} present across "
+                  f"{len(existing_by_tag)} tag(s), {len(missing)} new")
+            if not missing:
+                continue
+
+            # Upload into the first non-full tag, creating overflow tags as needed.
+            remaining = dict(missing)
+            for tag in tags:
+                if not remaining:
+                    break
+                _ensure_release(args.repo, tag)
+                # Re-fetch assets for this specific tag (may have just been created).
+                tag_have = existing_by_tag.get(tag) or _existing_assets(args.repo, tag)
+                to_upload = {sha: src for sha, src in remaining.items() if sha not in tag_have}
+                if not to_upload:
+                    continue
                 try:
-                    _upload_shard(args.repo, tag, missing)
-                    total_uploaded += len(missing)
+                    _upload_shard(args.repo, tag, to_upload)
+                    total_uploaded += len(to_upload)
+                    remaining = {sha: src for sha, src in remaining.items()
+                                 if sha not in to_upload}
                 except ShardFull:
-                    full_shards.append(tag)
-                    print(f"  WARNING: {tag} has hit GitHub's 1000-asset cap — "
-                          f"skipping remaining blobs for this shard. Delta updates "
-                          f"fall back to full installer for blobs in this shard.")
+                    print(f"  {tag} full — spilling into next overflow tag.")
+                    continue
+            if remaining:
+                print(f"  WARNING: shard-{char} exhausted all {_MAX_OVERFLOW} overflow "
+                      f"tags with {len(remaining)} blob(s) unplaced. Increase _MAX_OVERFLOW.")
+
     except RateLimited:
         print(f"\nWARNING: GitHub rate limit hit after {total_uploaded} upload(s) "
               f"this run. Blob store is PARTIALLY seeded — remaining blobs upload "
@@ -209,10 +250,6 @@ def main() -> int:
               f"to the full installer for any blob not yet present. To seed the "
               f"whole store in one run, set GH_TOKEN to a PAT (5000 req/hour).")
         return 0
-
-    if full_shards:
-        print(f"\nWARNING: {len(full_shards)} shard(s) are full: {', '.join(full_shards)}. "
-              f"Consider increasing shard count (SHARD_CHARS) to spread blobs thinner.")
 
     print(f"Blob upload complete. {total_uploaded} new blob(s) uploaded.")
     return 0

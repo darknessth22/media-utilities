@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _apiUrl =
@@ -9,9 +12,11 @@ const _apiUrl =
 const _apkAssetName = 'videl-android-arm64-v8a.apk';
 
 // Current build version — must stay in sync with pubspec.yaml version field.
-const kAppVersion = '4.2.12';
+const kAppVersion = '4.2.13';
 
 const _prefSkipKey = 'update_skip_version';
+
+const _installChannel = MethodChannel('videl/python');
 
 class UpdateInfo {
   const UpdateInfo({
@@ -29,20 +34,41 @@ class UpdateState {
     this.info,
     this.dismissed = false,
     this.checking = false,
+    this.downloading = false,
+    this.downloadProgress = 0.0,
+    this.downloadError,
   });
   final UpdateInfo? info;
   final bool dismissed;
   final bool checking;
+  final bool downloading;
+  final double downloadProgress; // 0.0 – 1.0
+  final String? downloadError;
 
   bool get hasUpdate => info != null && !dismissed;
 
-  UpdateState copyWith({UpdateInfo? info, bool? dismissed, bool? checking}) =>
+  UpdateState copyWith({
+    UpdateInfo? info,
+    bool? dismissed,
+    bool? checking,
+    bool? downloading,
+    double? downloadProgress,
+    Object? downloadError = _sentinel,
+  }) =>
       UpdateState(
         info: info ?? this.info,
         dismissed: dismissed ?? this.dismissed,
         checking: checking ?? this.checking,
+        downloading: downloading ?? this.downloading,
+        downloadProgress: downloadProgress ?? this.downloadProgress,
+        downloadError: downloadError == _sentinel
+            ? this.downloadError
+            : downloadError as String?,
       );
 }
+
+// Sentinel so copyWith can null-out downloadError explicitly.
+const _sentinel = Object();
 
 class UpdateNotifier extends Notifier<UpdateState> {
   @override
@@ -65,11 +91,9 @@ class UpdateNotifier extends Notifier<UpdateState> {
       final tag = (json['tag_name'] as String? ?? '').replaceAll(RegExp(r'^v'), '');
       if (tag.isEmpty) return;
 
-      // Compare versions — skip if latest <= current or user dismissed this tag
       if (!_isNewer(tag, kAppVersion)) return;
       if (tag == skipped) return;
 
-      // Find APK asset URL
       final assets = (json['assets'] as List? ?? []);
       final asset = assets.cast<Map<String, dynamic>>().firstWhere(
             (a) => (a['name'] as String?) == _apkAssetName,
@@ -91,6 +115,68 @@ class UpdateNotifier extends Notifier<UpdateState> {
       // silent fail — update check is non-critical
     } finally {
       if (state.checking) state = state.copyWith(checking: false);
+    }
+  }
+
+  Future<void> downloadAndInstall() async {
+    final info = state.info;
+    if (info == null) return;
+
+    state = state.copyWith(
+      downloading: true,
+      downloadProgress: 0.0,
+      downloadError: null,
+    );
+
+    try {
+      final cacheDir = await getTemporaryDirectory();
+      final apkFile = File('${cacheDir.path}/videl-update-${info.latestVersion}.apk');
+
+      // Stream download with progress
+      final client = http.Client();
+      try {
+        final request = http.Request('GET', Uri.parse(info.apkUrl));
+        final response = await client.send(request);
+
+        if (response.statusCode != 200) {
+          state = state.copyWith(
+            downloading: false,
+            downloadError: 'Server returned ${response.statusCode}',
+          );
+          return;
+        }
+
+        final total = response.contentLength ?? 0;
+        int received = 0;
+
+        final sink = apkFile.openWrite();
+        await for (final chunk in response.stream) {
+          sink.add(chunk);
+          received += chunk.length;
+          if (total > 0) {
+            state = state.copyWith(
+              downloadProgress: received / total,
+            );
+          }
+        }
+        await sink.flush();
+        await sink.close();
+      } finally {
+        client.close();
+      }
+
+      state = state.copyWith(downloading: false, downloadProgress: 1.0);
+
+      // Trigger system install prompt via native channel
+      await _installChannel.invokeMethod<bool>(
+        'install_apk',
+        {'path': apkFile.path},
+      );
+    } catch (e) {
+      state = state.copyWith(
+        downloading: false,
+        downloadError: e.toString(),
+      );
     }
   }
 
@@ -118,7 +204,7 @@ bool _isNewer(String remote, String local) {
 }
 
 List<int> _parse(String v) {
-  final clean = v.split('-').first; // strip "-rc1" etc.
+  final clean = v.split('-').first;
   final parts = clean.split('.').map((p) => int.tryParse(p) ?? 0).toList();
   while (parts.length < 3) parts.add(0);
   return parts;

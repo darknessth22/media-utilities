@@ -77,9 +77,16 @@ _BLOB_STORE_RELEASE_BASE = (
 )
 
 
-def _blob_url(sha: str) -> str:
-    """URL of a content-addressed blob in its sha-prefix shard release."""
-    return f"{_BLOB_STORE_RELEASE_BASE}files-store-{sha[0]}/{sha}"
+_BLOB_STORE_MAX_OVERFLOW = 9  # mirrors upload_blobs.py _MAX_OVERFLOW
+
+
+def _blob_urls(sha: str) -> list[str]:
+    """Ordered list of candidate URLs for a blob: primary shard then overflows."""
+    base = f"{_BLOB_STORE_RELEASE_BASE}files-store-{sha[0]}"
+    urls = [f"{base}/{sha}"]
+    for i in range(1, _BLOB_STORE_MAX_OVERFLOW + 1):
+        urls.append(f"{base}-{i}/{sha}")
+    return urls
 
 _HTTP_TIMEOUT_SEC = 3.0
 _DOWNLOAD_TIMEOUT_SEC = 60.0
@@ -293,6 +300,8 @@ class DeltaDownloader(QThread):
         """Download one segment (whole file, or a byte range) into its dest.
 
         Returns an error string, ``"cancelled"``, or ``None`` on success.
+        Tries the primary shard tag then overflow tags (files-store-X-1 …) until
+        one succeeds (handles full shards where some blobs spilled over).
         """
         sha, dest, start, length, ranged = seg
         if self._cancel:
@@ -300,32 +309,45 @@ class DeltaDownloader(QThread):
         headers = {"User-Agent": _USER_AGENT}
         if ranged:
             headers["Range"] = f"bytes={start}-{start + length - 1}"
-        try:
-            req = urllib.request.Request(_blob_url(sha), headers=headers)
-            with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT_SEC) as resp:
-                # If the CDN ignored the Range header it returns 200 + the whole
-                # file — writing that at an offset would corrupt the blob, so
-                # bail and let the caller fall back to the full installer.
-                if ranged and getattr(resp, "status", None) != 206:
-                    return f"range request not honoured for {os.path.basename(dest)}"
-                with open(dest, "r+b") as fh:
-                    fh.seek(start)
-                    remaining = length
-                    while remaining > 0:
-                        if self._cancel:
-                            return "cancelled"
-                        chunk = resp.read(min(_DELTA_READ_CHUNK, remaining))
-                        if not chunk:
-                            break
-                        fh.write(chunk)
-                        remaining -= len(chunk)
-                        self._advance(len(chunk), total)
-            if remaining > 0:
-                return f"short read on {os.path.basename(dest)}"
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            _log.warning("Delta segment download failed (%s): %s", dest, exc)
-            return str(exc)
-        return None
+
+        last_err: str = f"blob not found in any shard: {sha[:12]}"
+        for url in _blob_urls(sha):
+            if self._cancel:
+                return "cancelled"
+            try:
+                req = urllib.request.Request(url, headers=headers)
+                with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT_SEC) as resp:
+                    # If the CDN ignored the Range header it returns 200 + the whole
+                    # file — writing that at an offset would corrupt the blob, so
+                    # bail and let the caller fall back to the full installer.
+                    if ranged and getattr(resp, "status", None) != 206:
+                        return f"range request not honoured for {os.path.basename(dest)}"
+                    with open(dest, "r+b") as fh:
+                        fh.seek(start)
+                        remaining = length
+                        while remaining > 0:
+                            if self._cancel:
+                                return "cancelled"
+                            chunk = resp.read(min(_DELTA_READ_CHUNK, remaining))
+                            if not chunk:
+                                break
+                            fh.write(chunk)
+                            remaining -= len(chunk)
+                            self._advance(len(chunk), total)
+                if remaining > 0:
+                    return f"short read on {os.path.basename(dest)}"
+                return None  # success
+            except urllib.error.HTTPError as exc:
+                if exc.code == 404:
+                    last_err = f"404 on {url}"
+                    continue  # try next overflow tag
+                _log.warning("Delta segment HTTP error (%s): %s", dest, exc)
+                return str(exc)
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                _log.warning("Delta segment download failed (%s): %s", dest, exc)
+                return str(exc)
+
+        return last_err
 
     def _advance(self, n: int, total: int) -> None:
         """Aggregate byte progress across worker threads, throttled to ~20 Hz."""

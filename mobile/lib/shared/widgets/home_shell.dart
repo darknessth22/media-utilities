@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/videl_theme.dart';
 import '../../core/update_checker.dart';
@@ -145,6 +144,11 @@ class _UpdateSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final updateState = ref.watch(updateProvider);
+    final isDownloading = updateState.downloading;
+    final progress = updateState.downloadProgress;
+    final error = updateState.downloadError;
+
     return Padding(
       padding: EdgeInsets.fromLTRB(
           20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 24),
@@ -183,7 +187,7 @@ class _UpdateSheet extends ConsumerWidget {
               const Text('Update available',
                   style: TextStyle(
                       fontSize: 17, fontWeight: FontWeight.w700)),
-              Text('v${kAppVersion}  →  v${info.latestVersion}',
+              Text('v$kAppVersion  →  v${info.latestVersion}',
                   style: const TextStyle(
                       fontSize: 12, color: VidelColors.textSecondary)),
             ]),
@@ -210,18 +214,76 @@ class _UpdateSheet extends ConsumerWidget {
             const SizedBox(height: 14),
           ],
 
-          // Download button
+          // Error banner
+          if (error != null) ...[
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withOpacity(0.4)),
+              ),
+              child: Text(
+                'Download failed: $error',
+                style: const TextStyle(
+                    fontSize: 11, color: Colors.redAccent, height: 1.4),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+
+          // Progress bar (visible while downloading)
+          if (isDownloading) ...[
+            Row(children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress > 0 ? progress : null,
+                    backgroundColor: VidelColors.border,
+                    color: VidelColors.accent,
+                    minHeight: 6,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                progress > 0
+                    ? '${(progress * 100).toStringAsFixed(0)}%'
+                    : '…',
+                style: const TextStyle(
+                    fontSize: 12, color: VidelColors.textSecondary),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            const Text(
+              'Downloading update…',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: VidelColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // Download / Install button
           ElevatedButton.icon(
-            onPressed: () async {
-              Navigator.pop(context);
-              final uri = Uri.parse(info.apkUrl);
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri,
-                    mode: LaunchMode.externalApplication);
-              }
-            },
-            icon: const Icon(Icons.download_rounded, size: 18),
-            label: Text('Download v${info.latestVersion}'),
+            onPressed: isDownloading
+                ? null
+                : () {
+                    ref.read(updateProvider.notifier).downloadAndInstall();
+                  },
+            icon: Icon(
+              isDownloading
+                  ? Icons.hourglass_top_rounded
+                  : Icons.download_rounded,
+              size: 18,
+            ),
+            label: Text(
+              isDownloading
+                  ? 'Downloading…'
+                  : error != null
+                      ? 'Retry download'
+                      : 'Download & Install v${info.latestVersion}',
+            ),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
@@ -230,10 +292,14 @@ class _UpdateSheet extends ConsumerWidget {
 
           // Skip this version
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ref.read(updateProvider.notifier).dismiss(skipVersion: true);
-            },
+            onPressed: isDownloading
+                ? null
+                : () {
+                    Navigator.pop(context);
+                    ref
+                        .read(updateProvider.notifier)
+                        .dismiss(skipVersion: true);
+                  },
             child: const Text('Skip this version',
                 style: TextStyle(color: VidelColors.textSecondary)),
           ),
