@@ -78,7 +78,12 @@ def latest_version(timeout: int = 15) -> str:
 
 
 def update(timeout: int = 300) -> tuple[int, str]:
-    """pip-install the latest yt-dlp into the user dir.
+    """pip-install the latest yt-dlp master into the user dir.
+
+    Installs straight from the yt-dlp GitHub master branch rather than the
+    PyPI stable release: extractors for Facebook/Instagram/TikTok break often
+    and fixes can lag weeks behind a stable cut (e.g. the Instagram "empty
+    media response" fix landed on master before any stable release had it).
 
     Returns (returncode, combined_output). The new version loads on next launch
     via :func:`activate_user_ytdlp`.
@@ -92,13 +97,29 @@ def update(timeout: int = 300) -> tuple[int, str]:
     except Exception:
         py = sys.executable
 
-    cmd = [
-        py, "-m", "pip", "install", "--upgrade",
+    base = [
+        py, "-m", "pip", "install",
         "--no-warn-script-location", "--disable-pip-version-check",
-        "--target", d, "yt-dlp",
+        "--target", d,
     ]
-    result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=timeout,
-        creationflags=_NO_WINDOW,
+
+    # yt-dlp master tarball has no version pip can compare against a prior
+    # install, so force-reinstall it every time to guarantee the latest code.
+    ytdlp_result = subprocess.run(
+        base + ["--upgrade", "--force-reinstall",
+                "https://github.com/yt-dlp/yt-dlp/archive/refs/heads/master.tar.gz"],
+        capture_output=True, text=True, timeout=timeout, creationflags=_NO_WINDOW,
     )
-    return result.returncode, (result.stdout or "") + (result.stderr or "")
+    output = (ytdlp_result.stdout or "") + (ytdlp_result.stderr or "")
+    if ytdlp_result.returncode != 0:
+        return ytdlp_result.returncode, output
+
+    # curl_cffi enables yt-dlp's browser-impersonation path, required by the
+    # reworked Instagram extractor. Versioned on PyPI, so a plain --upgrade
+    # skips re-downloading the compiled wheel when already current.
+    curl_cffi_result = subprocess.run(
+        base + ["--upgrade", "curl_cffi"],
+        capture_output=True, text=True, timeout=timeout, creationflags=_NO_WINDOW,
+    )
+    output += (curl_cffi_result.stdout or "") + (curl_cffi_result.stderr or "")
+    return curl_cffi_result.returncode, output
