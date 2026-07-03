@@ -61,6 +61,7 @@ _GENERIC_ERROR_MESSAGES: dict[str, str] = {
     "unavailable": "This video has been removed or is no longer available.",
     "rate_limited": "The site is rate-limiting downloads. Wait a few minutes and try again.",
     "ffmpeg": "Post-processing failed. The downloaded file may be corrupt or in an unsupported format.",
+    "empty_media": "Instagram sent an empty response for this post — usually means yt-dlp's extractor is outdated. Go to Settings and click \"Update yt-dlp\", then try again.",
     "network": "Network error. Check your connection and try again.",
     "generic": "Download failed. Check the URL or try again later.",
 }
@@ -887,7 +888,11 @@ class DownloadSection(QScrollArea):
         self._load_preview_btn.setEnabled(True)
         self._load_preview_btn.setText(tr("btn_load_preview"))
         if "error" in result:
-            self.status_message.emit(f"Preview unavailable: {result['error']}", True)
+            from core.downloader import _classify_download_error
+            code = _classify_download_error(result["error"])
+            friendly = _GENERIC_ERROR_MESSAGES.get(code)
+            msg = friendly if friendly else result["error"]
+            self.status_message.emit(f"Preview unavailable: {msg}", True)
             self._preview_card.setVisible(False)
             return
         self._duration_ms = result["duration_ms"]

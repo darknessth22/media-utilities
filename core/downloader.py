@@ -66,6 +66,8 @@ def _classify_download_error(msg: str) -> str:
         return "timeout"
     if "ffmpeg" in m or "postprocessing" in m:
         return "ffmpeg"
+    if "empty media response" in m:
+        return "empty_media"
     return "generic"
 
 
