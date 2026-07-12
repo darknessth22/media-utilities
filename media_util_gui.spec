@@ -245,18 +245,10 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    upx_exclude=[
-        'vcruntime140.dll', 'msvcp140.dll',
-        # UPX-packed Qt DLLs silently break plugin loading (multimedia
-        # backend, image formats). Keep all Qt6* + the FFmpeg backend
-        # DLLs uncompressed.
-        'Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll', 'Qt6Svg.dll',
-        'Qt6Multimedia.dll', 'Qt6MultimediaWidgets.dll',
-        'Qt6Network.dll', 'Qt6OpenGL.dll', 'Qt6Qml.dll',
-        'avcodec-*.dll', 'avformat-*.dll', 'avutil-*.dll',
-        'swresample-*.dll', 'swscale-*.dll',
-    ],
+    # UPX-packed unsigned executables are a top antivirus heuristic trigger
+    # (Kaspersky flagged the packed build as a threat). Larger binary is the
+    # accepted cost; the installer compresses it anyway.
+    upx=False,
     runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
@@ -273,14 +265,6 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
-    upx_exclude=[
-        'vcruntime140.dll', 'msvcp140.dll',
-        'Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Widgets.dll', 'Qt6Svg.dll',
-        'Qt6Multimedia.dll', 'Qt6MultimediaWidgets.dll',
-        'Qt6Network.dll', 'Qt6OpenGL.dll', 'Qt6Qml.dll',
-        'avcodec-*.dll', 'avformat-*.dll', 'avutil-*.dll',
-        'swresample-*.dll', 'swscale-*.dll',
-    ],
+    upx=False,
     name='Videl',
 )

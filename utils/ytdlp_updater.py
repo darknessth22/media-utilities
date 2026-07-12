@@ -78,12 +78,15 @@ def latest_version(timeout: int = 15) -> str:
 
 
 def update(timeout: int = 300) -> tuple[int, str]:
-    """pip-install the latest yt-dlp master into the user dir.
+    """pip-install the latest yt-dlp nightly into the user dir.
 
-    Installs straight from the yt-dlp GitHub master branch rather than the
-    PyPI stable release: extractors for Facebook/Instagram/TikTok break often
+    Installs the nightly pre-release wheel from PyPI (``--pre``) rather than
+    the stable release: extractors for Facebook/Instagram/TikTok break often
     and fixes can lag weeks behind a stable cut (e.g. the Instagram "empty
     media response" fix landed on master before any stable release had it).
+    A wheel, not the GitHub master tarball — building the tarball needs the
+    hatchling build backend, which the frozen build's bundled Python cannot
+    import (BackendUnavailable), while wheels install without any build step.
 
     Returns (returncode, combined_output). The new version loads on next launch
     via :func:`activate_user_ytdlp`.
@@ -103,11 +106,11 @@ def update(timeout: int = 300) -> tuple[int, str]:
         "--target", d,
     ]
 
-    # yt-dlp master tarball has no version pip can compare against a prior
-    # install, so force-reinstall it every time to guarantee the latest code.
+    # Nightly wheels carry dated versions (e.g. 2026.7.9.234832.dev0), so a
+    # plain --upgrade correctly replaces any older install, including ones
+    # left behind by the old tarball-based updater.
     ytdlp_result = subprocess.run(
-        base + ["--upgrade", "--force-reinstall",
-                "https://github.com/yt-dlp/yt-dlp/archive/refs/heads/master.tar.gz"],
+        base + ["--upgrade", "--pre", "yt-dlp"],
         capture_output=True, text=True, timeout=timeout, creationflags=_NO_WINDOW,
     )
     output = (ytdlp_result.stdout or "") + (ytdlp_result.stderr or "")
