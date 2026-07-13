@@ -74,8 +74,17 @@ _RECONCILE_RESULT = model_manager.reconcile_on_launch()
 model_manager.ensure_ai_packages_on_path()
 
 # Put any user-updated yt-dlp on sys.path before any import touches it.
-from utils.ytdlp_updater import activate_user_ytdlp
+# finish_pending_updates must run first: it upgrades curl_cffi, which is only
+# writable while its .pyd is not yet loaded into this process.
+from utils.ytdlp_updater import activate_user_ytdlp, finish_pending_updates
+finish_pending_updates()
 activate_user_ytdlp()
+
+# Expose the provisioned Deno (if any) on PATH so yt-dlp-ejs can solve
+# YouTube JS challenges. Downloading a missing Deno happens later, on a
+# background thread after the UI is up.
+from utils.jsruntime import activate_js_runtime
+activate_js_runtime()
 
 # Single-instance mutex — installer uses this name to detect a running instance.
 # If the mutex already exists, another Videl is running: bail out before any UI
@@ -181,6 +190,24 @@ def main() -> None:
         # Silent Smart Updater — keep ref on window to prevent GC.
         from core.updater import start_update_check
         win._update_checker = start_update_check(win)
+        # Silent engine maintenance: provision Deno if no JS runtime exists,
+        # and refresh a stale (>7 days) yt-dlp. Both are network-bound and
+        # non-fatal on failure; new yt-dlp applies on next launch.
+        import threading
+
+        def _engine_maintenance() -> None:
+            try:
+                from utils.jsruntime import ensure_deno
+                ensure_deno()
+            except Exception:
+                pass
+            try:
+                from utils.ytdlp_updater import auto_update_if_stale
+                auto_update_if_stale()
+            except Exception:
+                pass
+
+        threading.Thread(target=_engine_maintenance, daemon=True).start()
 
     splash.ready_to_start.connect(_on_ready)
 

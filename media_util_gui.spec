@@ -9,6 +9,10 @@ IS_LINUX = sys.platform.startswith("linux")
 
 datas = []
 datas += collect_data_files('yt_dlp')
+# yt-dlp-ejs ships the YouTube n-sig/sig solver as .js data files; without
+# them frozen builds extract no video formats ("Requested format is not
+# available"). yt_dlp imports it lazily, so it also needs a hidden import.
+datas += collect_data_files('yt_dlp_ejs')
 
 # Collect pip fully — datas, binaries, and submodules — so pip._vendor's
 # custom path finder works inside the frozen exe.
@@ -92,6 +96,7 @@ hiddenimports += collect_submodules('gui')
 
 # yt-dlp: lazy-loads extractors internally — no submodule collection needed
 hiddenimports += ['yt_dlp']
+hiddenimports += collect_submodules('yt_dlp_ejs')
 
 # pip: runs in-process to install AI packages — full collect via collect_all above
 hiddenimports += _pip_hidden

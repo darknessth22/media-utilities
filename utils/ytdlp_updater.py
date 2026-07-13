@@ -108,9 +108,11 @@ def update(timeout: int = 300) -> tuple[int, str]:
 
     # Nightly wheels carry dated versions (e.g. 2026.7.9.234832.dev0), so a
     # plain --upgrade correctly replaces any older install, including ones
-    # left behind by the old tarball-based updater.
+    # left behind by the old tarball-based updater. yt-dlp-ejs rides along:
+    # it holds the YouTube n-sig solver scripts, and a new nightly may need
+    # a newer solver than the one frozen into the app.
     ytdlp_result = subprocess.run(
-        base + ["--upgrade", "--pre", "yt-dlp"],
+        base + ["--upgrade", "--pre", "yt-dlp", "yt-dlp-ejs"],
         capture_output=True, text=True, timeout=timeout, creationflags=_NO_WINDOW,
     )
     output = (ytdlp_result.stdout or "") + (ytdlp_result.stderr or "")
@@ -118,11 +120,87 @@ def update(timeout: int = 300) -> tuple[int, str]:
         return ytdlp_result.returncode, output
 
     # curl_cffi enables yt-dlp's browser-impersonation path, required by the
-    # reworked Instagram extractor. Versioned on PyPI, so a plain --upgrade
-    # skips re-downloading the compiled wheel when already current.
+    # reworked Instagram extractor. It cannot be upgraded in place: the running
+    # app keeps its _wrapper.pyd loaded, and Windows locks loaded modules, so
+    # pip dies with PermissionError (WinError 5). When it is already installed,
+    # defer the upgrade to the next launch (see finish_pending_updates), which
+    # runs before anything imports it.
+    if os.path.isdir(os.path.join(d, "curl_cffi")):
+        _write_marker()
+        return 0, output
     curl_cffi_result = subprocess.run(
-        base + ["--upgrade", "curl_cffi"],
+        base + ["curl_cffi"],
         capture_output=True, text=True, timeout=timeout, creationflags=_NO_WINDOW,
     )
     output += (curl_cffi_result.stdout or "") + (curl_cffi_result.stderr or "")
     return curl_cffi_result.returncode, output
+
+
+# ── Launch-time maintenance ──────────────────────────────────────────────────
+
+def _marker_path() -> str:
+    return os.path.join(ytdlp_dir(), "curl_cffi_update_pending")
+
+
+def _write_marker() -> None:
+    try:
+        with open(_marker_path(), "w") as f:
+            f.write("upgrade curl_cffi on next launch\n")
+    except OSError:
+        pass
+
+
+def finish_pending_updates(timeout: int = 300) -> None:
+    """Upgrade curl_cffi if a previous update deferred it.
+
+    MUST run at launch before anything imports curl_cffi or yt_dlp — once the
+    .pyd is loaded, Windows locks it and the upgrade fails until next launch.
+    Fast no-op (one stat call) when nothing is pending; failures keep the
+    marker so the next launch retries.
+    """
+    if not os.path.exists(_marker_path()):
+        return
+    try:
+        from utils.bundled_runtime import bundled_python_path
+        py = bundled_python_path()
+    except Exception:
+        py = sys.executable
+    try:
+        result = subprocess.run(
+            [py, "-m", "pip", "install",
+             "--no-warn-script-location", "--disable-pip-version-check",
+             "--target", ytdlp_dir(), "--upgrade", "curl_cffi"],
+            capture_output=True, text=True, timeout=timeout, creationflags=_NO_WINDOW,
+        )
+        if result.returncode == 0:
+            os.remove(_marker_path())
+    except Exception:
+        pass
+
+
+def _version_date(version: str):
+    """Parse a yt-dlp version string (stable or nightly) into a date, or None."""
+    from datetime import date
+    m = re.match(r"(\d{4})\.(\d{1,2})\.(\d{1,2})", version or "")
+    if not m:
+        return None
+    try:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return None
+
+
+def auto_update_if_stale(max_age_days: int = 7) -> bool:
+    """Run :func:`update` when the effective yt-dlp is older than the cutoff.
+
+    Extractors rot quickly; most users never find the manual update button —
+    they just report the app as broken. Meant for a background thread at
+    launch. Returns True when an update was run (applies on next launch).
+    """
+    from datetime import date, timedelta
+    ver = installed_target_version() or current_version()
+    d = _version_date(ver)
+    if d is not None and date.today() - d <= timedelta(days=max_age_days):
+        return False
+    rc, _ = update()
+    return rc == 0
