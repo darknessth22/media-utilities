@@ -16,3 +16,9 @@ retrying==1.4.2
 submitit==1.5.4
 treetable==0.2.6
 cloudpickle==3.1.2
+# torchaudio needs the soundfile backend to save wav/flac stems (mp3 goes
+# through lameenc instead); without it ta.save dies with "Couldn't find
+# appropriate backend". soundfile bundles libsndfile in its wheel.
+soundfile==0.13.1
+cffi==2.0.0
+pycparser==3.0
