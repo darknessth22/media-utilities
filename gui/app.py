@@ -42,7 +42,6 @@ from core.i18n import I18n, tr
 from core.tray import SystemTrayIcon
 from core.extension_bridge import ExtensionBridge
 from core.version import VERSION as APP_VERSION
-from gui.dnd_handler import DndHandler
 from gui.tabs.download_section import DownloadSection
 from gui.tabs.convert_section import ConvertSection
 from gui.tabs.trim_section import TrimSection
@@ -1728,31 +1727,12 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Header: logo + app name
+        # Header spacer — the app logo + name already appear once in the
+        # TitleBar above; a second logo+name row here just duplicated the
+        # branding in the top-left corner, so this is now a plain spacer.
         header = QWidget()
         header.setObjectName("SidebarHeader")
-        header.setFixedHeight(64)
-        h_row = QHBoxLayout(header)
-        h_row.setContentsMargins(16, 0, 16, 0)
-        h_row.setSpacing(8)
-
-        logo = QLabel()
-        logo.setFixedSize(32, 24)
-        logo.setStyleSheet("background: transparent;")
-        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        logo_px = QPixmap(_APP_LOGO).scaled(
-            32, 24,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        if not logo_px.isNull():
-            logo.setPixmap(logo_px)
-        h_row.addWidget(logo)
-
-        self._sidebar_brand = QLabel(tr("app_name"))
-        self._sidebar_brand.setObjectName("SidebarTitle")
-        h_row.addWidget(self._sidebar_brand)
-        h_row.addStretch()
+        header.setFixedHeight(16)
         layout.addWidget(header)
 
         sep = QFrame()
@@ -1906,8 +1886,6 @@ class MainWindow(QMainWindow):
         lang = I18n.instance().current_language
 
         self.title_bar.retranslate_ui()
-        if hasattr(self, "_sidebar_brand"):
-            self._sidebar_brand.setText(tr("app_name"))
 
         # Sidebar nav buttons
         self._home_nav_btn._text_label.setText(tr("nav_home"))
@@ -2645,49 +2623,46 @@ class MainWindow(QMainWindow):
 
     def dropEvent(self, event) -> None:
         urls = event.mimeData().urls()
-        dropped_files, error_msg = DndHandler.process_drop(urls)
+        paths = [url.toLocalFile() for url in urls if url.isLocalFile()]
+        paths = [p for p in paths if os.path.isfile(p)]
 
-        if not dropped_files:
-            self.update_status(error_msg or tr("status_drop_failed"), True)
+        if not paths:
+            self.update_status(tr("status_drop_failed"), True)
             event.ignore()
             return
 
-        if error_msg:
-            self.update_status(error_msg, True)
+        # Always drop into whichever tool section is currently open — each
+        # section validates/accepts its own file types via its own
+        # populate_file(s) method. No cross-tool rerouting by file extension:
+        # if the open section can't use populate_file(s) at all (e.g. History,
+        # Settings), the drop is a no-op with a status message, not a jump to
+        # a different tool.
+        widget = self._section_widgets[self._current_section]
 
-        # Map the DnD target_tab to the section index
-        target_tab = dropped_files[0].target_tab
-        section_index = {
-            "convert":     1,
-            "batch":       1,
-            "trim":        2,
-            "document":    3,
-            "scrub":       9,
-            "pdf_toolkit": 15,
-        }.get(target_tab or "", -1)
-
-        if section_index == -1:
+        if len(paths) > 1 and hasattr(widget, "populate_batch_files"):
+            widget.populate_batch_files(paths)
+        elif len(paths) > 1 and hasattr(widget, "populate_files"):
+            widget.populate_files(paths)
+        elif hasattr(widget, "populate_files"):
+            widget.populate_files(paths)
+        elif hasattr(widget, "populate_file"):
+            widget.populate_file(paths[0])
+        else:
             self.update_status(tr("status_drop_no_section"), True)
             event.ignore()
             return
 
-        self._navigate_to(section_index)
-
-        widget = self._section_widgets[section_index]
-        paths = [df.path for df in dropped_files]
-
-        if target_tab == "batch" and hasattr(widget, "populate_batch_files"):
-            widget.populate_batch_files(paths)
-            # Switch the section tab bar to BATCH CONVERT (index 1)
+        # Some sections (e.g. Convert) have their own internal single/batch
+        # sub-tabs and switch their own view in populate_file(s); keep the
+        # OUTER section tab bar in sync if the widget exposes which sub-tab
+        # it landed on.
+        sub_tab = getattr(widget, "_current_sub_tab", None)
+        if sub_tab is not None and 0 <= sub_tab < self._section_tab_bar.count():
             self._section_tab_bar.blockSignals(True)
-            self._section_tab_bar.setCurrentIndex(1)
+            self._section_tab_bar.setCurrentIndex(sub_tab)
             self._section_tab_bar.blockSignals(False)
-            if hasattr(widget, "on_sub_tab_changed"):
-                widget.on_sub_tab_changed(1)
-        elif target_tab in ("scrub", "watermark") and hasattr(widget, "populate_files"):
-            widget.populate_files(paths)
-        elif hasattr(widget, "populate_file") and paths:
-            widget.populate_file(paths[0])
+
+        event.acceptProposedAction()
 
         event.acceptProposedAction()
         self.update_status(

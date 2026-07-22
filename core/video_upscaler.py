@@ -496,26 +496,58 @@ def upscale_video(
         vcodec = ["-c:v", "h264_amf", "-quality", "quality", "-rc", "cqp", "-qp_i", "20", "-qp_p", "20"]
     else:
         vcodec = ["-c:v", "libx264", "-preset", "medium", "-crf", "18"]
+    is_hw_codec = vcodec[1] != "libx264"
 
-    encode_cmd = [
-        ffmpeg_path, "-y",
-        "-framerate", f"{out_fps:.6f}",
-        "-i", os.path.join(str(out_dir), "frame_%08d.png"),
-        "-i", input_path,
-        "-map", "0:v:0", "-map", "1:a?",
-        *vcodec,
-        "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "192k",
-        "-shortest",
-        output_path,
-    ]
-    try:
-        enc = subprocess.run(
-            encode_cmd, capture_output=True, text=True,
+    def _build_encode_cmd(codec_args: list[str]) -> list[str]:
+        return [
+            ffmpeg_path, "-y",
+            "-framerate", f"{out_fps:.6f}",
+            "-i", os.path.join(str(out_dir), "frame_%08d.png"),
+            "-i", input_path,
+            "-map", "0:v:0", "-map", "1:a?",
+            *codec_args,
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "192k",
+            "-shortest",
+            output_path,
+        ]
+
+    def _run_encode(codec_args: list[str]) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            _build_encode_cmd(codec_args), capture_output=True, text=True,
             timeout=10800, creationflags=_WIN_FLAGS,
         )
+
+    try:
+        enc = _run_encode(vcodec)
     except subprocess.TimeoutExpired:
         return {"success": False, "error": "Final encode timed out.", "resumable": True}
+
+    # detect_hw_encoders() only checks that ffmpeg was BUILT with nvenc/amf
+    # support — it can't tell whether the GPU/driver can actually open an
+    # encoder session right now. "No capable devices found" is often
+    # TRANSIENT: the NVENC session slot was still held by the AI-upscale
+    # stage's own CUDA subprocess a moment earlier, or another app briefly
+    # had the encoder open. Retry the SAME hardware codec once after a short
+    # delay before giving up on it — most transient failures clear by then.
+    if is_hw_codec and (enc.returncode != 0 or not os.path.isfile(output_path)):
+        _report(94, "Hardware encoder busy — retrying…")
+        time.sleep(2.0)
+        try:
+            enc = _run_encode(vcodec)
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error": "Final encode timed out.", "resumable": True}
+
+    # Only fall back to the CPU encoder if the hardware retry ALSO failed —
+    # keeps NVIDIA/AMD as the actual output whenever the hardware path is
+    # genuinely usable, and CPU is a last resort, not the default outcome.
+    if is_hw_codec and (enc.returncode != 0 or not os.path.isfile(output_path)):
+        _report(94, "Hardware encoder unavailable — falling back to CPU encoder…")
+        try:
+            enc = _run_encode(["-c:v", "libx264", "-preset", "medium", "-crf", "18"])
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error": "Final encode timed out.", "resumable": True}
+
     if enc.returncode != 0 or not os.path.isfile(output_path):
         tail = "\n".join((enc.stderr or "").splitlines()[-12:])
         return {"success": False, "error": f"Final encode failed:\n{tail}",

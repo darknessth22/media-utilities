@@ -77,9 +77,10 @@ QComboBox QAbstractItemView { outline: none; }
 QCheckBox { spacing: 8px; background: transparent; }
 QCheckBox::indicator { width: 18px; height: 18px; border-width: 1px; border-style: solid; border-radius: 4px; }
 
-/* Progress bar */
-QProgressBar { border: none; border-radius: 4px; max-height: 6px; text-align: center; }
-QProgressBar::chunk { border-radius: 4px; }
+/* Progress bar — tall enough that the percentage text isn't clipped when
+   setTextVisible(True) is used (a 6px bar can't legibly show its own text). */
+QProgressBar { border: none; border-radius: 8px; min-height: 18px; max-height: 18px; text-align: center; font-size: 11px; }
+QProgressBar::chunk { border-radius: 8px; }
 
 /* Status bar */
 QStatusBar { font-size: 12px; border-top-width: 1px; border-top-style: solid; }

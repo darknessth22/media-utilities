@@ -180,6 +180,13 @@ class MergeSection(QWidget):
 
     # ── List helpers ───────────────────────────────────────────────────────────
 
+    def populate_files(self, paths: list[str]) -> None:
+        """Append dropped/external file paths into the merge list (dedup)."""
+        for p in paths:
+            existing = [self._file_list.item(i).text() for i in range(self._file_list.count())]
+            if p not in existing:
+                self._file_list.addItem(QListWidgetItem(p))
+
     def _add_files(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
             self,
