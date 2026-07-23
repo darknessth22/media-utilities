@@ -741,14 +741,19 @@ def download_media(
 
     url = normalize_url(url)
 
+    # Instagram titles are often identical (blank / caption-less) across an
+    # account's posts, so %(title)s alone collides and later downloads
+    # overwrite earlier ones. Append the post id to keep filenames unique.
+    _name_part = "%(title).150B [%(id)s]" if platform == "instagram" else "%(title).150B"
+
     if playlist_mode == "full":
         output_template = (
-            os.path.join(output_dir, "%(playlist_index)s - %(title).150B.%(ext)s")
-            if output_dir else "%(playlist_index)s - %(title).150B.%(ext)s"
+            os.path.join(output_dir, f"%(playlist_index)s - {_name_part}.%(ext)s")
+            if output_dir else f"%(playlist_index)s - {_name_part}.%(ext)s"
         )
     else:
         output_template = (
-            os.path.join(output_dir, "%(title).150B.%(ext)s") if output_dir else "%(title).150B.%(ext)s"
+            os.path.join(output_dir, f"{_name_part}.%(ext)s") if output_dir else f"{_name_part}.%(ext)s"
         )
 
     final_paths: list[str] = []
@@ -799,7 +804,7 @@ def download_media(
         ydl_opts["download_sections"] = [{"start_time": start, "end_time": end, "title": "segment"}]
         # Keep postprocessor_args as fallback for extractors that don't support sections
         ydl_opts["postprocessor_args"] = ["-ss", str(start), "-to", str(end)]
-        suffix = f"%(title).150B_Trimmed_{start}s_{end}s.%(ext)s"
+        suffix = f"{_name_part}_Trimmed_{start}s_{end}s.%(ext)s"
         ydl_opts["outtmpl"] = os.path.join(output_dir, suffix) if output_dir else suffix
 
     if media_type == "audio":
