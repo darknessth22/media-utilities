@@ -315,38 +315,237 @@ def fetch_spotify_entries(url: str) -> list[dict]:
     return out
 
 
-def _spotify_tracks(url: str) -> tuple[str | None, list[tuple[str, str]]]:
+def _spotify_page_extras(url: str) -> dict:
+    """Scrape album name / track number / release date from a Spotify track page.
+
+    The *embed* payload used by `_spotify_embed_entity` omits the album name for
+    single tracks, but the regular track page carries it in Open Graph and
+    `music:*` meta tags:
+
+        og:description        "Artist · Album · Song · Year"
+        music:album           https://open.spotify.com/album/<id>
+        music:album:track     "1"
+        music:release_date    "1987-11-12"
+
+    Returns {} on any failure — this is pure enrichment, never fatal.
+    """
+    try:
+        req = Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        })
+        with urlopen(req, timeout=20) as resp:
+            html = resp.read(524288).decode("utf-8", errors="replace")
+    except Exception as e:
+        _log.warning("Spotify page scrape failed: %s", e)
+        return {}
+
+    out: dict = {}
+
+    desc_m = re.search(r'<meta property="og:description" content="([^"]*)"', html)
+    if desc_m:
+        # Middle segments are "Song"/"Single"/"Album" type words plus the year;
+        # the album name is the second field when present.
+        parts = [p.strip() for p in re.split(r"[·•|]", desc_m.group(1))]
+        parts = [p for p in parts if p]
+        if len(parts) >= 2 and parts[1].lower() not in ("song", "single", "album"):
+            out["album"] = parts[1]
+
+    track_m = re.search(r'<meta name="music:album:track" content="(\d+)"', html)
+    if track_m:
+        out["track_number"] = int(track_m.group(1))
+
+    date_m = re.search(r'<meta name="music:release_date" content="([^"]*)"', html)
+    if date_m and date_m.group(1).strip():
+        out["release_date"] = date_m.group(1).strip()[:10]
+
+    return out
+
+
+def _spotify_cover_url(entity: dict) -> str:
+    """Largest cover-art URL from an embed entity's visualIdentity, or ''."""
+    images = (entity.get("visualIdentity") or {}).get("image") or []
+    if not images:
+        return ""
+    best = max(images, key=lambda im: (im.get("maxWidth") or 0) * (im.get("maxHeight") or 0))
+    return best.get("url") or ""
+
+
+def _spotify_tracks(url: str) -> tuple[str | None, list[dict]]:
     """Resolve a Spotify track/album/playlist URL to (collection_name, tracks).
 
-    `tracks` is a list of (title, artist). Uses the public embed page's
-    `__NEXT_DATA__` JSON — works for single tracks, albums and playlists with
-    no Spotify API credentials. Falls back to Open Graph scraping for a lone
-    track when the embed payload can't be parsed.
+    `tracks` is a list of metadata dicts:
+    ``{title, artist, album, track_number, total_tracks, release_date, cover_url}``
+
+    Uses the public embed page's `__NEXT_DATA__` JSON — works for single tracks,
+    albums and playlists with no Spotify API credentials. Falls back to Open
+    Graph scraping for a lone track when the embed payload can't be parsed.
+
+    Metadata availability differs by entity type (the embed payload is not
+    uniform): a single track exposes its own release date and cover but no
+    album name, while an album exposes a name and one shared cover for every
+    track but no per-track dates. A playlist is not an album, so `album` is
+    left empty for playlist entries.
     """
-    if not _SPOTIFY_ENTITY_RE.search(url):
+    def _og_fallback() -> tuple[None, list[dict]]:
         og = _scrape_spotify_og(url)
-        return (None, [og]) if og else (None, [])
+        if not og:
+            return None, []
+        title, artist = og
+        return None, [{
+            "title": title, "artist": artist, "album": "", "track_number": 1,
+            "total_tracks": 1, "release_date": "", "cover_url": "",
+        }]
+
+    if not _SPOTIFY_ENTITY_RE.search(url):
+        return _og_fallback()
 
     entity = _spotify_embed_entity(url)
     if not entity:
-        og = _scrape_spotify_og(url)
-        return (None, [og]) if og else (None, [])
+        return _og_fallback()
 
     name = (entity.get("title") or entity.get("name") or "").strip() or None
-    tracks: list[tuple[str, str]] = []
+    cover = _spotify_cover_url(entity)
+    # releaseDate is only present on single-track/album entities.
+    release = ((entity.get("releaseDate") or {}).get("isoString") or "")[:10]
+
+    tracks: list[dict] = []
     track_list = entity.get("trackList") or []
     if track_list:
-        for t in track_list:
+        # Album/playlist. The collection cover is the only artwork available and
+        # applies to every track; album name only makes sense for real albums.
+        is_album = (entity.get("type") or "").lower() == "album"
+        total = len(track_list)
+        for idx, t in enumerate(track_list, 1):
             title = (t.get("title") or "").strip()
-            artist = (t.get("subtitle") or "").strip()
-            if title:
-                tracks.append((title, artist))
+            if not title:
+                continue
+            tracks.append({
+                "title": title,
+                "artist": (t.get("subtitle") or "").strip(),
+                "album": name if is_album else "",
+                "track_number": idx,
+                "total_tracks": total,
+                "release_date": release,
+                "cover_url": cover,
+            })
     else:
         title = (entity.get("title") or "").strip()
-        artist = (entity.get("subtitle") or "").strip()
         if title:
-            tracks.append((title, artist))
+            artists = entity.get("artists") or []
+            artist = ", ".join(
+                a.get("name", "").strip() for a in artists if a.get("name")
+            ) or (entity.get("subtitle") or "").strip()
+            # The embed payload has no album name for a lone track — the regular
+            # track page does, so enrich from there.
+            extras = _spotify_page_extras(url)
+            tracks.append({
+                "title": title,
+                "artist": artist,
+                "album": extras.get("album", ""),
+                "track_number": extras.get("track_number", 1),
+                "total_tracks": 1,
+                "release_date": extras.get("release_date") or release,
+                "cover_url": cover,
+            })
     return name, tracks
+
+
+def _sanitize_filename(text: str) -> str:
+    """Strip characters Windows forbids in filenames, collapse whitespace."""
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", text).strip(" .")
+    return re.sub(r"\s+", " ", cleaned) or "track"
+
+
+def _fetch_cover_bytes(url: str) -> bytes | None:
+    """Download cover art. Returns raw bytes, or None on any failure."""
+    if not url:
+        return None
+    try:
+        req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urlopen(req, timeout=20) as resp:
+            data = resp.read(8 * 1024 * 1024)
+        return data or None
+    except Exception as e:
+        _log.warning("Cover art fetch failed: %s", e)
+        return None
+
+
+def _tag_audio_file(path: str, meta: dict, cover: bytes | None) -> None:
+    """Write Spotify metadata (and cover art) into a downloaded audio file.
+
+    Uses ffmpeg so no extra dependency is needed and every container the app
+    offers is handled. The tags come from Spotify, not from the YouTube source
+    the audio was actually fetched from, which is the whole point — YouTube
+    titles are noisy ("... (Official Video) [HD]").
+
+    Cover embedding is skipped for containers ffmpeg cannot carry an attached
+    picture in (wav/opus in ogg); tags are still written for those.
+    """
+    if not path or not os.path.exists(path):
+        return
+
+    ext = os.path.splitext(path)[1].lower()
+    tmp = f"{os.path.splitext(path)[0]}_tagged{ext}"
+    cover_file: str | None = None
+
+    tags: list[str] = []
+
+    def _add(key: str, value: str) -> None:
+        if value:
+            tags.extend(["-metadata", f"{key}={value}"])
+
+    _add("title", meta.get("title", ""))
+    _add("artist", meta.get("artist", ""))
+    _add("album", meta.get("album", ""))
+    _add("album_artist", meta.get("artist", ""))
+    if meta.get("release_date"):
+        _add("date", meta["release_date"])
+    if meta.get("total_tracks", 0) > 1:
+        _add("track", f"{meta.get('track_number', 1)}/{meta['total_tracks']}")
+
+    if not tags and not cover:
+        return
+
+    # WAV has no standard tag/picture support worth attaching art to; Ogg/Opus
+    # cannot carry an MJPEG attached_pic stream via ffmpeg's -c:v copy path.
+    can_embed_cover = ext in (".mp3", ".m4a", ".flac")
+
+    cmd = [ffmpeg_path, "-y", "-i", path]
+    if cover and can_embed_cover:
+        cover_file = f"{os.path.splitext(path)[0]}_cover.jpg"
+        try:
+            with open(cover_file, "wb") as f:
+                f.write(cover)
+            cmd += ["-i", cover_file, "-map", "0:a", "-map", "1:v",
+                    "-c:v", "mjpeg", "-disposition:v", "attached_pic"]
+        except OSError as e:
+            _log.warning("Could not stage cover art: %s", e)
+            cover_file = None
+            cmd += ["-map", "0:a"]
+    else:
+        cmd += ["-map", "0:a"]
+
+    cmd += ["-c:a", "copy", *tags, "-loglevel", "error", tmp]
+
+    try:
+        tracked_run(cmd, str(uuid.uuid4()), check=True, capture_output=True,
+                    timeout=300, **_WIN_FLAGS)
+        if os.path.exists(tmp):
+            os.remove(path)
+            os.replace(tmp, path)
+    except Exception as e:
+        _log.warning("Metadata tagging failed for %s: %s", path, e)
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except OSError:
+            pass
+    finally:
+        if cover_file:
+            try:
+                os.remove(cover_file)
+            except OSError:
+                pass
 
 
 def download_spotify(
@@ -362,6 +561,11 @@ def download_spotify(
 
     Scrapes track metadata then searches YouTube via yt-dlp for each track.
     No Spotify API credentials required — avoids all rate-limit issues.
+
+    Files are named and tagged from the *Spotify* metadata (title, artist,
+    album, track number, release date, cover art) rather than from the YouTube
+    result the audio came from.
+
     Returns (success, message, file_paths).
     """
     _name, tracks = _spotify_tracks(url)
@@ -373,18 +577,19 @@ def download_spotify(
         )
 
     fmt = audio_format if audio_format in ("mp3", "wav", "aac", "flac", "ogg", "opus", "m4a") else "mp3"
-    output_template = (
-        os.path.join(output_dir, "%(title)s.%(ext)s") if output_dir else "%(title)s.%(ext)s"
-    )
 
     files: list[str] = []
     errors: list[str] = []
     last_error: str = ""
     total = len(tracks)
 
-    for i, (title, artist) in enumerate(tracks, 1):
+    # One cover fetch per distinct URL — album/playlist tracks share artwork.
+    cover_cache: dict[str, bytes | None] = {}
+
+    for i, meta in enumerate(tracks, 1):
         if cancel_check and cancel_check():
             break
+        title, artist = meta["title"], meta["artist"]
         query = f"{artist} - {title}".strip(" -") if artist else title
         if status_cb:
             status_cb(
@@ -392,6 +597,14 @@ def download_spotify(
                 else f"[spotify] searching: {query}"
             )
         print(f"Spotify: searching YouTube for: {query}")
+
+        # Name the file from Spotify metadata, not the YouTube video title.
+        stem = _sanitize_filename(f"{artist} - {title}" if artist else title)
+        if total > 1 and meta.get("album"):
+            stem = _sanitize_filename(f"{meta['track_number']:02d} - {stem}")
+        output_template = (
+            os.path.join(output_dir, f"{stem}.%(ext)s") if output_dir else f"{stem}.%(ext)s"
+        )
 
         final_path: list[str] = []
         ydl_opts = {
@@ -410,7 +623,12 @@ def download_spotify(
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([f"ytsearch1:{query}"])
             if final_path:
-                files.append(final_path[-1])
+                path = final_path[-1]
+                cover_url = meta.get("cover_url") or ""
+                if cover_url not in cover_cache:
+                    cover_cache[cover_url] = _fetch_cover_bytes(cover_url)
+                _tag_audio_file(path, meta, cover_cache[cover_url])
+                files.append(path)
             else:
                 errors.append(query)
                 last_error = "no YouTube match found"
