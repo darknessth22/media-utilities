@@ -747,7 +747,8 @@ class VideoUpscalerSection(QScrollArea):
             scale,
             model,
             device_override,
-            0,  # tile — 0 = no tiling (fine for 1080p on modern GPUs)
+            -1,  # tile — -1 = size tiles from the source resolution
+
             _progress_cb,
             _cancelled_cb,
         )

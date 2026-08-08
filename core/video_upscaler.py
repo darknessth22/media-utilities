@@ -63,6 +63,33 @@ _WIN_FLAGS = 0x08000000 if sys.platform == "win32" else 0
 _FRAME_RE = re.compile(r"FRAME\s+(\d+)/(\d+)")
 _TOTAL_RE = re.compile(r"FRAMES_TOTAL\s+(\d+)")
 
+# NVENC H.264 cannot encode beyond 4096x4096 — the session fails immediately
+# with "-22 Invalid argument" (verified on RTX 5070 Ti). HEVC NVENC handles
+# 8192x4320 fine, so a 4x upscale must switch codecs rather than give up on
+# the GPU. Any source wider than 1024px exceeds the H.264 cap at 4x.
+_H264_NVENC_MAX_DIM = 4096
+
+# Untiled inference allocates one activation tensor for the whole frame. At
+# 1080p that overflows VRAM into shared system memory and thrashes over PCIe:
+# measured 74.5 s/frame at tile=0 vs 3.4 s/frame at tile=512 on a 16 GB
+# RTX 5070 Ti — a 22x difference. Tiling here is a speed fix, not just a
+# memory fix, so it is on by default above roughly 720p.
+_AUTO_TILE_PIXEL_THRESHOLD = 1280 * 720
+_AUTO_TILE_SIZE = 512
+
+
+def auto_tile_size(width: int, height: int, tile: int = -1) -> int:
+    """Pick a tile size for *width* x *height* inference.
+
+    ``tile`` of -1 means "decide automatically"; 0 forces untiled and any
+    positive value is honoured as-is, so callers can still override.
+    """
+    if tile >= 0:
+        return tile
+    if width * height > _AUTO_TILE_PIXEL_THRESHOLD:
+        return _AUTO_TILE_SIZE
+    return 0
+
 
 # ── Probe ────────────────────────────────────────────────────────────────────
 
@@ -270,7 +297,7 @@ def upscale_video(
     scale: int = 2,
     model: str = "x4plus",
     device: str | None = None,
-    tile: int = 0,
+    tile: int = -1,
     progress_cb: Callable[[int, str], None] | None = None,
     cancelled_cb: Callable[[], bool] | None = None,
 ) -> dict:
@@ -278,6 +305,10 @@ def upscale_video(
 
     Returns {success, output_path, device, scale, frame_count} or
     {success: False, error, resumable}.
+
+    ``tile`` of -1 (the default) sizes tiles from the source resolution — see
+    `auto_tile_size`. Pass 0 to force untiled inference or a positive value to
+    pin a specific tile size.
 
     resumable=True means temp frames were kept; re-running with the same
     arguments continues where it stopped.
@@ -308,6 +339,8 @@ def upscale_video(
         info = probe_video(input_path)
     except Exception as exc:  # noqa: BLE001
         return {"success": False, "error": f"Could not read video: {exc}"}
+
+    tile = auto_tile_size(info["width"], info["height"], tile)
 
     job_dir = _job_dir(input_path, scale, model)
     in_dir = job_dir / "in"
@@ -489,11 +522,24 @@ def upscale_video(
     out_fps = (frame_count / info["duration"]) if info["duration"] > 0 else info["fps"]
     out_fps = max(1.0, out_fps)
 
+    # The upscaled frames — not the source — decide what the encoder must handle.
+    out_w, out_h = info["width"] * scale, info["height"] * scale
+    oversize_for_h264 = max(out_w, out_h) > _H264_NVENC_MAX_DIM
+
     hw = detect_hw_encoders()
     if "nvidia" in hw:
-        vcodec = ["-c:v", "h264_nvenc", "-preset", "p5", "-rc", "vbr", "-cq", "19"]
+        # H.264 NVENC tops out at 4096px, which every 4x upscale of a >1024px
+        # source exceeds. HEVC NVENC goes to 8192x4320, so switch codec instead
+        # of dropping to the CPU encoder.
+        nv_codec = "hevc_nvenc" if oversize_for_h264 else "h264_nvenc"
+        vcodec = ["-c:v", nv_codec, "-preset", "p5", "-rc", "vbr", "-cq", "19"]
+        if nv_codec == "hevc_nvenc":
+            # Keep the output playable in players that require the hvc1 tag.
+            vcodec += ["-tag:v", "hvc1"]
     elif "amd" in hw:
-        vcodec = ["-c:v", "h264_amf", "-quality", "quality", "-rc", "cqp", "-qp_i", "20", "-qp_p", "20"]
+        amf_codec = "hevc_amf" if oversize_for_h264 else "h264_amf"
+        vcodec = ["-c:v", amf_codec, "-quality", "quality", "-rc", "cqp",
+                  "-qp_i", "20", "-qp_p", "20"]
     else:
         vcodec = ["-c:v", "libx264", "-preset", "medium", "-crf", "18"]
     is_hw_codec = vcodec[1] != "libx264"
@@ -530,7 +576,17 @@ def upscale_video(
     # stage's own CUDA subprocess a moment earlier, or another app briefly
     # had the encoder open. Retry the SAME hardware codec once after a short
     # delay before giving up on it — most transient failures clear by then.
-    if is_hw_codec and (enc.returncode != 0 or not os.path.isfile(output_path)):
+    #
+    # A dimension rejection ("-22 Invalid argument") is deterministic, though,
+    # so retrying the identical command only wastes the delay.
+    def _hw_failed() -> bool:
+        return enc.returncode != 0 or not os.path.isfile(output_path)
+
+    def _is_deterministic_reject() -> bool:
+        err = (enc.stderr or "").lower()
+        return "invalid argument" in err or "return code -22" in err
+
+    if is_hw_codec and _hw_failed() and not _is_deterministic_reject():
         _report(94, "Hardware encoder busy — retrying…")
         time.sleep(2.0)
         try:
@@ -538,10 +594,23 @@ def upscale_video(
         except subprocess.TimeoutExpired:
             return {"success": False, "error": "Final encode timed out.", "resumable": True}
 
-    # Only fall back to the CPU encoder if the hardware retry ALSO failed —
+    # Still on the GPU: if H.264 was the one that failed, HEVC has looser limits
+    # and often succeeds where H.264 could not. Try that before the CPU.
+    if is_hw_codec and _hw_failed() and "h264_" in vcodec[1]:
+        hevc = vcodec[1].replace("h264_", "hevc_")
+        _report(94, "Retrying with HEVC hardware encoder…")
+        hevc_args = ["-c:v", hevc, *vcodec[2:]]
+        if hevc == "hevc_nvenc":
+            hevc_args += ["-tag:v", "hvc1"]
+        try:
+            enc = _run_encode(hevc_args)
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error": "Final encode timed out.", "resumable": True}
+
+    # Only fall back to the CPU encoder if every hardware attempt failed —
     # keeps NVIDIA/AMD as the actual output whenever the hardware path is
     # genuinely usable, and CPU is a last resort, not the default outcome.
-    if is_hw_codec and (enc.returncode != 0 or not os.path.isfile(output_path)):
+    if is_hw_codec and _hw_failed():
         _report(94, "Hardware encoder unavailable — falling back to CPU encoder…")
         try:
             enc = _run_encode(["-c:v", "libx264", "-preset", "medium", "-crf", "18"])
