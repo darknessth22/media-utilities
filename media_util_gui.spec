@@ -64,6 +64,14 @@ if IS_WIN and os.path.isdir('runtime'):
 if os.path.isdir('manifests'):
     datas.append(('manifests', 'manifests'))
 
+# The component installer runs these two as real scripts under the *bundled*
+# Python, not as frozen imports, so they must exist on disk. Without them
+# model_manager silently falls back to a plain pip call and large wheels lose
+# resume support.
+for _script in ('utils/install_runner.py', 'utils/wheel_prefetch.py'):
+    if os.path.exists(_script):
+        datas.append((_script, 'utils'))
+
 if IS_WIN:
     if os.path.exists('bin/ffmpeg.exe'):
         datas.append(('bin/ffmpeg.exe', '.'))

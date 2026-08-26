@@ -258,8 +258,10 @@ _SECTIONS_META = [
         "id": "bg_eraser",
         "label_key": "section_bg_eraser",
         "icon": "bg_eraser.svg",
-        "tab_keys": ["tab_remove_background"],
-        "action_key": "action_remove_bg",
+        "tab_keys": ["tab_remove_background", "tab_bg_erase"],
+        # One label for two verbs (remove background / erase object) — the
+        # sub-tab says which, so a neutral verb beats a wrong specific one.
+        "action_key": "action_apply",
     },
     {
         "id": "vocal_isolator",

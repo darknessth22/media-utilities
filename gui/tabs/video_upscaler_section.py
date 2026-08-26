@@ -718,6 +718,15 @@ class VideoUpscalerSection(QScrollArea):
         if not output_path:
             stem, _ = os.path.splitext(input_path)
             output_path = f"{stem}_upscaled_x{scale}.mp4"
+        else:
+            # A hand-typed name may be bare ("test") or relative. ffmpeg infers
+            # the container from the extension and fails outright without one,
+            # and a relative path would land in the app's working directory
+            # instead of next to the source video.
+            if not os.path.splitext(output_path)[1]:
+                output_path += ".mp4"
+            if not os.path.isabs(output_path):
+                output_path = os.path.join(os.path.dirname(input_path), output_path)
         if os.path.abspath(output_path) == os.path.abspath(input_path):
             self.status_message.emit(tr("err_video_upscaler_same_path"), True)
             return

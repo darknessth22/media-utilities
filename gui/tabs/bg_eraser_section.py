@@ -6,14 +6,17 @@ import os
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
-    QButtonGroup, QFileDialog, QFrame, QHBoxLayout, QLabel,
-    QLineEdit, QProgressBar, QPushButton, QRadioButton,
-    QScrollArea, QTextEdit, QVBoxLayout, QWidget,
+    QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFrame, QHBoxLayout,
+    QLabel, QLineEdit, QProgressBar, QPushButton, QRadioButton,
+    QScrollArea, QSlider, QStackedWidget, QTextEdit, QVBoxLayout, QWidget,
 )
 
 from core.i18n import tr
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
+from gui.widgets.draw_canvas import (
+    DrawCanvas, TOOL_BRUSH, TOOL_ELLIPSE, TOOL_LASSO, TOOL_RECT,
+)
 from gui.worker import Worker
 from utils import model_manager
 from utils.install_errors import classify as classify_install_error
@@ -49,6 +52,9 @@ class BgEraserSection(QScrollArea):
         self._install_proc = None
         self._install_tail: list[str] = []
         self._component_id = "bg_eraser"
+        self._current_sub_tab = 0
+        self._detect_worker: Worker | None = None
+        self._detect_index = -1
 
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -67,6 +73,9 @@ class BgEraserSection(QScrollArea):
         tools_layout.setContentsMargins(0, 0, 0, 0)
         tools_layout.setSpacing(16)
         tools_layout.addWidget(self._build_source_card())
+        # Per-sub-tab options. The sidebar tab bar drives `_current_sub_tab`,
+        # which selects both the options page and what the action button runs.
+        tools_layout.addWidget(self._build_options_stack())
         tools_layout.addWidget(self._build_output_card())
         tools_layout.addWidget(self._build_progress_card())
         tools_layout.addWidget(self._build_preview_card())
@@ -356,7 +365,8 @@ class BgEraserSection(QScrollArea):
         row.addWidget(self._browse_in_btn)
         layout.addLayout(row)
 
-        # Input preview thumbnail
+        # Input preview thumbnail — shown for the automatic sub-tab, where the
+        # user only picks a file.
         self._preview_placeholder_key: str | None = "hint_bg_no_preview"
         self._input_preview = QLabel(tr("hint_bg_no_preview"))
         self._input_preview.setFixedSize(220, 140)
@@ -367,6 +377,285 @@ class BgEraserSection(QScrollArea):
             " color: #8B949E; font-size: 12px; }"
         )
         layout.addWidget(self._input_preview)
+
+        # Drawing surface — replaces the thumbnail on the erase sub-tab.
+        self._canvas_wrap = QWidget()
+        canvas_layout = QVBoxLayout(self._canvas_wrap)
+        canvas_layout.setContentsMargins(0, 0, 0, 0)
+        canvas_layout.setSpacing(8)
+
+        self._canvas = DrawCanvas()
+        self._canvas.setObjectName("Card")
+        self._canvas.setStyleSheet(
+            "QLabel#Card { border-radius: 6px; background: #1C2128;"
+            " color: #8B949E; font-size: 12px; }"
+        )
+        self._canvas.selection_changed.connect(self._on_selection_changed)
+        canvas_layout.addWidget(self._canvas)
+
+        # View controls — zoom / rotate / loupe, so fine brushwork is possible.
+        view_row = QHBoxLayout()
+        view_row.setSpacing(6)
+        self._canvas.view_changed.connect(self._on_view_changed)
+
+        self._zoom_out_btn = QPushButton("−")
+        self._zoom_out_btn.setObjectName("BrowseBtn")
+        self._zoom_out_btn.setFixedWidth(34)
+        self._zoom_out_btn.clicked.connect(lambda: self._canvas.zoom_by(1 / 1.25))
+        view_row.addWidget(self._zoom_out_btn)
+
+        self._zoom_lbl = QLabel("100%")
+        self._zoom_lbl.setObjectName("TextMuted")
+        self._zoom_lbl.setStyleSheet("font-size: 11px;")
+        self._zoom_lbl.setFixedWidth(46)
+        self._zoom_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        view_row.addWidget(self._zoom_lbl)
+
+        self._zoom_in_btn = QPushButton("+")
+        self._zoom_in_btn.setObjectName("BrowseBtn")
+        self._zoom_in_btn.setFixedWidth(34)
+        self._zoom_in_btn.clicked.connect(lambda: self._canvas.zoom_by(1.25))
+        view_row.addWidget(self._zoom_in_btn)
+
+        self._fit_btn = QPushButton(tr("btn_bg_fit"))
+        self._fit_btn.setObjectName("BrowseBtn")
+        self._fit_btn.clicked.connect(self._canvas.fit_to_window)
+        view_row.addWidget(self._fit_btn)
+
+        self._rot_ccw_btn = QPushButton("⟲")
+        self._rot_ccw_btn.setObjectName("BrowseBtn")
+        self._rot_ccw_btn.setFixedWidth(34)
+        self._rot_ccw_btn.clicked.connect(lambda: self._canvas.rotate_by(-15))
+        view_row.addWidget(self._rot_ccw_btn)
+
+        self._rot_lbl = QLabel("0°")
+        self._rot_lbl.setObjectName("TextMuted")
+        self._rot_lbl.setStyleSheet("font-size: 11px;")
+        self._rot_lbl.setFixedWidth(38)
+        self._rot_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        view_row.addWidget(self._rot_lbl)
+
+        self._rot_cw_btn = QPushButton("⟳")
+        self._rot_cw_btn.setObjectName("BrowseBtn")
+        self._rot_cw_btn.setFixedWidth(34)
+        self._rot_cw_btn.clicked.connect(lambda: self._canvas.rotate_by(15))
+        view_row.addWidget(self._rot_cw_btn)
+
+        self._loupe_check = QCheckBox(tr("chk_bg_loupe"))
+        self._loupe_check.setStyleSheet("font-size: 11px;")
+        self._loupe_check.toggled.connect(self._canvas.set_loupe)
+        view_row.addWidget(self._loupe_check)
+        view_row.addStretch()
+        canvas_layout.addLayout(view_row)
+
+        self._nav_hint = QLabel(tr("hint_bg_navigation"))
+        self._nav_hint.setObjectName("TextMuted")
+        self._nav_hint.setWordWrap(True)
+        self._nav_hint.setStyleSheet("font-size: 10px;")
+        canvas_layout.addWidget(self._nav_hint)
+
+        brush_row = QHBoxLayout()
+        brush_row.setSpacing(8)
+        self._brush_lbl = QLabel(tr("lbl_bg_brush_size"))
+        self._brush_lbl.setObjectName("TextMuted")
+        self._brush_lbl.setStyleSheet("font-size: 11px;")
+        brush_row.addWidget(self._brush_lbl)
+
+        self._brush_slider = QSlider(Qt.Orientation.Horizontal)
+        self._brush_slider.setRange(4, 200)
+        self._brush_slider.setValue(28)
+        self._brush_slider.valueChanged.connect(self._canvas.set_brush_size)
+        self._brush_slider.valueChanged.connect(self._update_brush_label)
+        brush_row.addWidget(self._brush_slider, 1)
+
+        # Negative brush — same tools, but strokes cut OUT of the selection.
+        # Unlike Undo (which drops a whole stroke) this shaves a selection down
+        # pixel by pixel, which is what trimming an over-eager smart pick needs.
+        self._subtract_check = QCheckBox(tr("chk_bg_subtract"))
+        self._subtract_check.setStyleSheet("font-size: 11px;")
+        self._subtract_check.toggled.connect(self._on_subtract_toggled)
+        brush_row.addWidget(self._subtract_check)
+
+        self._undo_btn = QPushButton(tr("btn_bg_undo_stroke"))
+        self._undo_btn.setObjectName("BrowseBtn")
+        self._undo_btn.clicked.connect(self._canvas.undo_stroke)
+        brush_row.addWidget(self._undo_btn)
+
+        self._clear_sel_btn = QPushButton(tr("btn_bg_clear_selection"))
+        self._clear_sel_btn.setObjectName("BrowseBtn")
+        self._clear_sel_btn.clicked.connect(self._canvas.clear_selection)
+        brush_row.addWidget(self._clear_sel_btn)
+        canvas_layout.addLayout(brush_row)
+
+        # Tells the user strokes add up, and how many are stored so far.
+        self._stroke_lbl = QLabel(tr("hint_bg_strokes_none"))
+        self._stroke_lbl.setObjectName("TextMuted")
+        self._stroke_lbl.setWordWrap(True)
+        self._stroke_lbl.setStyleSheet("font-size: 11px;")
+        canvas_layout.addWidget(self._stroke_lbl)
+
+        # Undo/Clear are meaningless until something has been painted.
+        self._undo_btn.setEnabled(False)
+        self._clear_sel_btn.setEnabled(False)
+        self._update_brush_label(self._brush_slider.value())
+
+        self._canvas_wrap.setVisible(False)
+        layout.addWidget(self._canvas_wrap)
+        return card
+
+    # ── Options (one page per sub-tab) ────────────────────────────────────────
+
+    def _build_options_stack(self) -> QWidget:
+        self._options_stack = QStackedWidget()
+        self._options_stack.addWidget(self._build_autobg_card())
+        self._options_stack.addWidget(self._build_erase_card())
+        self._options_stack.setCurrentIndex(0)
+        return self._options_stack
+
+    def _build_autobg_card(self) -> QFrame:
+        """Sub-tab 0 — automatic background removal, with model choice."""
+        from core.bg_eraser import DEFAULT_MODEL, MODELS
+
+        card = _card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
+
+        self._hdr_model = _section_header(tr("hdr_bg_model"))
+        layout.addWidget(self._hdr_model)
+
+        self._model_combo = QComboBox()
+        self._model_combo.setObjectName("PillInput")
+        # Label keys follow the MODELS ordering so the dropdown stays in sync.
+        for key in MODELS:
+            self._model_combo.addItem(tr(f"bg_model_{key}"), key)
+        self._model_combo.setCurrentIndex(list(MODELS).index(DEFAULT_MODEL))
+        layout.addWidget(self._model_combo)
+
+        self._model_hint = QLabel(tr("hint_bg_model"))
+        self._model_hint.setObjectName("TextMuted")
+        self._model_hint.setWordWrap(True)
+        self._model_hint.setStyleSheet("font-size: 11px;")
+        layout.addWidget(self._model_hint)
+
+        self._matting_check = QCheckBox(tr("chk_bg_alpha_matting"))
+        self._matting_check.setStyleSheet("font-size: 12px;")
+        layout.addWidget(self._matting_check)
+        return card
+
+    def _build_tool_row(self) -> tuple[QWidget, QButtonGroup]:
+        """Brush / lasso / rectangle selector for the erase sub-tab."""
+        row = QWidget()
+        h = QHBoxLayout(row)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(12)
+        group = QButtonGroup(row)
+        for tool, key in ((TOOL_BRUSH, "bg_tool_brush"),
+                          (TOOL_LASSO, "bg_tool_lasso"),
+                          (TOOL_RECT, "bg_tool_rect"),
+                          (TOOL_ELLIPSE, "bg_tool_ellipse")):
+            rb = QRadioButton(tr(key))
+            rb.setStyleSheet("font-size: 12px;")
+            rb.setProperty("tool", tool)
+            rb.setProperty("label_key", key)
+            group.addButton(rb)
+            h.addWidget(rb)
+            setattr(self, f"_erase_rb_{tool}", rb)
+        self._erase_rb_brush.setChecked(True)
+        h.addStretch()
+        return row, group
+
+    def _build_erase_card(self) -> QFrame:
+        """Sub-tab 1 — paint over an object to delete it and heal the gap."""
+        import core.bg_eraser as _be
+        _sens = _be
+        card = _card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
+
+        self._hdr_erase = _section_header(tr("hdr_bg_erase"))
+        layout.addWidget(self._hdr_erase)
+        self._hint_erase = QLabel(tr("hint_bg_erase"))
+        self._hint_erase.setObjectName("TextMuted")
+        self._hint_erase.setWordWrap(True)
+        self._hint_erase.setStyleSheet("font-size: 11px;")
+        layout.addWidget(self._hint_erase)
+
+        row, self._erase_tool_group = self._build_tool_row()
+        self._erase_tool_group.buttonClicked.connect(self._on_tool_changed)
+        layout.addWidget(row)
+
+        # Smart select — the drawn shape points at an object and the object's
+        # own outline is erased, rather than exactly the pixels drawn.
+        self._smart_check = QCheckBox(tr("chk_bg_smart"))
+        self._smart_check.setStyleSheet("font-size: 12px;")
+        self._smart_check.toggled.connect(self._on_smart_toggled)
+        layout.addWidget(self._smart_check)
+
+        self._smart_hint = QLabel("")
+        self._smart_hint.setObjectName("TextMuted")
+        self._smart_hint.setWordWrap(True)
+        self._smart_hint.setStyleSheet("font-size: 11px;")
+        layout.addWidget(self._smart_hint)
+
+        # Sensitivity — how far a smart selection may grow past the exact spot
+        # that was pointed at. This is what makes "one of three people" work.
+        self._sens_row = QWidget()
+        sens_h = QHBoxLayout(self._sens_row)
+        sens_h.setContentsMargins(0, 0, 0, 0)
+        sens_h.setSpacing(8)
+        self._sens_lbl = QLabel(tr("lbl_bg_sensitivity"))
+        self._sens_lbl.setObjectName("TextMuted")
+        self._sens_lbl.setStyleSheet("font-size: 11px;")
+        sens_h.addWidget(self._sens_lbl)
+        self._sens_combo = QComboBox()
+        self._sens_combo.setObjectName("PillInput")
+        self._sens_combo.addItem(tr("bg_sens_tight"), _sens.SENS_TIGHT)
+        self._sens_combo.addItem(tr("bg_sens_balanced"), _sens.SENS_BALANCED)
+        self._sens_combo.addItem(tr("bg_sens_loose"), _sens.SENS_LOOSE)
+        self._sens_combo.setCurrentIndex(1)
+        self._sens_combo.currentIndexChanged.connect(self._on_sensitivity_changed)
+        sens_h.addWidget(self._sens_combo, 1)
+        layout.addWidget(self._sens_row)
+
+        self._sens_hint = QLabel("")
+        self._sens_hint.setObjectName("TextMuted")
+        self._sens_hint.setWordWrap(True)
+        self._sens_hint.setStyleSheet("font-size: 11px;")
+        layout.addWidget(self._sens_hint)
+        self._on_smart_toggled(False)
+
+        # Invert — keep what was selected, remove everything else.
+        self._invert_check = QCheckBox(tr("chk_bg_invert"))
+        self._invert_check.setStyleSheet("font-size: 12px;")
+        self._invert_check.toggled.connect(self._on_invert_toggled)
+        layout.addWidget(self._invert_check)
+
+        self._invert_hint = QLabel(tr("hint_bg_invert_off"))
+        self._invert_hint.setObjectName("TextMuted")
+        self._invert_hint.setWordWrap(True)
+        self._invert_hint.setStyleSheet("font-size: 11px;")
+        layout.addWidget(self._invert_hint)
+
+        self._hdr_heal = _section_header(tr("hdr_bg_heal"))
+        layout.addWidget(self._hdr_heal)
+
+        self._heal_combo = QComboBox()
+        self._heal_combo.setObjectName("PillInput")
+        self._heal_combo.addItem(tr("bg_heal_lama"), _be.HEAL_LAMA)
+        self._heal_combo.addItem(tr("bg_heal_fast"), _be.HEAL_FAST)
+        self._heal_combo.addItem(tr("bg_heal_none"), _be.HEAL_NONE)
+        self._heal_combo.setCurrentIndex(0)
+        self._heal_combo.currentIndexChanged.connect(self._on_heal_changed)
+        layout.addWidget(self._heal_combo)
+
+        self._heal_warn = QLabel("")
+        self._heal_warn.setObjectName("TextMuted")
+        self._heal_warn.setWordWrap(True)
+        self._heal_warn.setStyleSheet("font-size: 11px; color: #F59E0B;")
+        layout.addWidget(self._heal_warn)
+        self._on_heal_changed()
         return card
 
     # ── Output card ───────────────────────────────────────────────────────────
@@ -448,6 +737,220 @@ class BgEraserSection(QScrollArea):
     # ── Helpers ───────────────────────────────────────────────────────────────
 
 
+    def on_sub_tab_changed(self, index: int) -> None:
+        """Sub-tab switch from the section tab bar (0=auto background, 1=erase)."""
+        self._current_sub_tab = max(0, min(1, index))
+        self._options_stack.setCurrentIndex(self._current_sub_tab)
+
+        drawing = self._current_sub_tab > 0
+        self._canvas_wrap.setVisible(drawing)
+        self._input_preview.setVisible(not drawing)
+        # Brush width only applies to the freehand tool.
+        self._sync_brush_row()
+
+        if drawing:
+            self._canvas.set_tool(self._active_tool())
+            path = self._input_edit.text().strip()
+            if path and os.path.isfile(path):
+                self._canvas.set_image(path)
+        self._update_output_placeholder()
+
+    def _active_tool(self) -> str:
+        btn = self._erase_tool_group.checkedButton()
+        return btn.property("tool") if btn else TOOL_BRUSH
+
+    def _sync_brush_row(self) -> None:
+        show = self._current_sub_tab > 0 and self._active_tool() == TOOL_BRUSH
+        self._brush_lbl.setVisible(show)
+        self._brush_slider.setVisible(show)
+        # Subtracting works with every shape, so it stays visible on the whole
+        # erase sub-tab rather than only for the freehand brush.
+        self._subtract_check.setVisible(self._current_sub_tab > 0)
+
+    def _on_tool_changed(self, _btn=None) -> None:
+        self._canvas.set_tool(self._active_tool())
+        self._sync_brush_row()
+
+    def _on_selection_changed(self) -> None:
+        """Reflect the stroke count, and resolve a new smart stroke's object.
+
+        Detection runs here rather than at Apply time so the user can SEE the
+        detected outline on the canvas and undo it if it grabbed the wrong
+        thing.
+        """
+        n = self._canvas.stroke_count()
+        if n and self._canvas.last_stroke_is_smart():
+            self._detect_last_stroke()
+        self._stroke_lbl.setText(
+            tr("hint_bg_strokes_none") if n == 0
+            else tr("hint_bg_strokes").format(n=n)
+        )
+        self._undo_btn.setEnabled(n > 0)
+        self._clear_sel_btn.setEnabled(n > 0)
+
+    def _detect_last_stroke(self) -> None:
+        """Segment the object the newest smart stroke points at."""
+        import core.bg_eraser as be
+        path = self._input_edit.text().strip()
+        pts = self._canvas.last_stroke_points()
+        if not path or not os.path.isfile(path) or not pts:
+            return
+        if not be.sam_available():
+            # Nothing to preview until the model is fetched; Apply will get it.
+            return
+        if self._detect_worker and self._detect_worker.isRunning():
+            return
+
+        idx = self._canvas.last_stroke_index()
+        self._canvas.set_pending_smart(True)
+        self._detect_index = idx
+
+        w = Worker(be.detect_object_mask, path, pts,
+                   self._canvas.last_stroke_shape(), True,
+                   self._model_combo.currentData() or be.DEFAULT_MODEL,
+                   self._selected_sensitivity())
+        w.signals.result.connect(self._on_detected)
+        w.signals.error.connect(self._on_detect_error)
+        self._detect_worker = w
+        w.start()
+
+    def _on_detected(self, result: dict) -> None:
+        self._detect_worker = None
+        self._canvas.set_pending_smart(False)
+        if not result.get("success"):
+            self.status_message.emit(
+                result.get("error") or tr("err_bg_no_object"), True)
+            return
+        self._canvas.set_detected(self._detect_index, result["contours"],
+                                  result.get("mask_key"))
+        self._stroke_lbl.setText(tr("hint_bg_detected").format(
+            pct=round(result["coverage"] * 100, 1)))
+
+    def _on_detect_error(self, err_tuple: tuple) -> None:
+        self._detect_worker = None
+        self._canvas.set_pending_smart(False)
+        _, msg, _ = err_tuple
+        self.status_message.emit(f"{tr('err_bg_no_object')} ({msg})", True)
+
+    def _update_brush_label(self, value: int) -> None:
+        self._brush_lbl.setText(f"{tr('lbl_bg_brush_size')}  {value}px")
+
+    @staticmethod
+    def _erase_with_model(input_path: str, strokes: list, output_path,
+                          heal: str, invert: bool = False,
+                          sensitivity: str | None = None) -> dict:
+        """Fetch any missing models, then erase. Runs in the worker.
+
+        A failed download is not fatal — erase_region falls back (fast fill for
+        healing, the drawn shape for smart select) and reports what actually ran
+        via `heal_used` / `smart_used`.
+        """
+        import core.bg_eraser as be
+        if any(st.get("smart") for st in strokes) and not be.sam_available():
+            be.download_sam()
+        if heal == be.HEAL_LAMA and not be.lama_available():
+            be.download_lama()
+        return be.erase_region(input_path, strokes, output_path, heal,
+                               -1, invert,
+                               sensitivity or be.DEFAULT_SENSITIVITY)
+
+    def _on_smart_toggled(self, on: bool) -> None:
+        """Explain smart mode, and whether its model still needs downloading."""
+        import core.bg_eraser as be
+        self._canvas.set_smart(on)
+        # Sensitivity only affects smart selections; hide it otherwise so the
+        # panel doesn't imply it does something for a literal brush stroke.
+        self._sens_row.setVisible(bool(on))
+        self._sens_hint.setVisible(bool(on))
+        if on:
+            self._on_sensitivity_changed()
+        if not on:
+            self._smart_hint.setText(tr("hint_bg_smart_off"))
+            self._smart_hint.setStyleSheet("font-size: 11px;")
+        elif be.sam_available():
+            self._smart_hint.setText(tr("hint_bg_smart_on"))
+            self._smart_hint.setStyleSheet("font-size: 11px;")
+        else:
+            self._smart_hint.setText(
+                tr("hint_bg_smart_download").format(mb=be._SAM_SIZE_MB))
+            self._smart_hint.setStyleSheet("font-size: 11px; color: #F59E0B;")
+
+    def _on_subtract_toggled(self, on: bool) -> None:
+        """Switch the brush between adding to and cutting out of the selection.
+
+        Smart select is meaningless while subtracting — a negative stroke trims
+        exactly what was drawn — so the checkbox is greyed out rather than
+        silently ignored.
+        """
+        self._canvas.set_subtract(on)
+        self._smart_check.setEnabled(not on)
+        if on:
+            self._stroke_lbl.setText(tr("hint_bg_subtract_on"))
+
+    def _on_invert_toggled(self, on: bool) -> None:
+        """Flip which side of the selection is removed."""
+        self._canvas.set_invert(on)
+        self._invert_hint.setText(
+            tr("hint_bg_invert_on") if on else tr("hint_bg_invert_off"))
+        self._invert_hint.setStyleSheet(
+            "font-size: 11px; color: #F59E0B;" if on else "font-size: 11px;")
+
+    def _selected_sensitivity(self) -> str:
+        import core.bg_eraser as be
+        return self._sens_combo.currentData() or be.DEFAULT_SENSITIVITY
+
+    def _on_sensitivity_changed(self, _idx: int = 0) -> None:
+        """Explain the chosen sensitivity, then re-detect with it.
+
+        Re-running immediately matters: the user changes this precisely BECAUSE
+        the last selection was wrong, so the preview must update without them
+        having to redraw the stroke.
+        """
+        import core.bg_eraser as be
+        mode = self._selected_sensitivity()
+        self._sens_hint.setText(tr({
+            be.SENS_TIGHT: "hint_bg_sens_tight",
+            be.SENS_LOOSE: "hint_bg_sens_loose",
+        }.get(mode, "hint_bg_sens_balanced")))
+        if (self._smart_check.isChecked() and self._canvas.stroke_count()
+                and self._canvas.last_stroke_is_smart()):
+            self._detect_last_stroke()
+
+    def _selected_heal(self) -> str:
+        import core.bg_eraser as be
+        return self._heal_combo.currentData() or be.HEAL_LAMA
+
+    def _on_heal_changed(self, _idx: int = 0) -> None:
+        """Explain the trade-off, and whether LaMa still needs downloading."""
+        import core.bg_eraser as be
+        mode = self._selected_heal()
+        if mode == be.HEAL_LAMA:
+            if be.lama_available():
+                self._heal_warn.setText(tr("hint_bg_heal_lama_ready"))
+                self._heal_warn.setStyleSheet("font-size: 11px;")
+            else:
+                self._heal_warn.setText(
+                    tr("hint_bg_heal_lama_download").format(mb=be._LAMA_SIZE_MB))
+                self._heal_warn.setStyleSheet(
+                    "font-size: 11px; color: #F59E0B;")
+        elif mode == be.HEAL_FAST:
+            self._heal_warn.setText(tr("hint_bg_heal_limits"))
+            self._heal_warn.setStyleSheet("font-size: 11px; color: #F59E0B;")
+        else:
+            self._heal_warn.setText(tr("hint_bg_heal_none"))
+            self._heal_warn.setStyleSheet("font-size: 11px;")
+
+    def _on_view_changed(self) -> None:
+        self._zoom_lbl.setText(f"{self._canvas.zoom_percent()}%")
+        self._rot_lbl.setText(f"{self._canvas.rotation()}°")
+        # Screen-px brush width means the image-space width must be recomputed
+        # whenever the zoom changes, or the ring and the stroke disagree.
+        self._canvas.set_brush_size(self._brush_slider.value())
+
+    def _update_output_placeholder(self) -> None:
+        keys = ("ph_nobg_auto", "ph_bg_erase_auto")
+        self._output_edit.setPlaceholderText(tr(keys[self._current_sub_tab]))
+
     def _set_input_preview_placeholder(self, key: str) -> None:
         self._preview_placeholder_key = key
         self._input_preview.setPixmap(QPixmap())
@@ -468,8 +971,43 @@ class BgEraserSection(QScrollArea):
         if self._preview_placeholder_key:
             self._input_preview.setText(tr(self._preview_placeholder_key))
         self._hdr_out.setText(tr("hdr_output_file"))
-        self._output_edit.setPlaceholderText(tr("ph_nobg_auto"))
+        self._update_output_placeholder()
         self._browse_out_btn.setText(tr("btn_browse"))
+
+        # Automatic sub-tab
+        self._hdr_model.setText(tr("hdr_bg_model"))
+        from core.bg_eraser import MODELS
+        for i, key in enumerate(MODELS):
+            self._model_combo.setItemText(i, tr(f"bg_model_{key}"))
+        self._model_hint.setText(tr("hint_bg_model"))
+        self._matting_check.setText(tr("chk_bg_alpha_matting"))
+
+        # Drawing sub-tabs
+        self._hdr_erase.setText(tr("hdr_bg_erase"))
+        self._hint_erase.setText(tr("hint_bg_erase"))
+        self._hdr_heal.setText(tr("hdr_bg_heal"))
+        import core.bg_eraser as _be
+        for i, key in enumerate(("bg_heal_lama", "bg_heal_fast", "bg_heal_none")):
+            self._heal_combo.setItemText(i, tr(key))
+        self._on_heal_changed()
+        self._smart_check.setText(tr("chk_bg_smart"))
+        self._sens_lbl.setText(tr("lbl_bg_sensitivity"))
+        for i, key in enumerate(("bg_sens_tight", "bg_sens_balanced",
+                                 "bg_sens_loose")):
+            self._sens_combo.setItemText(i, tr(key))
+        self._on_smart_toggled(self._smart_check.isChecked())
+        self._invert_check.setText(tr("chk_bg_invert"))
+        self._on_invert_toggled(self._invert_check.isChecked())
+        self._subtract_check.setText(tr("chk_bg_subtract"))
+        self._fit_btn.setText(tr("btn_bg_fit"))
+        self._loupe_check.setText(tr("chk_bg_loupe"))
+        self._nav_hint.setText(tr("hint_bg_navigation"))
+        for btn in self._erase_tool_group.buttons():
+            btn.setText(tr(btn.property("label_key")))
+        self._update_brush_label(self._brush_slider.value())
+        self._undo_btn.setText(tr("btn_bg_undo_stroke"))
+        self._clear_sel_btn.setText(tr("btn_bg_clear_selection"))
+        self._on_selection_changed()
         self._hdr_result.setText(tr("hdr_result_preview"))
         if self._result_placeholder_key:
             self._result_preview.setText(tr(self._result_placeholder_key))
@@ -502,13 +1040,16 @@ class BgEraserSection(QScrollArea):
         path = path.strip()
         if path and os.path.isfile(path) and not self._output_edit.text().strip():
             stem = os.path.splitext(path)[0]
-            self._output_edit.setPlaceholderText(f"{stem}_nobg.png")
+            suffix = ("nobg", "erased")[self._current_sub_tab]
+            self._output_edit.setPlaceholderText(f"{stem}_{suffix}.png")
 
     def _load_input_preview(self) -> None:
         path = self._input_edit.text().strip()
         if not path or not os.path.isfile(path):
             self._set_input_preview_placeholder("hint_bg_no_preview")
             return
+        if self._current_sub_tab > 0:
+            self._canvas.set_image(path)
         px = QPixmap(path)
         if not px.isNull():
             self._preview_placeholder_key = None
@@ -558,12 +1099,53 @@ class BgEraserSection(QScrollArea):
             return
 
         output_path = self._output_edit.text().strip() or None
+        # A typed name without an extension gives PIL no format to save as.
+        if output_path and not os.path.splitext(output_path)[1]:
+            output_path += ".png"
+        if output_path and not os.path.isabs(output_path):
+            output_path = os.path.join(os.path.dirname(input_path), output_path)
 
-        self._result_card.setVisible(False)
-        self._set_busy(True, "Removing background (first run downloads ~170 MB model)…")
+        import core.bg_eraser as be
 
-        from core.bg_eraser import remove_background
-        self._worker = Worker(remove_background, input_path, output_path)
+        if self._current_sub_tab == 0:
+            model = self._model_combo.currentData() or be.DEFAULT_MODEL
+            size_mb = be.MODELS.get(model, (None, 0))[1]
+            self._result_card.setVisible(False)
+            self._set_busy(True, tr("dyn_bg_removing").format(mb=size_mb))
+            self._worker = Worker(
+                be.remove_background, input_path, output_path,
+                model, self._matting_check.isChecked(),
+            )
+        else:
+            if not self._canvas.has_selection():
+                self.status_message.emit(tr("err_bg_no_selection"), True)
+                return
+            heal = self._selected_heal()
+            self._result_card.setVisible(False)
+            strokes = self._canvas.strokes()
+            # A selection made only of negative strokes cuts from nothing, so it
+            # would reach the core as an empty mask. Say so here instead.
+            if not any(not st.get("subtract") for st in strokes):
+                self.status_message.emit(tr("err_bg_only_subtract"), True)
+                return
+            wants_smart = any(st.get("smart") for st in strokes)
+            if wants_smart and not be.sam_available():
+                # One-off fetch; done inside the worker so the UI keeps a single
+                # busy state and stays responsive.
+                self._set_busy(True, tr("dyn_bg_smart_downloading").format(
+                    mb=be._SAM_SIZE_MB))
+            elif heal == be.HEAL_LAMA and not be.lama_available():
+                self._set_busy(True, tr("dyn_bg_heal_downloading").format(
+                    mb=be._LAMA_SIZE_MB))
+            elif wants_smart:
+                self._set_busy(True, tr("dyn_bg_smart_erasing"))
+            else:
+                self._set_busy(True, tr("dyn_bg_erasing"))
+            self._worker = Worker(
+                self._erase_with_model, input_path, strokes, output_path, heal,
+                self._invert_check.isChecked(), self._selected_sensitivity(),
+            )
+
         self._worker.signals.result.connect(self._on_result)
         self._worker.signals.error.connect(self._on_error)
         self._worker.start()
@@ -595,13 +1177,29 @@ class BgEraserSection(QScrollArea):
         self._result_card.setVisible(True)
 
         get_history_manager().add_item(HistoryItem(
-            task_type="bg_erase",
+            task_type=("bg_erase", "bg_object_erase")[self._current_sub_tab],
             file_name=os.path.basename(self._input_edit.text()),
             file_path=out_path,
             status="success",
         ))
 
-        self.status_message.emit(f"Done → {os.path.basename(out_path)}", False)
+        # If LaMa was asked for but the fast fill ran instead, say so — the
+        # difference is visible and the user should know why.
+        note = ""
+        if self._current_sub_tab == 1:
+            import core.bg_eraser as be
+            notes = []
+            if (self._selected_heal() == be.HEAL_LAMA
+                    and result.get("heal_used") == be.HEAL_FAST):
+                notes.append(tr("warn_bg_heal_fell_back"))
+            if self._smart_check.isChecked() and not result.get("smart_used"):
+                notes.append(tr("warn_bg_smart_fell_back"))
+            if (result.get("hole_fraction") or 0) > 0.25:
+                notes.append(tr("warn_bg_large_hole"))
+            if notes:
+                note = "  (" + "; ".join(notes) + ")"
+        self.status_message.emit(
+            f"Done → {os.path.basename(out_path)}{note}", False)
 
     def _on_error(self, err_tuple: tuple) -> None:
         self._set_busy(False)

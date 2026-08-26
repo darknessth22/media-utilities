@@ -333,6 +333,18 @@ def upscale_video(
     if not os.path.isfile(input_path):
         return {"success": False, "error": f"Input not found: {input_path}"}
 
+    # Catch an unusable destination now rather than after an hour of inference:
+    # ffmpeg picks the container from the extension and aborts with "Unable to
+    # choose an output format" when there isn't one.
+    if not os.path.splitext(output_path)[1]:
+        return {
+            "success": False,
+            "error": (
+                "Output file needs an extension so the video format is known "
+                f"(for example {os.path.basename(output_path) or 'output'}.mp4)."
+            ),
+        }
+
     # 1. Probe ----------------------------------------------------------------
     _report(0, "Analyzing video…")
     try:

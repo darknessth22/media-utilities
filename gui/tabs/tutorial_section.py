@@ -265,12 +265,50 @@ _TUTORIAL_DATA_EN = [
             "First time: click Install Model in the banner. Confirm size and target folder.",
             "Wait for install. Feature unlocks when done.",
             "Click Browse and pick an image.",
-            "Set an output path, or leave blank for <name>_nobg.png next to the source.",
-            "Click Remove Background (or Ctrl+Enter).",
+            "Remove Background tab: pick a model, then click Apply.",
+            "Erase Object tab: pick brush, lasso, or rectangle and paint over the object "
+            "or person you want gone. Let go and paint again to cover more — strokes add "
+            "up. Then click Apply.",
+            "Zoom with the scroll wheel, pan with middle-drag or Space, rotate with "
+            "Ctrl+scroll, and turn on the Magnifier to brush precisely along an edge.",
+            "Or tick Smart select, then draw a rough circle or box over an object or "
+            "person — its real outline appears in green on the canvas, so you can check "
+            "the detection before applying (Undo and mark again if it grabbed the wrong "
+            "thing).",
+            "If Smart select grabs too much — all three people instead of one — set "
+            "Detection sensitivity to Tight. Set it to Loose when it grabs too little, "
+            "like a sleeve instead of the whole person.",
+            "Tick Erase from selection to switch the brush to negative: the highlight is "
+            "removed as you brush instead of added, so you watch the selection shrink "
+            "live and can trim an edge by hand. Untick it to go back to adding.",
+            "Tick Invert selection to flip which side goes: select the one person you "
+            "want to keep, tick Invert, and everything else is removed instead.",
         ],
         "tips": [
-            "First run may download the model. Later runs are offline.",
-            "Works best on subjects with clear edges.",
+            "Balanced (BiRefNet Lite) is the default and keeps hair and thin detail that "
+            "the Fast model loses. Each model downloads once on first use.",
+            "Strokes accumulate, so build the selection in as many passes as you like. "
+            "Undo stroke (or right-click) removes the last one; Clear removes all.",
+            "Brush size is remembered per stroke, so changing it does not affect strokes "
+            "you already painted.",
+            "Erase Object works on any object or person, not just the background. "
+            "Everything outside your strokes is left exactly as it was.",
+            "Heal method matters: Reconstruct texture (LaMa) rebuilds detail so the fill "
+            "blends in even on patterned backgrounds — it downloads once, then works "
+            "offline. Fast fill is instant but leaves a visible blur.",
+            "Zooming and rotating only change the view; strokes stay exactly where you "
+            "painted them.",
+            "Smart select saves tracing: a rough mark anywhere on the object is enough, "
+            "and each stroke remembers whether it was smart, so you can mix a detected "
+            "object with hand-painted touch-ups in one go.",
+            "Detection sensitivity changes the selection immediately — no need to redraw "
+            "the mark. Tight uses only the exact object you pointed at, which is what "
+            "isolates one person from a group that touches or overlaps.",
+            "The negative brush is finer than Undo: Undo drops a whole stroke, while "
+            "Erase from selection shaves the selection down wherever you paint — and it "
+            "updates on the canvas as you drag, so you can see the result before applying.",
+            "Healing is best on plain or softly textured areas; over strong detail such as "
+            "cables it can smear and may need touch-up.",
             "Output is always PNG with transparency.",
         ],
     },
@@ -963,12 +1001,47 @@ _TUTORIAL_DATA_AR = [
             "أول مرة: انقر 'تثبيت النموذج' في الشريط. أكّد الحجم ومجلد التثبيت.",
             "انتظر التثبيت. الميزة تُفعَّل عند الانتهاء.",
             "انقر 'تصفح' واختر صورة.",
-            "حدد مسار إخراج، أو اتركه فارغاً لـ <الاسم>_nobg.png بجانب المصدر.",
-            "انقر 'إزالة الخلفية' (أو Ctrl+Enter).",
+            "تبويب 'إزالة الخلفية': اختر الموديل ثم انقر 'تطبيق'.",
+            "تبويب 'محو عنصر': اختر الفرشاة أو اللاسو أو المستطيل وارسم فوق العنصر أو "
+            "الشخص الذي تريد إزالته. ارفع الفأرة وارسم مرة أخرى لتغطية المزيد — الرسمات "
+            "تتجمّع. ثم انقر 'تطبيق'.",
+            "كبّر بعجلة الفأرة، وحرّك بالزر الأوسط أو Space، ودوّر بـ Ctrl+التمرير، "
+            "وفعّل 'المكبّر' للرسم بدقة على الحواف.",
+            "أو فعّل 'التحديد الذكي' ثم ارسم دائرة أو مستطيلاً تقريبياً على عنصر أو "
+            "شخص — تظهر حدوده الحقيقية بالأخضر على اللوحة، فتتحقق من الاكتشاف قبل "
+            "التطبيق (تراجع وحدّده مرة أخرى إن اختار الشيء الخطأ).",
+            "إذا اختار 'التحديد الذكي' أكثر من اللازم — ثلاثة أشخاص بدل واحد — اضبط "
+            "'حساسية الكشف' على 'دقيق'. واضبطها على 'واسع' إذا اختار أقل من اللازم، "
+            "مثل كُمّ بدلاً من الشخص كاملاً.",
+            "فعّل 'المسح من التحديد' لتحويل الفرشاة إلى سالبة: يُزال التظليل أثناء "
+            "الرسم بدلاً من إضافته، فترى التحديد يتقلّص مباشرةً وتشذّب الحواف يدوياً. "
+            "أوقفها للعودة إلى الإضافة.",
+            "فعّل 'عكس التحديد' لقلب الجهة التي تُزال: حدّد الشخص الذي تريد الإبقاء "
+            "عليه، فعّل العكس، فيُزال كل ما عداه.",
         ],
         "tips": [
-            "أول تشغيل قد يُنزّل النموذج. التشغيل اللاحق دون اتصال.",
-            "أفضل النتائج مع أجسام ذات حواف واضحة.",
+            "الوضع المتوازن (BiRefNet Lite) هو الافتراضي ويحفظ الشعر والتفاصيل الرقيقة "
+            "التي يفقدها الوضع السريع. يُنزّل كل موديل مرة واحدة عند أول استخدام.",
+            "الرسمات تتجمّع، فابنِ التحديد على أي عدد من المراحل. 'تراجع عن الرسمة' "
+            "(أو الزر الأيمن) يحذف الأخيرة، و'مسح التحديد' يحذف الكل.",
+            "حجم الفرشاة محفوظ لكل رسمة، فتغييره لا يؤثر على ما رسمته سابقاً.",
+            "'محو عنصر' يعمل على أي عنصر أو شخص وليس الخلفية فقط، وكل ما هو خارج "
+            "رسماتك يبقى كما هو تماماً.",
+            "طريقة الترميم مهمة: 'إعادة بناء الملمس' (LaMa) تُعيد بناء التفاصيل لتندمج "
+            "التعبئة حتى في الخلفيات المزخرفة — تُنزّل مرة واحدة ثم تعمل دون اتصال. "
+            "'التعبئة السريعة' فورية لكنها تترك تشويشاً واضحاً.",
+            "التكبير والتدوير يغيّران العرض فقط؛ الرسمات تبقى في مكانها بالضبط.",
+            "'التحديد الذكي' يوفّر عليك التتبّع: علامة تقريبية في أي مكان على العنصر "
+            "تكفي، وكل رسمة تتذكّر إن كانت ذكية، فيمكنك الدمج بين عنصر مُكتشَف "
+            "ولمسات يدوية في عملية واحدة.",
+            "'حساسية الكشف' تغيّر التحديد فوراً دون إعادة رسم العلامة. 'دقيق' يستخدم "
+            "العنصر الذي أشرت إليه بالضبط، وهو ما يعزل شخصاً واحداً عن مجموعة متلاصقة "
+            "أو متداخلة.",
+            "الفرشاة السالبة أدقّ من التراجع: التراجع يحذف رسمة كاملة، أما 'المسح من "
+            "التحديد' فيقلّص التحديد في المكان الذي ترسم فيه فقط — ويتحدّث على اللوحة "
+            "أثناء السحب، فترى النتيجة قبل التطبيق.",
+            "الترميم أفضل في المناطق البسيطة أو ذات الملمس الناعم؛ فوق التفاصيل القوية "
+            "مثل الأسلاك قد يحدث تلطيخ ويحتاج تعديلاً يدوياً.",
             "الإخراج دائماً PNG بشفافية.",
         ],
     },

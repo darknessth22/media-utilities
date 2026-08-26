@@ -30,6 +30,13 @@ class InsufficientDiskError(RuntimeError):
     """Raised when target volume lacks free space for an install."""
 
 
+# Network settings for the pip subprocess. Components can be multi-gigabyte
+# (the CUDA torch wheel alone is ~3.3 GB), so pip's stock 15 s timeout and 5
+# retries are far too aggressive — one brief stall killed the whole install.
+_PIP_TIMEOUT_SECONDS = 120
+_PIP_RETRIES = 20
+
+
 @dataclass
 class ComponentState:
     status: str = "not_installed"
@@ -58,6 +65,44 @@ class ReconcileResult:
 
 def _ai_packages_root() -> str:
     return str(ai_packages_dir())
+
+
+def _pip_cache_dir() -> str:
+    """Persistent pip wheel cache, kept beside the installed AI packages."""
+    path = os.path.join(_ai_packages_root(), "_pip_cache")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def _wheel_cache_dir() -> str:
+    """Where pre-downloaded wheels (and their .part files) accumulate.
+
+    Deliberately separate from pip's own cache: these files are managed by
+    `utils.wheel_prefetch` and must survive between attempts so an interrupted
+    multi-gigabyte download can resume.
+    """
+    path = os.path.join(_ai_packages_root(), "_wheels")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def _install_runner_path() -> Optional[str]:
+    """Filesystem path to `utils/install_runner.py`, or None if unavailable.
+
+    The bundled interpreter runs the runner as a plain script, so it needs a
+    real path. In a frozen build `utils/` is unpacked next to the executable by
+    PyInstaller; in a source checkout it sits next to this module.
+    """
+    candidate = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "install_runner.py")
+    if os.path.isfile(candidate):
+        return candidate
+    base = getattr(sys, "_MEIPASS", None)
+    if base:
+        frozen = os.path.join(base, "utils", "install_runner.py")
+        if os.path.isfile(frozen):
+            return frozen
+    return None
 
 
 def _component_dir(component_id: str) -> str:
@@ -389,16 +434,48 @@ def _start_install_single(component_id: str, on_line: Callable[[str], None],
     ))
 
     comp = ai_components.get(component_id)
-    args = [
-        "-u",  # unbuffered stdout/stderr so progress lines arrive live
-        "-m", "pip", "install",
-        "--no-warn-script-location",
-        "--disable-pip-version-check",
-        "--progress-bar", "on",
-        "--target", target_dir,
-        *comp.extra_pip_args,
-        "-r", info.manifest_path,
+
+    # Run the install through install_runner: it pre-downloads big wheels with
+    # resume support (so a dropped connection or a closed app no longer throws
+    # away gigabytes) and then hands off to pip. If the runner can't be located
+    # — an unusual frozen layout, say — fall back to invoking pip directly so
+    # installing still works.
+    runner = _install_runner_path()
+    pip_net_args = [
+        # The CUDA torch wheel is ~3.3 GB. pip's defaults (15 s read timeout,
+        # 5 retries) are far too tight for that on a slow or flaky connection:
+        # a stalled read aborts the whole install and the partial wheel is
+        # thrown away, so users on modest links could never finish. Give the
+        # transfer room to recover from short outages instead.
+        "--timeout", str(_PIP_TIMEOUT_SECONDS),
+        "--retries", str(_PIP_RETRIES),
     ]
+    if runner:
+        args = [
+            "-u",  # unbuffered stdout/stderr so progress lines arrive live
+            runner,
+            "--manifest", info.manifest_path,
+            "--target", target_dir,
+            "--wheel-dir", _wheel_cache_dir(),
+            "--timeout", str(_PIP_TIMEOUT_SECONDS),
+            "--retries", str(_PIP_RETRIES),
+        ]
+        if comp.extra_pip_args:
+            # Everything past "--" reaches pip verbatim, so values that look
+            # like options (--no-deps) survive the runner's own parsing.
+            args += ["--", *comp.extra_pip_args]
+    else:
+        args = [
+            "-u",
+            "-m", "pip", "install",
+            "--no-warn-script-location",
+            "--disable-pip-version-check",
+            "--progress-bar", "on",
+            *pip_net_args,
+            "--target", target_dir,
+            *comp.extra_pip_args,
+            "-r", info.manifest_path,
+        ]
 
     from PySide6.QtCore import QProcess, QProcessEnvironment
 
@@ -412,6 +489,11 @@ def _start_install_single(component_id: str, on_line: Callable[[str], None],
     env.insert("PYTHONUNBUFFERED", "1")
     env.insert("PIP_DISABLE_PIP_VERSION_CHECK", "1")
     env.insert("PIP_PROGRESS_BAR", "on")
+    # Keep the wheel cache next to the packages we install rather than wherever
+    # the bundled interpreter would default to. Wheels that did download stay
+    # cached, so retrying a failed multi-gigabyte install resumes at the wheel
+    # level instead of starting over.
+    env.insert("PIP_CACHE_DIR", _pip_cache_dir())
     proc.setProcessEnvironment(env)
 
     if sys.platform == "win32":
