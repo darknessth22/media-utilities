@@ -2,6 +2,7 @@
 import contextlib
 import io
 import os
+import re
 import tempfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
@@ -55,8 +56,11 @@ class ConversionSummary:
 
 
 _IMAGE_EXTS = frozenset({".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp"})
-_VALID_DOCS  = frozenset({".pdf", ".docx"})
-_VALID_OUTPUTS = frozenset({"pdf", "docx"})
+_VALID_DOCS  = frozenset({".pdf", ".docx", ".pptx"})
+# Markdown is an OUTPUT format only, by design. The GUI has a Markdown
+# editor/viewer for reading .md files (Qt renders it natively), but
+# converting FROM markdown into PDF/DOCX/PPTX is deliberately not offered.
+_VALID_OUTPUTS = frozenset({"pdf", "docx", "md"})
 
 
 def _is_scanned_page(page) -> bool:
@@ -393,6 +397,339 @@ def _build_docx_from_blocks(blocks: list[DocumentBlock], output_path: str) -> Co
     return summary
 
 
+def _md_escape(text: str) -> str:
+    """Escape the characters that would otherwise be read as markup."""
+    out = text
+    for ch in ("\\", "`", "*", "_", "[", "]", "#"):
+        out = out.replace(ch, "\\" + ch)
+    return out
+
+
+def _md_spans(spans: list[SpanInfo], fallback: str | None) -> str:
+    """Spans as inline markdown."""
+    if not spans:
+        return _md_escape(fallback or "")
+    parts: list[str] = []
+    for span in spans:
+        text = span.text
+        if not text:
+            continue
+        # Emphasis markers cannot touch whitespace in markdown, or the
+        # asterisks render literally. Keep padding outside the marks.
+        core = text.strip()
+        if not core:
+            parts.append(text)
+            continue
+        lead = text[:len(text) - len(text.lstrip())]
+        trail = text[len(text.rstrip()):]
+        marks = ("**" if span.bold else "") + ("*" if span.italic else "")
+        parts.append(lead + marks + _md_escape(core) + marks[::-1] + trail)
+    return "".join(parts)
+
+
+def _md_table(rows: list[list[str]]) -> str:
+    """A GFM pipe table, treating the first row as the header."""
+    width = max((len(r) for r in rows), default=0)
+    if not width:
+        return ""
+
+    def line(cells) -> str:
+        padded = [str(c or "").replace("|", "\\|").replace("\n", " ")
+                  for c in list(cells) + [""] * (width - len(cells))]
+        return "| " + " | ".join(padded) + " |"
+
+    out = [line(rows[0]), "|" + "|".join([" --- "] * width) + "|"]
+    out.extend(line(r) for r in rows[1:])
+    return "\n".join(out)
+
+
+_LIST_MARKER_RE = re.compile(
+    r"^\s*(?:[\u2022\u25CF\u25AA\u2023\u2043o]|\\?[-*+]|\(?\d{1,3}[.)]|"
+    r"\(?[a-zA-Z][.)])\s+")
+
+
+def _strip_list_marker(text: str) -> str:
+    """Remove a bullet/number the source already carried.
+
+    The PDF extractor keeps the literal glyph in the block text, so emitting our
+    own marker on top gives "- \u2022 first" or "1. 1. one".
+    """
+    return _LIST_MARKER_RE.sub("", text, count=1).strip()
+
+
+def _build_md_from_blocks(blocks: list[DocumentBlock], output_path: str) -> ConversionSummary:
+    """Serialise DocumentBlocks to Markdown.
+
+    Reuses the blocks the DOCX path already consumes, so heading/list/table
+    detection is shared rather than reimplemented.
+
+    Images are skipped: Markdown cannot embed them, and writing a sibling
+    image folder makes the output a directory rather than one portable file.
+    Scanned pages are reported as warnings so a near-empty result is explained.
+    """
+    summary = ConversionSummary()
+    lines: list[str] = []
+    # Markdown needs a blank line between blocks of different kinds, or they
+    # merge: a table right after a list item becomes part of that item, and a
+    # numbered list touching a bulleted one joins it. Tracked rather than
+    # emitted eagerly so consecutive list items stay tight.
+    prev_kind: str | None = None
+
+    def gap(kind: str) -> None:
+        nonlocal prev_kind
+        if prev_kind is not None and prev_kind != kind:
+            if lines and lines[-1] != "":
+                lines.append("")
+            # A blank line alone does NOT split two adjacent lists - a bulleted
+            # list followed by a numbered one renders as a single <ul>. An HTML
+            # comment is the standard separator that forces a new list while
+            # staying invisible when rendered.
+            if prev_kind.startswith("list-") and kind.startswith("list-"):
+                lines.extend(("<!-- -->", ""))
+        prev_kind = kind
+
+    for block in blocks:
+        if block.block_type == "heading":
+            gap("heading")
+            level = min(max(block.level or 1, 1), 6)
+            # No emphasis inside a heading: PDF heading spans are usually bold,
+            # which would render as "## **Title**".
+            text = _md_escape((block.text or "").strip()) or _md_spans(
+                block.spans, block.text)
+            lines += ["#" * level + " " + text.strip(), ""]
+            summary.headings += 1
+
+        elif block.block_type == "table":
+            if block.table_data:
+                gap("table")
+                lines += [_md_table(block.table_data), ""]
+                summary.tables += 1
+
+        elif block.block_type in ("image", "scanned_page"):
+            if block.block_type == "scanned_page":
+                summary.scanned_pages += 1
+                summary.warnings.append(
+                    "Page %d is a scanned image - it has no text to extract."
+                    % (block.page_num + 1))
+            else:
+                summary.skipped_elements.append(
+                    "Image on page %d" % (block.page_num + 1))
+
+        elif block.block_type == "list_item":
+            style = "number" if block.list_style == "number" else "bullet"
+            gap("list-" + style)
+            indent = "  " * max((block.level or 1) - 1, 0)
+            marker = "1." if style == "number" else "-"
+            body = _strip_list_marker(_md_spans(block.spans, block.text))
+            lines.append(indent + marker + " " + body)
+            summary.list_items += 1
+
+        else:
+            text = _md_spans(block.spans, block.text)
+            if text.strip():
+                gap("paragraph")
+                lines += [text, ""]
+                summary.text_blocks += 1
+
+    with open(output_path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines).rstrip() + "\n")
+    return summary
+
+
+def _pdf_to_md(input_path: str, output_path: str, progress_callback=None, cancel_event=None) -> tuple[bool, str, ConversionSummary | None]:
+    """PDF to Markdown - same extraction as PDF to DOCX, different serialiser."""
+    try:
+        with fitz.open(input_path) as doc:
+            if doc.is_encrypted:
+                return False, "PDF is encrypted/password-protected", None
+
+            total_pages = len(doc)
+            body_font_size = _detect_body_font_size(doc)
+            all_blocks = []
+            extracted_images = set()
+            extraction_warnings = []
+
+            for page_num, page in enumerate(doc):
+                if cancel_event and cancel_event.is_set():
+                    if os.path.exists(output_path):
+                        os.remove(output_path)
+                    return False, "Conversion cancelled by user", None
+                if progress_callback:
+                    progress_callback(page_num + 1, total_pages)
+                all_blocks.extend(_extract_page_blocks(
+                    page, page_num, body_font_size, doc, extracted_images,
+                    warnings=extraction_warnings))
+
+            summary = _build_md_from_blocks(all_blocks, output_path)
+            summary.total_pages = total_pages
+            if extraction_warnings:
+                summary.warnings.extend(extraction_warnings)
+            return True, output_path, summary
+    except Exception as e:
+        _log("PDF to Markdown failed: %s" % e)
+        return False, str(e), None
+
+
+def _docx_to_md(input_path: str, output_path: str, progress_callback=None, cancel_event=None) -> tuple[bool, str, ConversionSummary | None]:
+    """DOCX to Markdown, straight from python-docx's own structure.
+
+    Word records heading level, list style and tables explicitly, so nothing
+    needs inferring here - unlike PDF, where layout has to be guessed.
+    """
+    try:
+        from docx.table import Table
+        from docx.text.paragraph import Paragraph
+
+        doc = Document(input_path)
+        blocks: list[DocumentBlock] = []
+
+        # Walk the body in document order so tables stay between the correct
+        # paragraphs; doc.paragraphs and doc.tables are separate flat lists.
+        for child in doc.element.body.iterchildren():
+            if cancel_event and cancel_event.is_set():
+                return False, "Conversion cancelled by user", None
+            tag = child.tag.split("}")[-1]
+
+            if tag == "p":
+                para = Paragraph(child, doc)
+                text = para.text.strip()
+                if not text:
+                    continue
+                spans = [SpanInfo(text=r.text, bold=bool(r.bold),
+                                  italic=bool(r.italic), font_size=0.0,
+                                  font_name="", color=(0, 0, 0))
+                         for r in para.runs if r.text]
+                style = (para.style.name or "") if para.style is not None else ""
+                if style.startswith("Heading"):
+                    try:
+                        level = int(style.split()[-1])
+                    except ValueError:
+                        level = 1
+                    blocks.append(DocumentBlock("heading", text=text,
+                                                spans=spans, level=level))
+                elif style.startswith("List"):
+                    blocks.append(DocumentBlock(
+                        "list_item", text=text, spans=spans, level=1,
+                        list_style="number" if "Number" in style else "bullet"))
+                else:
+                    blocks.append(DocumentBlock("paragraph", text=text,
+                                                spans=spans))
+
+            elif tag == "tbl":
+                rows = [[c.text.strip() for c in r.cells]
+                        for r in Table(child, doc).rows]
+                if rows:
+                    blocks.append(DocumentBlock("table", table_data=rows))
+
+        if progress_callback:
+            progress_callback(1, 1)
+        summary = _build_md_from_blocks(blocks, output_path)
+        summary.total_pages = 1
+        return True, output_path, summary
+    except Exception as e:
+        _log("DOCX to Markdown failed: %s" % e)
+        return False, str(e), None
+
+
+def _pptx_to_blocks(input_path: str, progress_callback=None, cancel_event=None) -> list[DocumentBlock]:
+    """Text of every slide as DocumentBlocks. Pictures and charts are ignored.
+
+    A slide's title placeholder becomes an H2 and its body text frame becomes
+    paragraphs or list items, using PowerPoint's own outline level for nesting.
+    Tables are read; images, charts and SmartArt are skipped by design.
+    """
+    from pptx import Presentation
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+    prs = Presentation(input_path)
+    blocks: list[DocumentBlock] = []
+    slides = list(prs.slides)
+
+    for index, slide in enumerate(slides):
+        if cancel_event and cancel_event.is_set():
+            return []
+        if progress_callback:
+            progress_callback(index + 1, len(slides))
+
+        # python-pptx builds a NEW proxy object on every `.title` access, so an
+        # identity check against the iterated shapes never matches and the title
+        # gets emitted twice (once as a heading, once as a bullet). Compare the
+        # underlying shape_id instead.
+        title_id = None
+        try:
+            title_shape = slide.shapes.title
+            if title_shape is not None and title_shape.has_text_frame:
+                title_id = title_shape.shape_id
+                title = title_shape.text_frame.text.strip()
+                if title:
+                    blocks.append(DocumentBlock("heading", text=title, level=2,
+                                                page_num=index))
+        except Exception:
+            title_id = None
+
+        for shape in slide.shapes:
+            if title_id is not None and shape.shape_id == title_id:
+                continue
+
+            if shape.has_text_frame:
+                for para in shape.text_frame.paragraphs:
+                    text = "".join(r.text for r in para.runs).strip()
+                    if not text:
+                        continue
+                    spans = [SpanInfo(text=r.text, bold=bool(r.font.bold),
+                                      italic=bool(r.font.italic), font_size=0.0,
+                                      font_name="", color=(0, 0, 0))
+                             for r in para.runs if r.text]
+                    # PowerPoint bullets live in the theme, not the text, so
+                    # outline level is the only reliable list signal. Level 0
+                    # in a body placeholder is still a bullet in practice.
+                    level = (para.level or 0) + 1
+                    blocks.append(DocumentBlock(
+                        "list_item", text=text, spans=spans, level=level,
+                        list_style="bullet", page_num=index))
+
+            elif getattr(shape, "has_table", False) and shape.has_table:
+                rows = [[c.text.strip() for c in r.cells]
+                        for r in shape.table.rows]
+                if rows:
+                    blocks.append(DocumentBlock("table", table_data=rows,
+                                                page_num=index))
+
+            elif shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+                # Recorded so the summary can say what was left out.
+                blocks.append(DocumentBlock("image", page_num=index))
+
+    return blocks
+
+
+def _pptx_to_md(input_path: str, output_path: str, progress_callback=None, cancel_event=None) -> tuple[bool, str, ConversionSummary | None]:
+    """PPTX to Markdown, text only."""
+    try:
+        blocks = _pptx_to_blocks(input_path, progress_callback, cancel_event)
+        if cancel_event and cancel_event.is_set():
+            return False, "Conversion cancelled by user", None
+        summary = _build_md_from_blocks(blocks, output_path)
+        summary.total_pages = len({b.page_num for b in blocks}) or 1
+        return True, output_path, summary
+    except Exception as e:
+        _log("PPTX to Markdown failed: %s" % e)
+        return False, str(e), None
+
+
+def _pptx_to_docx(input_path: str, output_path: str, progress_callback=None, cancel_event=None) -> tuple[bool, str, ConversionSummary | None]:
+    """PPTX to DOCX, text only."""
+    try:
+        blocks = _pptx_to_blocks(input_path, progress_callback, cancel_event)
+        if cancel_event and cancel_event.is_set():
+            return False, "Conversion cancelled by user", None
+        summary = _build_docx_from_blocks(blocks, output_path)
+        summary.total_pages = len({b.page_num for b in blocks}) or 1
+        return True, output_path, summary
+    except Exception as e:
+        _log("PPTX to DOCX failed: %s" % e)
+        return False, str(e), None
+
+
 def _pdf_to_docx(input_path: str, output_path: str, progress_callback=None, cancel_event=None) -> tuple[bool, str, ConversionSummary | None]:
     """Orchestrate high-fidelity PDF to DOCX conversion."""
     try:
@@ -583,6 +920,8 @@ def convert_document(
     if input_ext == ".pdf":
         if output_format == "docx":
             return _pdf_to_docx(input_path, output_path, progress_callback, cancel_event)
+        if output_format == "md":
+            return _pdf_to_md(input_path, output_path, progress_callback, cancel_event)
         return False, f"PDF → {output_format} is not supported", None
 
     # ------------------------------------------------------------------
@@ -591,7 +930,22 @@ def convert_document(
     elif input_ext == ".docx":
         if output_format == "pdf":
             return _docx_to_pdf(input_path, output_path, progress_callback, cancel_event)
+        if output_format == "md":
+            return _docx_to_md(input_path, output_path, progress_callback, cancel_event)
         return False, f"DOCX → {output_format} is not supported", None
+
+    # ------------------------------------------------------------------
+    # Image → PDF
+    # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # PPTX → other (text only; pictures/charts are ignored by design)
+    # ------------------------------------------------------------------
+    elif input_ext == ".pptx":
+        if output_format == "md":
+            return _pptx_to_md(input_path, output_path, progress_callback, cancel_event)
+        if output_format == "docx":
+            return _pptx_to_docx(input_path, output_path, progress_callback, cancel_event)
+        return False, f"PPTX → {output_format} is not supported", None
 
     # ------------------------------------------------------------------
     # Image → PDF

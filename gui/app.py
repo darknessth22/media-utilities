@@ -181,7 +181,7 @@ _SECTIONS_META = [
         "id": "document",
         "label_key": "section_document",
         "icon": "document.svg",
-        "tab_keys": ["tab_document_convert"],
+        "tab_keys": ["tab_document_convert", "tab_md_editor"],
         "action_key": "action_convert",
     },
     {
@@ -1995,6 +1995,11 @@ class MainWindow(QMainWindow):
             self._dm_toggle.setChecked(want_dark)
             self._dm_toggle.blockSignals(False)
         self._settings_section_widget.sync_theme(mode)
+        # Widgets that paint their own colours (the markdown editor's gutter and
+        # syntax highlighting) can't be restyled by QSS alone.
+        for widget in self._section_widgets:
+            if hasattr(widget, "apply_theme"):
+                widget.apply_theme(want_dark)
 
     # ── T010: Right panel ─────────────────────────────────────────────────────
 

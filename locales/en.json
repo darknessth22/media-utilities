@@ -1150,5 +1150,20 @@
   "hint_bg_invert_on": "On — the selection is KEPT and everything else is removed.",
   "chk_bg_subtract": "Erase from selection",
   "hint_bg_subtract_on": "Negative brush on — drawing now removes the highlight instead of adding to it, so you see the selection shrink as you brush. Turn it off to add again.",
-  "err_bg_only_subtract": "Your selection is only made of negative strokes. Add something to remove first."
+  "err_bg_only_subtract": "Your selection is only made of negative strokes. Add something to remove first.",
+  "tab_md_editor": "MARKDOWN VIEWER",
+  "hdr_md_editor": "MARKDOWN SOURCE & PREVIEW",
+  "btn_md_open": "Open…",
+  "btn_md_save": "Save",
+  "btn_md_save_as": "Save As…",
+  "ph_md_editor": "Type or open Markdown here — the preview updates as you type.",
+  "lbl_md_untitled": "Untitled",
+  "err_md_open": "Could not open the file",
+  "err_md_save": "Could not save the file",
+  "msg_md_saved": "Saved {name}",
+  "chk_md_sync": "Sync scroll",
+  "tip_md_sync": "Scroll both panes together, matched by position in the document.",
+  "chk_md_wrap": "Wrap lines",
+  "lbl_md_stats": "{lines} lines · {words} words · {chars} chars",
+  "msg_md_too_large": "Preview is off for this file ({mb} MB) — it would freeze the window on every keystroke. Editing still works."
 }

@@ -72,16 +72,32 @@ _TUTORIAL_DATA_EN = [
         "emoji": "📄",
         "title": "Document Convert",
         "description": (
-            "Convert between PDF and DOCX, build PDFs from images, or extract PDF pages as images."
+            "Convert between PDF, DOCX, PPTX and Markdown, view and edit Markdown live, build PDFs from images, or extract PDF pages as images."
         ),
         "steps": [
-            "Pick the operation: PDF→DOCX, DOCX→PDF, Images→PDF, or PDF→Images.",
+            "Pick the target format: PDF, DOCX, or MD.",
             "Click Browse and select your file(s).",
             "Click Convert.",
         ],
         "tips": [
             "DOCX → PDF on Linux needs LibreOffice installed.",
             "Images → PDF accepts JPG, PNG, WEBP, and BMP.",
+            "MD (Markdown) works from both PDF and DOCX. DOCX → MD is exact because "
+            "Word records headings, lists and tables itself; PDF → MD has to infer "
+            "them from layout, so check heading levels and lists afterwards.",
+            "Markdown cannot embed pictures, so images are left out of MD output and "
+            "listed in the summary instead. A scanned PDF page has no text to extract "
+            "and is reported as a warning.",
+            "PowerPoint (PPTX) is text-only: each slide title becomes a heading, body "
+            "text becomes bullets that keep their indent level, and tables are kept. "
+            "Pictures, charts and SmartArt are skipped. PPTX converts to MD or DOCX.",
+            "The Markdown Viewer sub-tab shows the source on the left and a live "
+            "preview on the right, updating as you type. Open an existing .md, edit it, "
+            "and Save — while that tab is open the Convert button saves instead.",
+            "The source pane has syntax highlighting, line numbers and a current-line "
+            "highlight. Both panes scroll together so the preview follows what you are "
+            "editing — untick Sync scroll to move them independently, or tick Wrap lines "
+            "for long paragraphs.",
         ],
     },
     {
@@ -808,16 +824,30 @@ _TUTORIAL_DATA_AR = [
         "emoji": "📄",
         "title": "تحويل المستندات",
         "description": (
-            "حوّل بين PDF وDOCX، أنشئ PDF من صور، أو استخرج صفحات PDF كصور."
+            "حوّل بين PDF وDOCX وPPTX وMarkdown، واعرض ماركداون وحرّره مباشرةً، أنشئ PDF من صور، أو استخرج صفحات PDF كصور."
         ),
         "steps": [
-            "اختر العملية: PDF→DOCX، DOCX→PDF، صور→PDF، أو PDF→صور.",
+            "اختر صيغة الهدف: PDF أو DOCX أو MD.",
             "انقر 'تصفح' واختر الملفات.",
             "انقر 'تحويل'.",
         ],
         "tips": [
             "DOCX→PDF على لينكس يحتاج تثبيت LibreOffice.",
             "صور→PDF يقبل JPG وPNG وWEBP وBMP.",
+            "MD (ماركداون) يعمل من PDF وDOCX معاً. DOCX→MD دقيق لأن Word يسجّل "
+            "العناوين والقوائم والجداول بنفسه، أما PDF→MD فيستنتجها من التنسيق، "
+            "لذا راجع مستويات العناوين والقوائم بعد التحويل.",
+            "ماركداون لا يستطيع تضمين الصور، لذا تُستثنى الصور من ملف MD وتُذكر في "
+            "الملخّص. صفحة PDF الممسوحة ضوئياً لا تحتوي نصاً ويُنبَّه عليها.",
+            "باوربوينت (PPTX) نصٌّ فقط: عنوان كل شريحة يصبح عنواناً، ونصّ المحتوى "
+            "يصبح نقاطاً تحافظ على مستوى التداخل، وتُحفظ الجداول. تُتجاهل الصور "
+            "والمخططات. يُحوّل PPTX إلى MD أو DOCX.",
+            "تبويب 'عارض ماركداون' يعرض المصدر على اليسار والمعاينة الحيّة على "
+            "اليمين، وتتحدّث أثناء الكتابة. افتح ملف .md وحرّره ثم احفظه — وأثناء "
+            "فتح هذا التبويب يقوم زر التحويل بالحفظ بدلاً من التحويل.",
+            "لوحة المصدر فيها تلوين للصيغة وأرقام أسطر وإبراز للسطر الحالي. تتحرّك "
+            "اللوحتان معاً فتتابع المعاينة ما تحرّره — أوقف 'مزامنة التمرير' "
+            "لتحريكهما بشكل مستقل، أو فعّل 'التفاف الأسطر' للفقرات الطويلة.",
         ],
     },
     {
