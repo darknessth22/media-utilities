@@ -59,13 +59,15 @@ def test_structure_and_nesting(deck) -> None:
     assert nested and nested[0].level == 2, "outline level must drive nesting"
 
 
-def test_pictures_are_ignored_in_markdown(deck, tmp_path) -> None:
+def test_pptx_pictures_carry_no_bytes_so_nothing_is_written(deck, tmp_path) -> None:
+    """PPTX reading records a picture's presence but not its bytes, so the
+    Markdown writer has nothing to place — and must not invent a broken link."""
     out = tmp_path / "d.md"
     summary = _build_md_from_blocks(_pptx_to_blocks(deck), str(out))
     text = out.read_text(encoding="utf-8")
     assert "![" not in text
     assert not list(tmp_path.glob("*_images"))
-    assert summary.skipped_elements, "the picture should be reported as skipped"
+    assert summary.images == 0
 
 
 def test_empty_deck_does_not_crash(tmp_path) -> None:

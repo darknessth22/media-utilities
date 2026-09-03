@@ -67,7 +67,7 @@ class DocumentSection(QScrollArea):
         "Documents (*.pdf *.docx *.pptx *.md *.markdown "
         "*.jpg *.jpeg *.png *.bmp *.gif *.webp)"
     )
-    _FORMATS = ["PDF", "DOCX", "MD"]
+    _FORMATS = ["PDF", "DOCX", "PPTX", "MD"]
 
     def __init__(self, settings, parent=None) -> None:
         super().__init__(parent)

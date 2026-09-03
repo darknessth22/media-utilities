@@ -75,7 +75,7 @@ _TUTORIAL_DATA_EN = [
             "Convert between PDF, DOCX, PPTX and Markdown, view and edit Markdown live, build PDFs from images, or extract PDF pages as images."
         ),
         "steps": [
-            "Pick the target format: PDF, DOCX, or MD.",
+            "Pick the target format: PDF, DOCX, PPTX, or MD.",
             "Click Browse and select your file(s).",
             "Click Convert.",
         ],
@@ -85,12 +85,22 @@ _TUTORIAL_DATA_EN = [
             "MD (Markdown) works from both PDF and DOCX. DOCX → MD is exact because "
             "Word records headings, lists and tables itself; PDF → MD has to infer "
             "them from layout, so check heading levels and lists afterwards.",
-            "Markdown cannot embed pictures, so images are left out of MD output and "
-            "listed in the summary instead. A scanned PDF page has no text to extract "
-            "and is reported as a warning.",
+            "Pictures are kept: Markdown writes them to a folder beside the .md and "
+            "links them, PowerPoint gives each one its own slide, and a caption right "
+            "after a figure stays with it. Charts drawn as vector art are captured as "
+            "a single picture. A scanned PDF page is reported as a warning.",
             "PowerPoint (PPTX) is text-only: each slide title becomes a heading, body "
             "text becomes bullets that keep their indent level, and tables are kept. "
             "Pictures, charts and SmartArt are skipped. PPTX converts to MD or DOCX.",
+            "Converting TO PowerPoint rebuilds real slides rather than pasting pages "
+            "as images: each heading starts a slide and becomes its title, long "
+            "sections continue on a \"(cont.)\" slide instead of running off the "
+            "bottom, and a long table is split across slides with its header repeated.",
+            "A designed deck (wide pages with a full-page background and text over "
+            "it) is converted page-for-slide instead, keeping the original layout "
+            "exactly — and the text is still editable: it is lifted off the "
+            "background and placed as real text boxes at the same spots, so you "
+            "can retype a headline without losing the design.",
             "The Markdown Viewer sub-tab shows the source on the left and a live "
             "preview on the right, updating as you type. Open an existing .md, edit it, "
             "and Save — while that tab is open the Convert button saves instead.",
@@ -827,7 +837,7 @@ _TUTORIAL_DATA_AR = [
             "حوّل بين PDF وDOCX وPPTX وMarkdown، واعرض ماركداون وحرّره مباشرةً، أنشئ PDF من صور، أو استخرج صفحات PDF كصور."
         ),
         "steps": [
-            "اختر صيغة الهدف: PDF أو DOCX أو MD.",
+            "اختر صيغة الهدف: PDF أو DOCX أو PPTX أو MD.",
             "انقر 'تصفح' واختر الملفات.",
             "انقر 'تحويل'.",
         ],
@@ -837,11 +847,19 @@ _TUTORIAL_DATA_AR = [
             "MD (ماركداون) يعمل من PDF وDOCX معاً. DOCX→MD دقيق لأن Word يسجّل "
             "العناوين والقوائم والجداول بنفسه، أما PDF→MD فيستنتجها من التنسيق، "
             "لذا راجع مستويات العناوين والقوائم بعد التحويل.",
-            "ماركداون لا يستطيع تضمين الصور، لذا تُستثنى الصور من ملف MD وتُذكر في "
-            "الملخّص. صفحة PDF الممسوحة ضوئياً لا تحتوي نصاً ويُنبَّه عليها.",
+            "الصور محفوظة: ماركداون يكتبها في مجلد بجانب ملف .md ويربطها، وباوربوينت "
+            "يمنح كل صورة شريحة خاصة، والتعليق الذي يلي الشكل يبقى معه. والمخططات "
+            "المرسومة كأشكال متجهة تُحفَظ كصورة واحدة. صفحة PDF الممسوحة يُنبَّه عليها.",
             "باوربوينت (PPTX) نصٌّ فقط: عنوان كل شريحة يصبح عنواناً، ونصّ المحتوى "
             "يصبح نقاطاً تحافظ على مستوى التداخل، وتُحفظ الجداول. تُتجاهل الصور "
             "والمخططات. يُحوّل PPTX إلى MD أو DOCX.",
+            "التحويل إلى باوربوينت يبني شرائح حقيقية لا صور صفحات: كل عنوان يبدأ "
+            "شريحة ويصبح عنوانها، والأقسام الطويلة تُكمَل في شريحة \"(تابع)\" بدل "
+            "أن تفيض خارج الشريحة، والجدول الطويل يُقسَّم مع تكرار صف العناوين.",
+            "أما العرض المُصمَّم (صفحات عريضة بخلفية تغطّي الصفحة ونصّ فوقها) فيُحوَّل "
+            "صفحةً لكل شريحة مع الحفاظ على التصميم كما هو تماماً — والنصّ يبقى قابلاً "
+            "للتحرير: يُرفَع عن الخلفية ويُوضَع في مربّعات نصّ حقيقية بالمواضع نفسها، "
+            "فتستطيع تعديل العنوان دون فقدان التصميم.",
             "تبويب 'عارض ماركداون' يعرض المصدر على اليسار والمعاينة الحيّة على "
             "اليمين، وتتحدّث أثناء الكتابة. افتح ملف .md وحرّره ثم احفظه — وأثناء "
             "فتح هذا التبويب يقوم زر التحويل بالحفظ بدلاً من التحويل.",

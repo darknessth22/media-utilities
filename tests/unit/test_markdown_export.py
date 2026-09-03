@@ -11,6 +11,13 @@ import pytest
 
 from core.document import DocumentBlock, SpanInfo, _build_md_from_blocks
 
+# Smallest valid 1x1 PNG — the writer only stores the bytes, but keeping them
+# real means the same fixture works if a reader is ever added.
+_PNG_BYTES = bytes.fromhex(
+    "89504e470d0a1a0a0000000d494844520000000100000001080600000"
+    "01f15c4890000000a49444154789c63000100000500010d0a2db40000"
+    "000049454e44ae426082")
+
 
 def _blocks() -> list[DocumentBlock]:
     return [
@@ -25,7 +32,7 @@ def _blocks() -> list[DocumentBlock]:
         DocumentBlock("list_item", text="• second", level=1, list_style="bullet"),
         DocumentBlock("list_item", text="1. one", level=1, list_style="number"),
         DocumentBlock("table", table_data=[["A", "B|pipe"], ["1", "2"]]),
-        DocumentBlock("image", image_bytes=b"\x89PNG", image_ext="png", page_num=0),
+        DocumentBlock("image", image_bytes=_PNG_BYTES, image_ext="png", page_num=0),
     ]
 
 
@@ -62,11 +69,15 @@ def test_source_markers_and_escaping(tmp_path) -> None:
     assert r"C\|pipe" in text or r"B\|pipe" in text
 
 
-def test_images_are_skipped_not_written(tmp_path) -> None:
+def test_images_are_written_to_a_sibling_folder(tmp_path) -> None:
+    """Markdown cannot embed bytes, so pictures are written beside the .md and
+    linked relatively."""
     text, summary = _write(tmp_path)
-    assert "![" not in text
-    assert not list(tmp_path.glob("*_images"))
-    assert summary.skipped_elements, "an image should be reported as skipped"
+    assert "![" in text, "no image link written"
+    folders = list(tmp_path.glob("*_images"))
+    assert folders and list(folders[0].iterdir()), "image file not written"
+    assert "_images/img001" in text.replace("\\", "/")
+    assert summary.images == 1
 
 
 def test_scanned_page_warns(tmp_path) -> None:

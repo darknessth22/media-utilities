@@ -141,3 +141,6 @@ mobile/coverage/
 
 # Don't ignore pubspec.lock — track it for app reproducibility
 !mobile/pubspec.lock
+
+# Local conversion test material (large sample PDFs/PPTXs)
+powerpoint test/
