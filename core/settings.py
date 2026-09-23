@@ -33,7 +33,11 @@ class UserSettings:
     language: str = "en"
     extension_bridge_enabled: bool = True
     extension_bridge_port: int = 17654
-    version: int = 11
+    # action id -> QKeySequence string. Only overrides are stored; anything
+    # absent uses the default from core/keybinds.py, so adding or changing a
+    # default later does not need a migration.
+    keybinds: dict = field(default_factory=dict)
+    version: int = 12
 
 
 class SettingsManager:
@@ -154,6 +158,9 @@ class SettingsManager:
                 merged_data.setdefault("extension_bridge_enabled", True)
                 merged_data.setdefault("extension_bridge_port", 17654)
                 merged_data["version"] = 11
+            if merged_data.get("version", 1) < 12:
+                merged_data.setdefault("keybinds", {})
+                merged_data["version"] = 12
 
             return UserSettings(**merged_data)
         except json.JSONDecodeError as exc:

@@ -57,6 +57,7 @@ from gui.tabs.scrub_section import ScrubSection
 from gui.tabs.chunk_section import ChunkSection
 from gui.tabs.watermark_section import WatermarkSection
 from gui.tabs.frame_grabber_section import FrameGrabberSection
+from core.hotkey import GlobalHotkey
 from gui.tabs.palette_section import PaletteSection
 from gui.tabs.bg_eraser_section import BgEraserSection
 from gui.tabs.vocal_isolator_section import VocalIsolatorSection
@@ -360,6 +361,13 @@ _SECTIONS_META = [
 ]
 
 
+# Global (OS-level) hotkey for the screen colour picker. Deliberately NOT
+# plain Ctrl+B: RegisterHotKey takes a combination away from every other
+# application, and Ctrl+B is bold in word processors and the bookmarks bar in
+# browsers. Plain Ctrl+B remains the in-app shortcut.
+_GLOBAL_PICK_HOTKEY = "Ctrl+Shift+B"
+
+
 def _section_index(section_id: str) -> int:
     """Return the list index of a section by its id string."""
     for i, m in enumerate(_SECTIONS_META):
@@ -553,18 +561,19 @@ class TitleBar(QWidget):
 
         _heading(tr("shortcuts_heading"))
         menu.addSeparator()
-        for shortcut, description in [
-            ("Ctrl+Enter",  "Trigger primary action (Download / Convert / Trim…)"),
-            ("Esc",         "Cancel in-progress operation"),
-            ("Ctrl+V",      "Paste clipboard URL → Download section"),
-            ("Ctrl+H",      "Go to Home dashboard"),
-            ("Ctrl+T",      "Go to Tools page"),
-            ("Ctrl+1–9",    "Jump to tool section 1–9"),
-            ("Ctrl+,",      "Open Settings"),
-            ("F1",          "Open How to Use guide"),
-            ("Ctrl+Q",      "Quit Videl"),
-        ]:
-            act = menu.addAction(f"  {shortcut:<16}  {description}")
+        # Built from the live bindings, not a second hardcoded list: the two
+        # used to drift (Ctrl+K was missing here for a long time), and the
+        # sequences shown must be whatever the user has actually set.
+        from core.keybinds import ALL_ACTIONS, resolve
+        window = self.window()
+        resolved = getattr(window, "_resolved_keybinds", None) or resolve(
+            getattr(getattr(window, "settings", None), "keybinds", None)
+        )
+        for action in ALL_ACTIONS:
+            sequence = resolved.get(action.id, action.default)
+            if not sequence:
+                continue
+            act = menu.addAction(f"  {sequence:<16}  {tr(action.label_key)}")
             act.setEnabled(False)
         menu.addSeparator()
         see_act = menu.addAction(tr("shortcuts_see_guide"))
@@ -731,10 +740,113 @@ class SettingsSection(QScrollArea):
         spotify_card.setVisible(False)
         layout.addWidget(spotify_card)
         layout.addWidget(self._build_tools_card())
+        layout.addWidget(self._build_keybinds_card())
 
         self.setWidget(content)
 
     # ── Card builders ─────────────────────────────────────────────────────────
+
+    def _build_keybinds_card(self) -> QFrame:
+        """One row per action: description, current binding, reset."""
+        from core.keybinds import ALL_ACTIONS, resolve
+        from gui.widgets.keybind_editor import KeybindButton
+
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
+        layout.addWidget(self._section_header(tr("settings_keybinds")))
+
+        hint = QLabel(tr("keybind_hint"))
+        hint.setObjectName("TextMuted")
+        hint.setStyleSheet("font-size: 11px;")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+
+        self._keybind_buttons: dict[str, KeybindButton] = {}
+        self._keybind_conflict_lbl = QLabel("")
+        self._keybind_conflict_lbl.setStyleSheet("font-size: 11px; color: #ef4444;")
+        self._keybind_conflict_lbl.setWordWrap(True)
+        self._keybind_conflict_lbl.setVisible(False)
+
+        resolved = resolve(getattr(self._settings, "keybinds", None))
+        current_group = None
+        for act in ALL_ACTIONS:
+            if act.group_key != current_group:
+                current_group = act.group_key
+                group = QLabel(tr(act.group_key))
+                group.setObjectName("TextMuted")
+                group.setStyleSheet("font-size: 11px; font-weight: bold; margin-top: 8px;")
+                layout.addWidget(group)
+
+            row = QHBoxLayout()
+            row.setSpacing(10)
+            label = QLabel(tr(act.label_key))
+            label.setWordWrap(True)
+            row.addWidget(label, 1)
+
+            button = KeybindButton(resolved.get(act.id, act.default))
+            button.captured.connect(
+                lambda seq, a=act: self._on_keybind_captured(a, seq)
+            )
+            self._keybind_buttons[act.id] = button
+            row.addWidget(button)
+            layout.addLayout(row)
+
+        layout.addWidget(self._keybind_conflict_lbl)
+
+        reset = QPushButton(tr("keybind_reset_all"))
+        reset.setObjectName("BrowseBtn")
+        reset.setFixedWidth(160)
+        reset.clicked.connect(self._reset_all_keybinds)
+        layout.addWidget(reset)
+        return card
+
+    def _on_keybind_captured(self, act, sequence: str) -> None:
+        """Store one rebind (or clear it) and re-apply immediately."""
+        from core.keybinds import is_valid, normalise
+
+        binds = dict(getattr(self._settings, "keybinds", {}) or {})
+        if not sequence:
+            binds.pop(act.id, None)          # back to the default
+        elif is_valid(sequence):
+            binds[act.id] = normalise(sequence)
+        else:
+            return
+        self._settings.keybinds = binds
+        self._refresh_keybind_buttons()
+        self._save()
+
+    def _reset_all_keybinds(self) -> None:
+        self._settings.keybinds = {}
+        self._refresh_keybind_buttons()
+        self._save()
+
+    def _refresh_keybind_buttons(self) -> None:
+        """Re-read the resolved bindings and surface any clash.
+
+        resolve() already drops a duplicate back to its default, so this is
+        belt-and-braces — but a user who has just typed a clash deserves to be
+        told rather than silently corrected.
+        """
+        from core.keybinds import ALL_ACTIONS, conflicts, resolve
+
+        resolved = resolve(getattr(self._settings, "keybinds", None))
+        for act in ALL_ACTIONS:
+            button = self._keybind_buttons.get(act.id)
+            if button is not None:
+                button.set_sequence(resolved.get(act.id, act.default))
+
+        clashes = conflicts(resolved)
+        if clashes:
+            names = ", ".join(sorted(clashes))
+            self._keybind_conflict_lbl.setText(
+                tr("keybind_conflict").format(keys=names)
+            )
+            self._keybind_conflict_lbl.setVisible(True)
+        else:
+            self._keybind_conflict_lbl.setVisible(False)
+
 
     @staticmethod
     def _section_header(text: str) -> QLabel:
@@ -1652,49 +1764,15 @@ class MainWindow(QMainWindow):
         self._status_message = tr("status_ready")
 
         # ── Keyboard shortcuts ────────────────────────────────────────────────
-        from PySide6.QtGui import QShortcut, QKeySequence
-        from PySide6.QtWidgets import QApplication as _QApp
-        # Ctrl+Enter — trigger the primary action for the current section
-        QShortcut(QKeySequence("Ctrl+Return"), self).activated.connect(
-            self._on_primary_action
-        )
-        # Esc — cancel an ongoing operation (same as clicking the busy button)
-        QShortcut(QKeySequence(Qt.Key.Key_Escape), self).activated.connect(
-            self._on_primary_action
-        )
-        # Ctrl+V — paste clipboard URL into the download URL field and navigate there.
-        # QLineEdit children consume Ctrl+V themselves, so this only fires when
-        # no text input has focus (e.g., user clicks elsewhere first).
-        QShortcut(QKeySequence("Ctrl+V"), self).activated.connect(
-            self._paste_url_from_clipboard
-        )
-        # Ctrl+1–9 — jump to tool sections by number
-        _section_hotkeys = [
-            ("Ctrl+1", 0),   # Download
-            ("Ctrl+2", 1),   # Convert
-            ("Ctrl+3", 2),   # Trim
-            ("Ctrl+4", 3),   # Document
-            ("Ctrl+5", 4),   # GIF
-            ("Ctrl+6", 5),   # Compress
-            ("Ctrl+7", 6),   # Merge
-            ("Ctrl+8", 7),   # Spatial
-            ("Ctrl+9", 15),  # History
-        ]
-        for _key, _idx in _section_hotkeys:
-            QShortcut(QKeySequence(_key), self).activated.connect(
-                lambda _=None, i=_idx: self._navigate_to(i)
-            )
-        # Navigation shortcuts
-        QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(self._go_home)
-        QShortcut(QKeySequence("Ctrl+T"), self).activated.connect(self._go_tools)
-        QShortcut(QKeySequence("Ctrl+,"), self).activated.connect(
-            lambda: self._navigate_to(_section_index("settings"))
-        )
-        QShortcut(QKeySequence(Qt.Key.Key_F1), self).activated.connect(
-            lambda: self._navigate_to(_section_index("tutorial"))
-        )
-        QShortcut(QKeySequence("Ctrl+Q"), self).activated.connect(_QApp.quit)
-        QShortcut(QKeySequence("Ctrl+K"), self).activated.connect(self._open_command_palette)
+        # Every binding comes from core/keybinds.py so that the registry, the
+        # title-bar menu and the settings page cannot drift apart. Rebuilt
+        # whenever the user changes a binding — see _apply_keybinds.
+        self._shortcuts: list = []
+        self._screen_pick_hotkey = GlobalHotkey(self)
+        self._apply_keybinds()
+        # Report a pick made while the window is hidden (the status bar cannot
+        # be seen then).
+        self._palette_section.color_picked.connect(self._on_color_picked)
 
         # Always keep the How to Use icon glowing so it's easy to find
         self._help_nav_btn.start_glow()
@@ -2356,6 +2434,108 @@ class MainWindow(QMainWindow):
         if action_label:
             self._primary_btn.setText(tr("action_cancel") if busy else action_label)
 
+    def _keybind_handlers(self) -> dict:
+        """action id -> callable. The only place handlers are named."""
+        from PySide6.QtWidgets import QApplication as _QApp
+        from core.keybinds import SECTION_JUMP_TARGETS
+
+        handlers = {
+            "primary_action": self._on_primary_action,
+            "cancel": self._on_primary_action,
+            "paste_url": self._paste_url_from_clipboard,
+            "quick_search": self._open_command_palette,
+            "go_home": self._go_home,
+            "go_tools": self._go_tools,
+            "open_settings": lambda: self._navigate_to(_section_index("settings")),
+            "open_guide": lambda: self._navigate_to(_section_index("tutorial")),
+            "quit": _QApp.quit,
+            "pick_color": self._pick_screen_color,
+            "pick_color_global": self._pick_screen_color,
+        }
+        for action_id, index in SECTION_JUMP_TARGETS.items():
+            # i=index binds now; a bare closure would capture the last value.
+            handlers[action_id] = lambda _=None, i=index: self._navigate_to(i)
+        return handlers
+
+    def _apply_keybinds(self) -> None:
+        """(Re)create every shortcut from the current settings.
+
+        Called at startup and again whenever the user edits a binding, so a
+        change takes effect immediately without a restart.
+        """
+        from PySide6.QtGui import QShortcut, QKeySequence
+        from core.keybinds import ALL_ACTIONS, resolve
+
+        # Drop the previous set first, or the old sequences keep firing
+        # alongside the new ones.
+        for old in getattr(self, "_shortcuts", []):
+            old.setEnabled(False)
+            old.setParent(None)
+            old.deleteLater()
+        self._shortcuts = []
+
+        resolved = resolve(getattr(self.settings, "keybinds", None))
+        handlers = self._keybind_handlers()
+        self._resolved_keybinds = resolved
+
+        for action in ALL_ACTIONS:
+            sequence = resolved.get(action.id)
+            handler = handlers.get(action.id)
+            if not sequence or handler is None:
+                continue
+            if action.global_hotkey:
+                continue          # registered with the OS below, not as a QShortcut
+            shortcut = QShortcut(QKeySequence(sequence), self)
+            shortcut.activated.connect(handler)
+            self._shortcuts.append(shortcut)
+
+        # OS-level hotkeys last, so a failure here cannot skip the in-app ones.
+        for action in ALL_ACTIONS:
+            if not action.global_hotkey:
+                continue
+            sequence = resolved.get(action.id)
+            handler = handlers.get(action.id)
+            if not sequence or handler is None:
+                continue
+            # A False return means another app owns the combination, or we are
+            # not on Windows. Deliberately silent: the in-app shortcut still
+            # works, so it is not worth a dialog.
+            self._screen_pick_hotkey.register(sequence, handler)
+
+    def _pick_screen_color(self) -> None:
+        """Open the screen picker, leaving the window exactly as it is.
+
+        Reached from the in-app Ctrl+B and from the global Ctrl+Shift+B. The
+        window is deliberately NOT restored: the point of a global hotkey is to
+        grab a colour off something you are already looking at, so popping
+        Videl to the front first defeats it. The overlay is its own top-level
+        window and takes focus by itself, so it works fine over a minimised or
+        tray-hidden app; the colour still reaches the wheel and the clipboard.
+        """
+        # Prepare the destination even while hidden, so the value is waiting on
+        # the colour wheel whenever the window is next opened.
+        index = _section_index("palette")
+        if self._current_section != index:
+            self._navigate_to(index)
+        # Tab 1 is the colour wheel; setCurrentIndex fires currentChanged,
+        # which routes to the section's on_sub_tab_changed.
+        if self._section_tab_bar.count() > 1:
+            self._section_tab_bar.setCurrentIndex(1)
+        self._palette_section.start_screen_pick()
+
+    def _on_color_picked(self, hex_code: str) -> None:
+        """Report a screen pick that happened while the window was not visible.
+
+        The status bar carries it when Videl is on screen, but a pick started
+        from the global hotkey usually is not — so a tray toast is the only
+        feedback the user would get.
+        """
+        if self.isVisible() and not self.isMinimized():
+            return
+        if SystemTrayIcon.is_available():
+            self._tray.notify(tr("tray_color_picked_title"),
+                              tr("tray_color_picked_body").format(hex=hex_code))
+
     def _on_section_tab_changed(self, tab_index: int) -> None:
         """Sub-tab change within a section — delegate to the current section widget."""
         widget = self._section_widgets[self._current_section]
@@ -2373,6 +2553,15 @@ class MainWindow(QMainWindow):
 
     def _on_settings_changed(self, new_settings: UserSettings) -> None:
         self.settings = new_settings
+        # Re-bind live so a shortcut change takes effect without a restart.
+        # Compare against the RESOLVED map, not the raw setting: the settings
+        # page emits the same UserSettings object it was given, so "old vs new
+        # keybinds" is one dict compared with itself and never differs.
+        from core.keybinds import resolve
+
+        resolved = resolve(getattr(new_settings, "keybinds", None))
+        if resolved != getattr(self, "_resolved_keybinds", None):
+            self._apply_keybinds()
 
     # ── T007 / T019: Status bar + tray notifications ──────────────────────────
 
@@ -2689,6 +2878,14 @@ class MainWindow(QMainWindow):
         if self.settings.quit_on_close:
             try:
                 self._extension_bridge.stop()
+            except Exception:
+                pass
+            # Release the OS hotkey, or Windows keeps the combination reserved
+            # for a dead process and no other app can use it. Only on a real
+            # quit — with quit_on_close=False the app lives on in the tray,
+            # which is exactly when a global hotkey is most useful.
+            try:
+                self._screen_pick_hotkey.unregister()
             except Exception:
                 pass
             self._tray.hide()

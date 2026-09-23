@@ -5,9 +5,9 @@ import math
 import os
 import tempfile
 
-from PySide6.QtCore import Qt, QPoint, QTimer, QRectF, Signal
+from PySide6.QtCore import Qt, QPoint, QRect, QTimer, QRectF, Signal
 from PySide6.QtGui import (
-    QColor, QConicalGradient, QLinearGradient,
+    QColor, QConicalGradient, QCursor, QLinearGradient,
     QPainter, QPainterPath, QPen, QBrush, QPixmap,
 )
 from PySide6.QtWidgets import (
@@ -255,10 +255,172 @@ class ColorWheelWidget(QWidget):
 
 # ── Main section ──────────────────────────────────────────────────────────────
 
+class ScreenColorPicker(QWidget):
+    """Full-screen overlay for sampling any pixel on the desktop.
+
+    Covers every screen with a frameless, always-on-top window so the click is
+    captured wherever the cursor is, and reads the pixel from a snapshot taken
+    BEFORE the overlay is shown — grabbing live would sample the overlay's own
+    magnifier instead of the desktop underneath.
+
+    Emits ``picked`` with the chosen colour, or ``cancelled`` on Esc /
+    right-click.
+    """
+
+    picked = Signal(QColor)
+    cancelled = Signal()
+
+    _ZOOM = 11          # magnifier pixels per source pixel
+    _GRID = 13          # source pixels sampled across the loupe (odd = centred)
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.Tool
+        )
+        self.setCursor(Qt.CursorShape.CrossCursor)
+        self.setMouseTracking(True)
+
+        # Union of all screens: with a second monitor left of the primary the
+        # origin is negative, so the overlay must be positioned from the union
+        # rather than at (0, 0).
+        app = QApplication.instance()
+        self._shots: list[tuple] = []      # (screen_geometry, QImage)
+        region = None
+        for screen in app.screens():
+            geo = screen.geometry()
+            shot = screen.grabWindow(0)
+            if not shot.isNull():
+                self._shots.append((geo, shot.toImage()))
+            region = geo if region is None else region.united(geo)
+        if region is None:
+            region = QRect(0, 0, 1, 1)
+        self._region = region
+        self._origin = region.topLeft()
+        self.setGeometry(region)
+
+        self._cursor = QPoint(0, 0)
+        self._colour = QColor(255, 255, 255)
+
+    def _colour_at(self, gx: int, gy: int) -> QColor:
+        """Colour of the desktop pixel at global (gx, gy)."""
+        for geo, image in self._shots:
+            if geo.contains(gx, gy):
+                x = gx - geo.x()
+                y = gy - geo.y()
+                if 0 <= x < image.width() and 0 <= y < image.height():
+                    return image.pixelColor(x, y)
+        return QColor(0, 0, 0)
+
+    def start(self) -> None:
+        # show(), NOT showFullScreen(): "full screen" means ONE screen, so Qt
+        # resized the overlay to the primary monitor's 2560x1440 and left the
+        # rest of a 3640x1920 desktop uncovered — the window looked cropped and
+        #, worse, there was no widget under the cursor out there, so hovering
+        # another monitor produced no loupe and no hex.
+        self.show()
+        self.setGeometry(self._region)
+        self.raise_()
+        self.activateWindow()
+        self.grabMouse()
+        self.grabKeyboard()
+        # Seed the readout from wherever the pointer already is, so the loupe
+        # is correct before the first move event arrives.
+        self._cursor = QCursor.pos()
+        self._colour = self._colour_at(self._cursor.x(), self._cursor.y())
+        self.update()
+
+    def _finish(self) -> None:
+        self.releaseMouse()
+        self.releaseKeyboard()
+        self.close()
+
+    def mouseMoveEvent(self, event) -> None:
+        self._cursor = event.globalPosition().toPoint()
+        self._colour = self._colour_at(self._cursor.x(), self._cursor.y())
+        self.update()
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.RightButton:
+            self._finish()
+            self.cancelled.emit()
+            return
+        pos = event.globalPosition().toPoint()
+        colour = self._colour_at(pos.x(), pos.y())
+        self._finish()
+        self.picked.emit(colour)
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            self._finish()
+            self.cancelled.emit()
+
+    def paintEvent(self, _event) -> None:
+        painter = QPainter(self)
+        # Paint the frozen desktop so the overlay looks like the live screen.
+        for geo, image in self._shots:
+            painter.drawImage(geo.topLeft() - self._origin, image)
+
+        pos = self._cursor - self._origin
+        span = self._GRID // 2
+        side = self._GRID * self._ZOOM
+
+        # Loupe, offset from the cursor and flipped near an edge so it stays
+        # on screen.
+        lx = pos.x() + 24
+        ly = pos.y() + 24
+        if lx + side + 8 > self.width():
+            lx = pos.x() - side - 24
+        if ly + side + 46 > self.height():
+            ly = pos.y() - side - 46
+
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        for row in range(self._GRID):
+            for col in range(self._GRID):
+                c = self._colour_at(
+                    self._cursor.x() - span + col,
+                    self._cursor.y() - span + row,
+                )
+                painter.fillRect(
+                    lx + col * self._ZOOM, ly + row * self._ZOOM,
+                    self._ZOOM, self._ZOOM, c,
+                )
+        # Centre cell marker = the pixel that will be taken.
+        painter.setPen(QPen(QColor(0, 0, 0), 1))
+        painter.drawRect(lx + span * self._ZOOM, ly + span * self._ZOOM,
+                         self._ZOOM, self._ZOOM)
+        painter.setPen(QPen(QColor(255, 255, 255), 1))
+        painter.drawRect(lx + span * self._ZOOM - 1, ly + span * self._ZOOM - 1,
+                         self._ZOOM + 2, self._ZOOM + 2)
+
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setPen(QPen(QColor(255, 255, 255), 2))
+        painter.drawRect(lx - 1, ly - 1, side + 2, side + 2)
+
+        # Hex caption under the loupe, on the sampled colour.
+        label = self._colour.name().upper()
+        band = QRectF(lx - 1, ly + side + 3, side + 2, 26)
+        painter.fillRect(band, self._colour)
+        painter.setPen(QPen(QColor(255, 255, 255), 1))
+        painter.drawRect(band)
+        # Readable caption whatever the sample: black on light, white on dark.
+        lum = (0.299 * self._colour.red() + 0.587 * self._colour.green()
+               + 0.114 * self._colour.blue())
+        painter.setPen(QColor(0, 0, 0) if lum > 140 else QColor(255, 255, 255))
+        font = painter.font()
+        font.setPointSize(10)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.drawText(band, Qt.AlignmentFlag.AlignCenter, label)
+
+
 class PaletteSection(QScrollArea):
     """Hex Palette Extractor with media preview + interactive Color Wheel tab."""
 
     status_message = Signal(str, bool)
+    color_picked = Signal(str)  # hex, for a tray toast when the window is hidden
     busy_changed = Signal(bool)
 
     def __init__(self, settings, parent=None) -> None:
@@ -270,6 +432,8 @@ class PaletteSection(QScrollArea):
         self._current_tab: int = 0
         self._thumb_tmp: str | None = None
         self._hex_updating: bool = False
+        # Live ScreenColorPicker, held so it is not garbage-collected mid-pick.
+        self._screen_picker = None
         self._duration_ms: int = 0
         self._scrubbing: bool = False
         self._frame_timestamp: str | None = None   # set by "Use this frame"; None = full video
@@ -642,11 +806,22 @@ class PaletteSection(QScrollArea):
         self._wheel_hex.textChanged.connect(self._on_hex_typed)
         info.addWidget(self._wheel_hex)
 
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
         self._wheel_copy_btn = QPushButton(tr("btn_copy_hex"))
         self._wheel_copy_btn.setObjectName("BrowseBtn")
         self._wheel_copy_btn.setFixedWidth(100)
         self._wheel_copy_btn.clicked.connect(self._copy_wheel_hex)
-        info.addWidget(self._wheel_copy_btn)
+        btn_row.addWidget(self._wheel_copy_btn)
+
+        self._wheel_pick_btn = QPushButton(tr("btn_pick_screen"))
+        self._wheel_pick_btn.setObjectName("BrowseBtn")
+        self._wheel_pick_btn.setFixedWidth(140)
+        self._wheel_pick_btn.setToolTip(tr("tip_pick_screen"))
+        self._wheel_pick_btn.clicked.connect(self._pick_from_screen)
+        btn_row.addWidget(self._wheel_pick_btn)
+        btn_row.addStretch()
+        info.addLayout(btn_row)
 
         # HSV readout
         self._wheel_hsv_lbl = QLabel("H: 0°   S: 100%   V: 100%")
@@ -892,6 +1067,46 @@ class PaletteSection(QScrollArea):
         hx = self._wheel.hex_color()
         QApplication.clipboard().setText(hx)
         self.status_message.emit(f"Copied {hx}", False)
+
+    def start_screen_pick(self) -> None:
+        """Public entry point for the Ctrl+B shortcut.
+
+        Ignored while a pick is already running, so holding the shortcut does
+        not stack overlays on top of each other.
+        """
+        if self._screen_picker is not None:
+            return
+        self._pick_from_screen()
+
+    def _pick_from_screen(self) -> None:
+        """Sample any pixel on the desktop into the wheel."""
+        # Held on self: a local would be garbage-collected the moment this
+        # method returns, taking the overlay with it before the user clicks.
+        picker = ScreenColorPicker()
+        self._screen_picker = picker
+
+        def done(color: QColor) -> None:
+            self._screen_picker = None
+            # set_color intentionally does NOT emit color_changed — it is the
+            # quiet setter _on_hex_typed uses to avoid a feedback loop — so the
+            # readouts have to be refreshed explicitly here.
+            self._wheel.set_color(color)
+            self._on_wheel_color_changed(color)
+            hx = color.name().upper()
+            QApplication.clipboard().setText(hx)
+            self.status_message.emit(f"Picked {hx}", False)
+            # The status bar is invisible when the pick came from the global
+            # hotkey over a minimised window, so say it where it can be seen.
+            self.color_picked.emit(hx)
+
+        def cancelled() -> None:
+            self._screen_picker = None
+
+        picker.picked.connect(done)
+        picker.cancelled.connect(cancelled)
+        # Let the button's own release land before the overlay grabs the mouse,
+        # or the click that opened the picker is consumed as the pick.
+        QTimer.singleShot(60, picker.start)
 
     # ── Color wheel sync ──────────────────────────────────────────────────────
 
