@@ -247,6 +247,32 @@ if args.heal:
         os.environ["HF_HOME"] = weights_dir
         os.environ["HUGGINGFACE_HUB_CACHE"] = weights_dir
         os.environ["TRANSFORMERS_CACHE"] = weights_dir
+        # We cannot create symlinks without Developer Mode or admin rights, and
+        # the hub copies files instead — that is fine, just silence the notice.
+        os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+
+        # Fetch the weights ourselves, SINGLE-THREADED, before zeroscratches
+        # does it with 8 threads.
+        #
+        # huggingface_hub decides whether symlinks work by probing the cache
+        # dir, but it optimistically records True *before* running the probe
+        # and only corrects it afterwards. Under snapshot_download's default
+        # thread_map, a second thread reads that True while the first is still
+        # probing, calls os.symlink, and on Windows without Developer Mode gets
+        # WinError 1314. That is errno 22 (EINVAL), so Python raises a plain
+        # OSError — and the hub only catches PermissionError around that call,
+        # so the error escapes and killed the whole restore (exit 13).
+        #
+        # max_workers=1 removes the race: the probe completes, caches False,
+        # and every later file takes the copy path. Once the snapshot is on
+        # disk the library's own call is a no-op, so this runs only on first
+        # use. Best-effort — if it fails, fall through and let zeroscratches
+        # try, so a hub API change cannot make the stage unreachable.
+        try:
+            from huggingface_hub import snapshot_download as _snap
+            _snap(repo_id="leonelhs/zeroscratches", max_workers=1)
+        except Exception as pe:
+            sys.stderr.write(f"heal: pre-fetch skipped ({pe})\n")
 
         from zeroscratches import EraseScratches
         from PIL import Image
