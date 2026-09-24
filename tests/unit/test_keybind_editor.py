@@ -116,7 +116,8 @@ def test_rebinding_applies_live_and_persists(app, monkeypatch):
     finally:
         # Close AND unregister: two live MainWindows with an OS hotkey and a
         # native event filter still installed hang interpreter shutdown.
-        window._screen_pick_hotkey.unregister()
+        for _hk in window._global_hotkeys.values():
+            _hk.unregister()
         window.close()
         window.deleteLater()
         app.processEvents()
@@ -141,7 +142,8 @@ def test_rebinding_does_not_leak_shortcuts(app, monkeypatch):
     finally:
         # Close AND unregister: two live MainWindows with an OS hotkey and a
         # native event filter still installed hang interpreter shutdown.
-        window._screen_pick_hotkey.unregister()
+        for _hk in window._global_hotkeys.values():
+            _hk.unregister()
         window.close()
         window.deleteLater()
         app.processEvents()

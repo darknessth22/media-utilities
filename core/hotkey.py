@@ -138,12 +138,19 @@ class GlobalHotkey(QObject):
         if self._callback is not None:
             self._callback()
 
+    # Removed filters are parked here rather than dropped. PySide6 does not
+    # take ownership of a QAbstractNativeEventFilter, so releasing the last
+    # Python reference can free an object Qt still touches during shutdown —
+    # which manifested as the interpreter hanging after every test passed.
+    _retired: list = []
+
     def unregister(self) -> None:
         if self._filter is not None:
             from PySide6.QtWidgets import QApplication
             app = QApplication.instance()
             if app is not None:
                 app.removeNativeEventFilter(self._filter)
+            GlobalHotkey._retired.append(self._filter)
             self._filter = None
         if self._id is not None and _IS_WINDOWS:
             try:

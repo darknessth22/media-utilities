@@ -69,6 +69,7 @@ from gui.tabs.subtitles_section import SubtitlesSection
 from gui.tabs.transcript_section import TranscriptSection
 from gui.tabs.image_editor_section import ImageEditorSection
 from gui.tabs.photo_restore_section import PhotoRestoreSection
+from gui.tabs.folder_rules_section import FolderRulesSection
 from gui.tabs.bug_reporter import BugReporterSection
 from gui.pages.home_page import HomePage, ToolsPage
 
@@ -329,6 +330,13 @@ _SECTIONS_META = [
         "icon": "photo_restore.svg",
         "tab_keys": ["tab_photo_restore"],
         "action_key": "action_photo_restore",
+    },
+    {
+        "id": "folder_rules",
+        "label_key": "section_folder_rules",
+        "icon": "scrub.svg",
+        "tab_keys": ["tab_folder_rules"],
+        "action_key": "action_run_rules",
     },
     {
         "id": "history",
@@ -740,11 +748,163 @@ class SettingsSection(QScrollArea):
         spotify_card.setVisible(False)
         layout.addWidget(spotify_card)
         layout.addWidget(self._build_tools_card())
+        layout.addWidget(self._build_file_search_card())
         layout.addWidget(self._build_keybinds_card())
 
         self.setWidget(content)
 
     # ── Card builders ─────────────────────────────────────────────────────────
+
+    def _build_file_search_card(self) -> QFrame:
+        """Per-drive indexing for the Ctrl+Shift+F file finder."""
+        from core import file_index
+
+        card = self._card()
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
+        layout.addWidget(self._section_header(tr("settings_file_search")))
+
+        hint = QLabel(tr("finder_index_hint"))
+        hint.setObjectName("TextMuted")
+        hint.setStyleSheet("font-size: 11px;")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+
+        self._index_rows: dict[str, tuple] = {}
+        self._index_workers: dict[str, object] = {}
+        try:
+            drives = file_index.fixed_drives()
+        except Exception:
+            drives = []
+        for letter in drives:
+            row = QHBoxLayout()
+            row.setSpacing(10)
+            label = QLabel(f"{letter}:\\")
+            label.setMinimumWidth(48)
+            row.addWidget(label)
+
+            status = QLabel("")
+            status.setObjectName("TextMuted")
+            status.setStyleSheet("font-size: 11px;")
+            row.addWidget(status, 1)
+
+            button = QPushButton("")
+            button.setObjectName("BrowseBtn")
+            button.setFixedWidth(150)
+            button.clicked.connect(lambda _c=False, d=letter: self._scan_drive(d))
+            row.addWidget(button)
+
+            layout.addLayout(row)
+            self._index_rows[letter] = (status, button)
+
+        # Hold the card: the widgets inside it are only kept alive by their
+        # parent, and a caller that builds the card without adding it to a
+        # layout would see every row destroyed immediately — every later
+        # setText/setEnabled then raises "Internal C++ object already deleted"
+        # from inside a timer, where it is invisible.
+        self._file_search_card = card
+        self._refresh_index_rows()
+        return card
+
+    def _refresh_index_rows(self) -> None:
+        import time
+
+        from core import file_index
+
+        try:
+            known = {d.letter: d for d in file_index.indexed_drives()}
+        except Exception:
+            known = {}
+        for letter, (status, button) in list(getattr(self, "_index_rows", {}).items()):
+            try:
+                button.isEnabled()          # cheap liveness probe
+            except RuntimeError:
+                continue                    # the card was destroyed; nothing to update
+            entry = known.get(letter)
+            if entry is None:
+                status.setText(tr("finder_never"))
+                button.setText(tr("finder_scan").format(drive=f"{letter}:"))
+            else:
+                age = max(0, int((time.time() - entry.scanned_at) / 3600))
+                status.setText(
+                    tr("finder_scanned").format(drive=f"{letter}:",
+                                                n=f"{entry.entries:,}")
+                    + (f"  ({age}h)" if age else "")
+                )
+                button.setText(tr("finder_rescan").format(drive=f"{letter}:"))
+            button.setEnabled(letter not in getattr(self, "_index_workers", {}))
+
+    def _scan_drive(self, letter: str) -> None:
+        """Index one drive in the background.
+
+        A full drive is ~1.2 M entries and several seconds of solid disk I/O,
+        so it must not run on the GUI thread.
+        """
+        import threading
+
+        from core import file_index
+
+        if letter in self._index_workers:
+            return
+        status, button = self._index_rows[letter]
+        button.setEnabled(False)
+
+        def progress(count: int) -> None:
+            # Called from the worker thread; setText on a QLabel is not safe
+            # there, so the count is stashed and painted by the timer below.
+            self._index_counts[letter] = count
+
+        self._index_counts = getattr(self, "_index_counts", {})
+        self._index_counts[letter] = 0
+
+        ticker = QTimer(self)
+        ticker.setInterval(250)
+
+        # A plain threading.Thread, NOT gui.worker.Worker (a QThread): the
+        # scan writes ~1.1 M rows through SQLite, and inside QThread.run() that
+        # never completed — no exception, no progress, still running after 100 s.
+        # The identical call in a plain thread finishes in ~5 s. Completion is
+        # therefore detected by the timer below rather than a Qt signal.
+        done_flag: list = []
+
+        def run() -> None:
+            try:
+                file_index.scan_drive(letter, progress=progress)
+            except Exception:
+                pass
+            finally:
+                done_flag.append(True)
+
+        def tick() -> None:
+            try:
+                status.isVisible()          # raises if the card was destroyed
+            except RuntimeError:
+                ticker.stop()
+                self._index_workers.pop(letter, None)
+                return
+            if done_flag:
+                ticker.stop()
+                self._index_workers.pop(letter, None)
+                self._refresh_index_rows()
+                # A newly scanned drive needs watching, or it goes stale again.
+                # The watcher lives on MainWindow, not on this section.
+                window = self.window()
+                if hasattr(window, "_start_index_watcher"):
+                    window._start_index_watcher()
+                    watcher = getattr(window, "_index_watcher", None)
+                    if watcher is not None:
+                        watcher.rebuild_watch_list()
+                return
+            status.setText(tr("finder_scanning").format(
+                drive=f"{letter}:",
+                n=f"{self._index_counts.get(letter, 0):,}"))
+
+        ticker.timeout.connect(tick)
+        thread = threading.Thread(target=run, daemon=True)
+        self._index_workers[letter] = thread
+        thread.start()
+        ticker.start()
 
     def _build_keybinds_card(self) -> QFrame:
         """One row per action: description, current binding, reset."""
@@ -1768,7 +1928,24 @@ class MainWindow(QMainWindow):
         # title-bar menu and the settings page cannot drift apart. Rebuilt
         # whenever the user changes a binding — see _apply_keybinds.
         self._shortcuts: list = []
-        self._screen_pick_hotkey = GlobalHotkey(self)
+        # action id -> GlobalHotkey. One object per OS-level binding: a single
+        # shared slot silently dropped the first registration as soon as a
+        # second global action existed.
+        self._global_hotkeys: dict = {}
+        # HWNDs this session pinned, so they can be released on quit.
+        self._pinned_windows: set = set()
+        # Live RegionSelector, held so it is not garbage-collected mid-drag.
+        self._region_selector = None
+        # Running OCR worker, held so the QThread is not garbage-collected.
+        self._ocr_worker = None
+        # Reused across invocations so the window keeps its size/position.
+        self._file_finder = None
+        # Keeps the file index current as the disk changes, so a scan is a
+        # one-off rather than something the user has to remember to repeat.
+        self._index_watcher = None
+        self._start_index_watcher()
+        self._rule_runner = None
+        self._start_rule_runner()
         self._apply_keybinds()
         # Report a pick made while the window is hidden (the status bar cannot
         # be seen then).
@@ -2162,6 +2339,8 @@ class MainWindow(QMainWindow):
         self._transcript_section = TranscriptSection(self.settings)
         self._image_editor_section = ImageEditorSection(self.settings)
         self._photo_restore_section = PhotoRestoreSection(self.settings)
+        self._folder_rules_section = FolderRulesSection(self.settings)
+        self._folder_rules_section.rules_changed.connect(self._restart_rule_runner)
         self._history_section = HistorySection()
         self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
@@ -2193,10 +2372,11 @@ class MainWindow(QMainWindow):
             self._transcript_section,       # index 21 — transcript
             self._image_editor_section,     # index 22 — image editor
             self._photo_restore_section,    # index 23 — ai photo restore
-            self._history_section,          # index 24 — history
-            self._settings_section_widget,  # index 25 — settings
-            self._tutorial_section,         # index 26 — how to use
-            self._bug_reporter_section,     # index 27 — bug reporter
+            self._folder_rules_section,     # index 24 — folder rules
+            self._history_section,          # index 25 — history
+            self._settings_section_widget,  # index 26 — settings
+            self._tutorial_section,         # index 27 — how to use
+            self._bug_reporter_section,     # index 28 — bug reporter
         ]
 
         # Connect status signals from all operation sections.
@@ -2226,6 +2406,7 @@ class MainWindow(QMainWindow):
             self._transcript_section,     # index 21
             self._image_editor_section,   # index 22
             self._photo_restore_section,  # index 23
+            self._folder_rules_section,   # index 24
         )
         for section in _op_sections:
             section.status_message.connect(self._on_status_message)
@@ -2451,6 +2632,9 @@ class MainWindow(QMainWindow):
             "quit": _QApp.quit,
             "pick_color": self._pick_screen_color,
             "pick_color_global": self._pick_screen_color,
+            "always_on_top": self._toggle_always_on_top,
+            "extract_text": self._extract_screen_text,
+            "find_files": self._open_file_finder,
         }
         for action_id, index in SECTION_JUMP_TARGETS.items():
             # i=index binds now; a bare closure would capture the last value.
@@ -2500,7 +2684,194 @@ class MainWindow(QMainWindow):
             # A False return means another app owns the combination, or we are
             # not on Windows. Deliberately silent: the in-app shortcut still
             # works, so it is not worth a dialog.
-            self._screen_pick_hotkey.register(sequence, handler)
+            hotkey = self._global_hotkeys.get(action.id)
+            if hotkey is None:
+                hotkey = GlobalHotkey(self)
+                self._global_hotkeys[action.id] = hotkey
+            hotkey.register(sequence, handler)
+
+    def _start_index_watcher(self) -> None:
+        """Watch indexed drives so new files appear without a rescan."""
+        from core import file_index
+
+        try:
+            if not file_index.indexed_drives():
+                return                  # nothing scanned yet; nothing to watch
+            from core.index_watcher import IndexWatcher
+
+            if self._index_watcher is None:
+                self._index_watcher = IndexWatcher(self)
+            self._index_watcher.start()
+        except Exception:
+            # Watching is an optimisation; search still works without it.
+            self._index_watcher = None
+
+    def _start_rule_runner(self) -> None:
+        """Apply folder rules in the background, if the user enabled them."""
+        if not getattr(self.settings, "folder_rules_enabled", False):
+            return
+        try:
+            from core.rule_runner import RuleRunner
+
+            if self._rule_runner is None:
+                self._rule_runner = RuleRunner(self.settings, self)
+                self._rule_runner.actions_applied.connect(self._on_rules_applied)
+            self._rule_runner.start()
+        except Exception:
+            # Rules are opt-in convenience; never block startup over them.
+            self._rule_runner = None
+
+    def _restart_rule_runner(self) -> None:
+        """Re-read rules after the user edits them."""
+        if self._rule_runner is None:
+            self._start_rule_runner()
+            return
+        try:
+            self._rule_runner.restart()
+        except Exception:
+            pass
+
+    def _on_rules_applied(self, actions) -> None:
+        """Say what happened — a rule that moves files silently is alarming."""
+        failed = [a for a in actions if a.error]
+        self._on_status_message(
+            f"Folder rules handled {len(actions) - len(failed)} file(s)"
+            + (f", {len(failed)} failed." if failed else "."), bool(failed))
+
+    def _open_file_finder(self) -> None:
+        """Spotlight-style search over files on this machine.
+
+        Distinct from Ctrl+K, which searches Videl's own tools. Like the other
+        global tools this does NOT raise the main window — it is a standalone
+        overlay so it can be used over whatever is already on screen.
+        """
+        from core import file_search
+        from gui.widgets.file_finder import FileFinder
+
+        if not file_search.index_available():
+            self.update_status(tr("finder_no_index"), True)
+            if SystemTrayIcon.is_available():
+                self._tray.notify(tr("finder_no_index"), "", True)
+            return
+
+        finder = getattr(self, "_file_finder", None)
+        if finder is None:
+            finder = FileFinder()
+            self._file_finder = finder      # held, or it is garbage-collected
+        finder.open_at_cursor()
+
+    def _extract_screen_text(self) -> None:
+        """Drag a region; its text goes to the clipboard.
+
+        Like the colour picker this deliberately does NOT raise the window —
+        the whole point is to lift text off something you are already looking
+        at.
+        """
+        from PySide6.QtWidgets import QApplication
+        from core import screen_ocr
+        from gui.widgets.region_selector import RegionSelector
+        from gui.worker import Worker
+
+        if self._region_selector is not None:
+            return                      # one overlay at a time
+        if not screen_ocr.available():
+            self.update_status(tr("ocr_not_installed"), True)
+            if SystemTrayIcon.is_available():
+                self._tray.notify(tr("ocr_not_installed"), "", True)
+            return
+
+        selector = RegionSelector(tr("ocr_drag_hint"))
+        self._region_selector = selector
+
+        def finished(text: str) -> None:
+            if not text or not text.strip():
+                self.update_status(tr("ocr_no_text"), True)
+                if not self.isVisible() or self.isMinimized():
+                    if SystemTrayIcon.is_available():
+                        self._tray.notify(tr("ocr_no_text"), "", True)
+                return
+            QApplication.clipboard().setText(text)
+            summary = text.splitlines()[0][:60] if text.splitlines() else ""
+            self.update_status(tr("ocr_copied").format(n=len(text)), False)
+            if not self.isVisible() or self.isMinimized():
+                if SystemTrayIcon.is_available():
+                    self._tray.notify(tr("ocr_copied").format(n=len(text)), summary)
+
+        def failed(_info) -> None:
+            self.update_status(tr("ocr_failed"), True)
+
+        def done(rect, image) -> None:
+            self._region_selector = None
+            # Recognition must NOT run on the GUI thread: measured 1.5 s on the
+            # first call (ONNX model load) and ~0.6 s after, which the user
+            # feels as the app freezing. A large region is worse.
+            self.update_status(tr("ocr_working"), False)
+            QApplication.processEvents()
+            # Build the engine here, on the GUI thread: constructing RapidOCR's
+            # ONNX sessions inside the worker hung the thread forever (no
+            # exception, it simply never returned). Cached after the first
+            # call, so this is a one-off ~1 s cost and inference still runs off
+            # the GUI thread.
+            screen_ocr.warm_up()
+            worker = Worker(screen_ocr.extract, image)
+            self._ocr_worker = worker          # held, or the thread is GC'd
+            worker.signals.result.connect(finished)
+            worker.signals.error.connect(failed)
+            # `finished` always fires, whichever of result/error did — without
+            # it a worker that emits neither would leave _ocr_worker set and
+            # every later press would return early as "already running".
+            worker.signals.finished.connect(
+                lambda: setattr(self, "_ocr_worker", None)
+            )
+            worker.start()
+
+        def cancelled() -> None:
+            self._region_selector = None
+
+        selector.selected.connect(done)
+        selector.cancelled.connect(cancelled)
+        # Let the key release land before the overlay grabs the mouse.
+        QTimer.singleShot(60, selector.start)
+
+    def _toggle_always_on_top(self) -> None:
+        """Pin or unpin whatever window the user is currently working in.
+
+        Deliberately targets the FOREGROUND window, not Videl: the hotkey is
+        global, so it is pressed while looking at the window to pin. Videl
+        itself is skipped — pinning the app from its own hotkey is never what
+        is meant, and it would trap the window above everything.
+        """
+        from core.window_tools import (
+            foreground_window, is_window, toggle_topmost, window_title,
+        )
+
+        hwnd = foreground_window()
+        if not hwnd:
+            return
+        if hwnd == int(self.winId()):
+            self.update_status(tr("pin_skip_self"), False)
+            return
+
+        title = window_title(hwnd) or "?"
+        state = toggle_topmost(hwnd)
+        if state is None:
+            self.update_status(tr("pin_failed").format(title=title), True)
+            return
+
+        # Remember pinned windows so they can be released on quit — leaving a
+        # window stuck on top after Videl exits would be a nasty surprise.
+        if state:
+            self._pinned_windows.add(hwnd)
+        else:
+            self._pinned_windows.discard(hwnd)
+        # Drop handles whose window has since closed.
+        self._pinned_windows = {h for h in self._pinned_windows if is_window(h)}
+
+        key = "tray_pinned_title" if state else "tray_unpinned_title"
+        self.update_status(f"{tr(key)}: {title}", False)
+        if not self.isVisible() or self.isMinimized():
+            if SystemTrayIcon.is_available():
+                self._tray.notify(tr(key), title)
 
     def _pick_screen_color(self) -> None:
         """Open the screen picker, leaving the window exactly as it is.
@@ -2884,8 +3255,27 @@ class MainWindow(QMainWindow):
             # for a dead process and no other app can use it. Only on a real
             # quit — with quit_on_close=False the app lives on in the tray,
             # which is exactly when a global hotkey is most useful.
+            if self._index_watcher is not None:
+                try:
+                    self._index_watcher.stop()
+                except Exception:
+                    pass
+            if getattr(self, "_rule_runner", None) is not None:
+                try:
+                    self._rule_runner.stop()
+                except Exception:
+                    pass
+            for hotkey in self._global_hotkeys.values():
+                try:
+                    hotkey.unregister()
+                except Exception:
+                    pass
+            # Un-pin anything we pinned; a window left permanently on top
+            # after Videl exits has no obvious way back.
             try:
-                self._screen_pick_hotkey.unregister()
+                from core.window_tools import set_topmost
+                for hwnd in self._pinned_windows:
+                    set_topmost(hwnd, False)
             except Exception:
                 pass
             self._tray.hide()

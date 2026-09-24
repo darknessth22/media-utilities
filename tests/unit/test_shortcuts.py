@@ -78,7 +78,18 @@ def test_global_hotkey_is_registered(window):
         pytest.skip("RegisterHotKey is Windows-only")
     from gui.app import _GLOBAL_PICK_HOTKEY
 
-    assert win._screen_pick_hotkey.sequence == _GLOBAL_PICK_HOTKEY
+    # A GlobalHotkey object must exist for the action, but the registration
+    # itself can legitimately FAIL: RegisterHotKey is exclusive system-wide, so
+    # if a real Videl is already running (or another app owns the combo) it
+    # returns ERROR_HOTKEY_ALREADY_REGISTERED and .sequence stays "". Asserting
+    # on the sequence made this test fail whenever the app was open.
+    assert "pick_color_global" in win._global_hotkeys
+
+    registered = {hk.sequence for hk in win._global_hotkeys.values() if hk.sequence}
+    if registered:
+        assert _GLOBAL_PICK_HOTKEY in registered
+    else:
+        pytest.skip("the combos are held by another process (Videl running?)")
 
 
 def test_picking_does_not_raise_the_window(window):

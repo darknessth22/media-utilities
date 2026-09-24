@@ -324,8 +324,9 @@ class ScreenColorPicker(QWidget):
         self.setGeometry(self._region)
         self.raise_()
         self.activateWindow()
-        self.grabMouse()
-        self.grabKeyboard()
+        self.setFocus(Qt.FocusReason.OtherFocusReason)
+        # NO grabMouse()/grabKeyboard() — see gui/widgets/region_selector.py.
+        # A system-wide input grab that is not released freezes the desktop.
         # Seed the readout from wherever the pointer already is, so the loupe
         # is correct before the first move event arrives.
         self._cursor = QCursor.pos()
@@ -333,9 +334,29 @@ class ScreenColorPicker(QWidget):
         self.update()
 
     def _finish(self) -> None:
-        self.releaseMouse()
-        self.releaseKeyboard()
+        try:
+            self.releaseMouse()
+            self.releaseKeyboard()
+        except Exception:
+            pass
         self.close()
+
+    def closeEvent(self, event) -> None:
+        """Closed by ANY route — make sure no input grab outlives us."""
+        try:
+            self.releaseMouse()
+            self.releaseKeyboard()
+        except Exception:
+            pass
+        super().closeEvent(event)
+
+    def hideEvent(self, event) -> None:
+        try:
+            self.releaseMouse()
+            self.releaseKeyboard()
+        except Exception:
+            pass
+        super().hideEvent(event)
 
     def mouseMoveEvent(self, event) -> None:
         self._cursor = event.globalPosition().toPoint()

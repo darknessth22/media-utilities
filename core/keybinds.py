@@ -56,6 +56,18 @@ ACTIONS: tuple[KeybindAction, ...] = (
     KeybindAction("pick_color", "Ctrl+B", "sc_pick", "sc_group_tools"),
     KeybindAction("pick_color_global", "Ctrl+Shift+B", "sc_pick_global",
                   "sc_group_tools", global_hotkey=True),
+    # Pins whatever window the user is looking at, so it is only useful as an
+    # OS-level hotkey — an in-app one would pin Videl itself.
+    KeybindAction("always_on_top", "Ctrl+Shift+T", "sc_always_on_top",
+                  "sc_group_tools", global_hotkey=True),
+    # Grabs text off whatever is on screen, so like the picker it is only
+    # useful when it works over other applications.
+    KeybindAction("extract_text", "Ctrl+Shift+X", "sc_extract_text",
+                  "sc_group_tools", global_hotkey=True),
+    # Searches the machine, not Videl's tools (that is quick_search/Ctrl+K), so
+    # it is only useful from anywhere.
+    KeybindAction("find_files", "Ctrl+Shift+F", "sc_find_files",
+                  "sc_group_tools", global_hotkey=True),
 
     # Section jumps. Ctrl+1-9 by default; the trailing number is the section
     # index they navigate to, which is why they are generated rather than

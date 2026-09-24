@@ -37,7 +37,12 @@ class UserSettings:
     # absent uses the default from core/keybinds.py, so adding or changing a
     # default later does not need a migration.
     keybinds: dict = field(default_factory=dict)
-    version: int = 12
+    # Rule-based folder watcher. Off by default and stays off until asked for:
+    # a mistaken rule moves or recycles real files, so this never opts anyone
+    # in silently. Each rule carries its own `enabled` flag as well.
+    folder_rules_enabled: bool = False
+    folder_rules: list = field(default_factory=list)
+    version: int = 13
 
 
 class SettingsManager:
@@ -161,6 +166,10 @@ class SettingsManager:
             if merged_data.get("version", 1) < 12:
                 merged_data.setdefault("keybinds", {})
                 merged_data["version"] = 12
+            if merged_data.get("version", 1) < 13:
+                merged_data.setdefault("folder_rules_enabled", False)
+                merged_data.setdefault("folder_rules", [])
+                merged_data["version"] = 13
 
             return UserSettings(**merged_data)
         except json.JSONDecodeError as exc:
