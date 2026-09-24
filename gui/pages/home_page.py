@@ -134,13 +134,33 @@ _ALL_TOOLS_META: list[tuple[str, str, str, str, int]] = [
     ("transcript",      "transcript.svg",      "tool_transcript_name",      "tool_transcript_desc",     21),
     ("image_editor",    "image_editor.svg",    "tool_image_editor_name",    "tool_image_editor_desc",   22),
     ("photo_restore",   "photo_restore.svg",   "tool_photo_restore_name",   "tool_photo_restore_desc",  23),
-    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        24),
+    ("folder_rules",    "scrub.svg",           "tool_folder_rules_name",    "tool_folder_rules_desc",   24),
+    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        25),
 ]
+
+
+def _section_index(tool_id: str, fallback: int) -> int:
+    """Look the section index up by id rather than trusting the number here.
+
+    The indices in _ALL_TOOLS_META were hardcoded, so inserting a section in
+    the middle of _SECTIONS_META silently pointed every later card at the
+    wrong tool. Resolving by id means the two lists cannot drift apart.
+    """
+    try:
+        from gui.app import _SECTIONS_META
+
+        for i, meta in enumerate(_SECTIONS_META):
+            if meta["id"] == tool_id:
+                return i
+    except Exception:
+        pass
+    return fallback
 
 
 def _resolved_tools(meta: list) -> list[tuple[str, str, str, str, int]]:
     """Resolve translation keys in tool metadata to current-language strings."""
-    return [(tid, icon, tr(nk), tr(dk), idx) for tid, icon, nk, dk, idx in meta]
+    return [(tid, icon, tr(nk), tr(dk), _section_index(tid, idx))
+            for tid, icon, nk, dk, idx in meta]
 
 
 def _all_tools() -> list[tuple[str, str, str, str, int]]:
