@@ -565,10 +565,28 @@ def finalize_install(component_id: str, exit_code: int, tail_output: str) -> Non
         _write_state(component_id, state)
 
 
-def uninstall(component_id: str) -> None:
+def uninstall(component_id: str) -> list[str]:
+    """Remove a component. Returns the paths that could NOT be deleted.
+
+    The state file goes first. It is what is_installed() reads, so if Windows
+    then refuses to delete a DLL that some process still has loaded, the tool
+    correctly shows "Install" instead of claiming a half-deleted install is
+    fine. This used to be rmtree(ignore_errors=True): a locked file left a
+    broken install that still reported itself as installed.
+    """
     d = _component_dir(component_id)
-    if os.path.isdir(d):
-        shutil.rmtree(d, ignore_errors=True)
+    if not os.path.isdir(d):
+        return []
+    try:
+        os.remove(_state_path(component_id))
+    except FileNotFoundError:
+        pass
+    except OSError:
+        return [_state_path(component_id)]
+
+    failed: list[str] = []
+    shutil.rmtree(d, onexc=lambda _fn, path, _exc: failed.append(path))
+    return failed
 
 
 # ---------- backward-compat shims ----------

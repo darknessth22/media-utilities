@@ -68,35 +68,43 @@ ACTIONS: tuple[KeybindAction, ...] = (
     # it is only useful from anywhere.
     KeybindAction("find_files", "Ctrl+Shift+F", "sc_find_files",
                   "sc_group_tools", global_hotkey=True),
+    KeybindAction("open_folder_rules", "Ctrl+Shift+R", "sc_folder_rules",
+                  "sc_group_navigation"),
+    # Presenter zoom. Global, because it zooms whatever is on screen. Not
+    # Ctrl+Shift+Z: that is Redo in most editors, and a global hotkey claims
+    # the combination system-wide, so it would break Redo everywhere.
+    KeybindAction("zoom_screen", "Ctrl+Alt+Z", "sc_zoom_screen",
+                  "sc_group_tools", global_hotkey=True),
 
     # Section jumps. Ctrl+1-9 by default; the trailing number is the section
     # index they navigate to, which is why they are generated rather than
     # hand-written (see _SECTION_JUMPS).
 )
 
-# (action id suffix, section index) — labels are built from the section's own
-# name, so these do not need their own i18n keys.
-_SECTION_JUMPS: tuple[tuple[int, int], ...] = (
-    (1, 0),    # Download
-    (2, 1),    # Convert
-    (3, 2),    # Trim
-    (4, 3),    # Document
-    (5, 4),    # GIF
-    (6, 5),    # Compress
-    (7, 6),    # Merge
-    (8, 7),    # Spatial
-    (9, 15),   # History
+# (action id suffix, section id). By id, not index: Ctrl+9 was hardcoded to
+# index 15 and labelled "History", but sections had since been inserted, so it
+# opened Vocal Isolator. gui/app.py resolves the id when binding.
+_SECTION_JUMPS: tuple[tuple[int, str], ...] = (
+    (1, "download"),
+    (2, "convert"),
+    (3, "trim"),
+    (4, "document"),
+    (5, "gif"),
+    (6, "compress"),
+    (7, "merge"),
+    (8, "spatial"),
+    (9, "history"),
 )
 
 SECTION_JUMP_ACTIONS: tuple[KeybindAction, ...] = tuple(
     KeybindAction(f"section_{n}", f"Ctrl+{n}", f"sc_section_{n}", "sc_group_sections")
-    for n, _index in _SECTION_JUMPS
+    for n, _section_id in _SECTION_JUMPS
 )
 
 ALL_ACTIONS: tuple[KeybindAction, ...] = ACTIONS + SECTION_JUMP_ACTIONS
 
-SECTION_JUMP_TARGETS: dict[str, int] = {
-    f"section_{n}": index for n, index in _SECTION_JUMPS
+SECTION_JUMP_TARGETS: dict[str, str] = {
+    f"section_{n}": section_id for n, section_id in _SECTION_JUMPS
 }
 
 _BY_ID: dict[str, KeybindAction] = {a.id: a for a in ALL_ACTIONS}

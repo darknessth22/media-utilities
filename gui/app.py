@@ -23,7 +23,7 @@ from typing import Optional
 
 import math
 
-from PySide6.QtCore import Qt, QPoint, QTimer, Signal, QPropertyAnimation, QEasingCurve, Property
+from PySide6.QtCore import Qt, QPoint, QTimer, Signal, QPropertyAnimation, QEasingCurve, Property, QSize
 from PySide6.QtGui import QColor, QPixmap, QPainter, QPen
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QGraphicsDropShadowEffect, QAbstractButton
@@ -70,6 +70,7 @@ from gui.tabs.transcript_section import TranscriptSection
 from gui.tabs.image_editor_section import ImageEditorSection
 from gui.tabs.photo_restore_section import PhotoRestoreSection
 from gui.tabs.folder_rules_section import FolderRulesSection
+from gui.widgets.storage_card import StorageCard
 from gui.tabs.bug_reporter import BugReporterSection
 from gui.pages.home_page import HomePage, ToolsPage
 
@@ -717,7 +718,16 @@ class NavButton(QPushButton):
 
 # ── T011: Settings section ────────────────────────────────────────────────────
 
-class SettingsSection(QScrollArea):
+def _nav_label(text: str) -> str:
+    """Escape "&" for a QPushButton.
+
+    Qt reads a single "&" as a mnemonic marker, so "Files & Output" renders as
+    "Files  Output" with a hidden accelerator on the O.
+    """
+    return text.replace("&", "&&")
+
+
+class SettingsSection(QWidget):
     """FR-009: quit_on_close toggle, theme toggle, default file paths.
 
     All controls auto-save to disk on change and emit *settings_changed*.
@@ -725,33 +735,266 @@ class SettingsSection(QScrollArea):
 
     settings_changed = Signal(UserSettings)
 
+    # Categories, in the order they appear in the rail. Each entry names the
+    # builders whose cards belong on that page.
+    #
+    # One flat 2801 px column — 3.5 screens, of which Keyboard Shortcuts alone
+    # was 1101 px — meant nobody could tell what any given setting was for, or
+    # find one without scrolling past everything else.
+    _CATEGORIES: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
+        ("general",   "settings_cat_general",   "settings.svg",
+         ("appearance", "behavior")),
+        ("files",     "settings_cat_files",     "document.svg",
+         ("paths", "naming")),
+        ("downloads", "settings_cat_downloads", "download.svg",
+         ("cookies", "spotify", "tools")),
+        ("search",    "settings_cat_search",    "dashboard.svg",
+         ("file_search",)),
+        ("shortcuts", "settings_cat_shortcuts", "help.svg",
+         ("keybinds",)),
+        ("storage",   "settings_cat_storage",   "compress.svg",
+         ("storage",)),
+    )
+
+    # One-line description under each page title, so a category explains
+    # itself instead of making the user infer it from the controls.
+    _CATEGORY_HINTS = {
+        "general":   "settings_cat_general_hint",
+        "files":     "settings_cat_files_hint",
+        "downloads": "settings_cat_downloads_hint",
+        "search":    "settings_cat_search_hint",
+        "shortcuts": "settings_cat_shortcuts_hint",
+        "storage":   "settings_cat_storage_hint",
+    }
+
     def __init__(self, settings: UserSettings, theme_manager, parent=None) -> None:
         super().__init__(parent)
-        self.setWidgetResizable(True)
-        self.setFrameShape(QFrame.Shape.NoFrame)
 
         self._settings = settings
         self._theme_manager = theme_manager
 
+        root = QHBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # Build every card once, keyed by name, so a category page is just a
+        # selection of them and the search filter can hide them individually.
+        self._cards: dict[str, QFrame] = {
+            "appearance":  self._build_appearance_card(),
+            "behavior":    self._build_behavior_card(),
+            "paths":       self._build_paths_card(),
+            "naming":      self._build_naming_card(),
+            "cookies":     self._build_cookies_card(),
+            "spotify":     self._build_spotify_card(),
+            "tools":       self._build_tools_card(),
+            "file_search": self._build_file_search_card(),
+            "keybinds":    self._build_keybinds_card(),
+            "storage":     StorageCard(),
+        }
+        self.storage_card = self._cards["storage"]
+        # Spotify stays hidden until credentials are relevant (unchanged).
+        self._cards["spotify"].setVisible(False)
+
+        root.addWidget(self._build_rail())
+        root.addWidget(self._build_pages(), 1)
+
+        self._select_category(0)
+
+    # ── Layout ────────────────────────────────────────────────────────────────
+
+    def _build_rail(self) -> QWidget:
+        """Fixed category list. Deliberately outside the scroll area, so it
+        stays put while a long page (Shortcuts) scrolls beside it."""
+        rail = QWidget()
+        rail.setObjectName("SettingsRail")
+        rail.setFixedWidth(196)
+        layout = QVBoxLayout(rail)
+        layout.setContentsMargins(12, 20, 12, 20)
+        layout.setSpacing(4)
+
+        self._rail_heading = QLabel(tr("settings_cat_heading"))
+        self._rail_heading.setObjectName("SettingsRailHeading")
+        layout.addWidget(self._rail_heading)
+        layout.addSpacing(4)
+
+        self._nav_buttons: list[QPushButton] = []
+        for i, (_cid, label_key, icon_file, _cards) in enumerate(self._CATEGORIES):
+            btn = QPushButton(_nav_label(tr(label_key)))
+            btn.setObjectName("SettingsNavButton")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setCheckable(True)
+            btn.setIconSize(QSize(17, 17))
+            btn.setMinimumHeight(38)
+            btn._icon_file = icon_file      # re-tinted on theme change
+            btn.clicked.connect(lambda _checked=False, idx=i: self._select_category(idx))
+            layout.addWidget(btn)
+            self._nav_buttons.append(btn)
+        self._retint_rail()
+
+        layout.addStretch()
+        return rail
+
+    def _build_pages(self) -> QWidget:
+        """Search box above a stack of category pages."""
+        wrapper = QWidget()
+        outer = QVBoxLayout(wrapper)
+        outer.setContentsMargins(24, 20, 24, 0)
+        outer.setSpacing(6)         # title/subtitle read as one block
+
+        # Title and search share a row; the description gets its own full
+        # width beneath, or it wraps into a narrow three-line column.
+        header = QHBoxLayout()
+        header.setSpacing(12)
+        self._page_title = QLabel("")
+        self._page_title.setObjectName("SettingsPageTitle")
+        header.addWidget(self._page_title)
+        header.addStretch()
+
+        self._search = QLineEdit()
+        self._search.setObjectName("SettingsSearch")
+        self._search.setPlaceholderText(tr("settings_search_placeholder"))
+        self._search.setClearButtonEnabled(True)
+        self._search.setFixedWidth(240)
+        self._search.textChanged.connect(self._on_search)
+        header.addWidget(self._search)
+        outer.addLayout(header)
+
+        self._page_subtitle = QLabel("")
+        self._page_subtitle.setObjectName("TextMuted")
+        self._page_subtitle.setStyleSheet("font-size: 12px;")
+        self._page_subtitle.setWordWrap(True)
+        outer.addWidget(self._page_subtitle)
+
+        self._stack = QStackedWidget()
+        for _cid, _label_key, _icon, card_names in self._CATEGORIES:
+            self._stack.addWidget(self._page_for(card_names))
+        outer.addSpacing(8)         # ...then breathe before the cards
+        outer.addWidget(self._stack, 1)
+
+        # Search results live on their own page so the category pages keep
+        # their cards; nothing is reparented while the user types.
+        self._results_page = QWidget()
+        results_layout = QVBoxLayout(self._results_page)
+        results_layout.setContentsMargins(0, 0, 0, 0)
+        self._results_label = QLabel("")
+        self._results_label.setObjectName("TextMuted")
+        self._results_label.setStyleSheet("font-size: 12px;")
+        results_layout.addWidget(self._results_label)
+        results_layout.addStretch()
+        self._stack.addWidget(self._results_page)
+        return wrapper
+
+    def _page_for(self, card_names: tuple[str, ...]) -> QWidget:
+        page = QScrollArea()
+        page.setWidgetResizable(True)
+        page.setFrameShape(QFrame.Shape.NoFrame)
+
         content = QWidget()
         layout = QVBoxLayout(content)
-        layout.setContentsMargins(20, 20, 20, 20)
+        # Symmetric side margins: an 8 px gutter on one side only lands on the
+        # wrong side under RTL and clips the text there.
+        layout.setContentsMargins(4, 0, 4, 20)
         layout.setSpacing(16)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        for name in card_names:
+            layout.addWidget(self._cards[name])
+        page.setWidget(content)
+        return page
 
-        layout.addWidget(self._build_appearance_card())
-        layout.addWidget(self._build_behavior_card())
-        layout.addWidget(self._build_paths_card())
-        layout.addWidget(self._build_naming_card())
-        layout.addWidget(self._build_cookies_card())
-        spotify_card = self._build_spotify_card()
-        spotify_card.setVisible(False)
-        layout.addWidget(spotify_card)
-        layout.addWidget(self._build_tools_card())
-        layout.addWidget(self._build_file_search_card())
-        layout.addWidget(self._build_keybinds_card())
+    def _retint_rail(self) -> None:
+        """Re-render the rail icons for the current theme.
 
-        self.setWidget(content)
+        SVGs are tinted at load time, so a theme switch has to redraw them or
+        dark-theme icons stay on a light rail.
+        """
+        dark = True
+        try:
+            dark = self._theme_manager.is_dark_mode()
+        except Exception:
+            pass
+        idle = "#8B949E" if dark else "#57606A"
+        active = "#3B82F6" if dark else "#2563EB"
+        for i, btn in enumerate(getattr(self, "_nav_buttons", [])):
+            on = i == getattr(self, "_current_category", 0)
+            btn.setIcon(_load_svg_icon(btn._icon_file, 17, active if on else idle))
+
+    def _show_all_cards(self) -> None:
+        """Undo a search filter. Spotify stays hidden — it always was."""
+        for name, card in self._cards.items():
+            card.setVisible(name != "spotify")
+
+    def _select_category(self, index: int) -> None:
+        if not (0 <= index < len(self._CATEGORIES)):
+            return
+        self._current_category = index
+        if self._search.text():
+            # clear() re-enters _on_search, which restores visibility and
+            # calls back here; block it and do both jobs once, in order.
+            self._search.blockSignals(True)
+            self._search.clear()
+            self._search.blockSignals(False)
+            self._show_all_cards()
+        self._stack.setCurrentIndex(index)
+        cid, label_key = self._CATEGORIES[index][0], self._CATEGORIES[index][1]
+        self._page_title.setText(tr(label_key))
+        self._page_subtitle.setText(tr(self._CATEGORY_HINTS[cid]))
+        self._page_subtitle.setVisible(True)
+        self._retint_rail()
+        for i, btn in enumerate(self._nav_buttons):
+            btn.setChecked(i == index)
+            btn.setProperty("active", "true" if i == index else "false")
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+
+    # ── Search ────────────────────────────────────────────────────────────────
+
+    def _on_search(self, text: str) -> None:
+        """Show only the cards matching *text*, across every category.
+
+        Answers "I don't know which category this lives in" — the reason a
+        long settings page is hard to use even once it is split up.
+        """
+        term = (text or "").strip().lower()
+        if not term:
+            self._show_all_cards()
+            self._select_category(self._current_category)
+            return
+
+        matches = [name for name, card in self._cards.items()
+                   if name != "spotify" and term in self._card_text(card)]
+        # Reuse the category pages: show the matching cards, hide the rest,
+        # and jump to the first page that has a hit.
+        for name, card in self._cards.items():
+            card.setVisible(name in matches)
+        for i, (_cid, label_key, _icon, card_names) in enumerate(self._CATEGORIES):
+            if any(n in matches for n in card_names):
+                self._stack.setCurrentIndex(i)
+                self._page_title.setText(tr(label_key))
+                self._page_subtitle.setVisible(False)
+                for j, btn in enumerate(self._nav_buttons):
+                    btn.setProperty("active", "false")
+                    btn.setChecked(False)
+                    btn.style().unpolish(btn)
+                    btn.style().polish(btn)
+                return
+        self._stack.setCurrentWidget(self._results_page)
+        self._page_title.setText(tr("settings_search_no_results"))
+        self._page_subtitle.setVisible(False)
+        self._results_label.setText(tr("settings_search_no_results_hint"))
+
+    @staticmethod
+    def _card_text(card: QFrame) -> str:
+        """Every label and button caption on a card, lower-cased.
+
+        Searching the visible text means a setting is findable by whatever the
+        user actually reads, not by an internal key they never see.
+        """
+        parts = [w.text() for w in card.findChildren(QLabel)]
+        parts += [w.text() for w in card.findChildren(QPushButton)]
+        parts += [w.placeholderText() for w in card.findChildren(QLineEdit)]
+        for combo in card.findChildren(QComboBox):
+            parts += [combo.itemText(i) for i in range(combo.count())]
+        return " ".join(p for p in parts if p).lower()
 
     # ── Card builders ─────────────────────────────────────────────────────────
 
@@ -763,9 +1006,11 @@ class SettingsSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(10)
-        layout.addWidget(self._section_header(tr("settings_file_search")))
+        self._hdr_file_search = self._section_header(tr("settings_file_search"))
+        layout.addWidget(self._hdr_file_search)
 
         hint = QLabel(tr("finder_index_hint"))
+        self._hint_file_search = hint
         hint.setObjectName("TextMuted")
         hint.setStyleSheet("font-size: 11px;")
         hint.setWordWrap(True)
@@ -791,7 +1036,9 @@ class SettingsSection(QScrollArea):
 
             button = QPushButton("")
             button.setObjectName("BrowseBtn")
-            button.setFixedWidth(150)
+            # Not a fixed width: the Arabic label is longer than the English
+            # one and was clipped mid-word.
+            button.setMinimumWidth(150)
             button.clicked.connect(lambda _c=False, d=letter: self._scan_drive(d))
             row.addWidget(button)
 
@@ -908,6 +1155,10 @@ class SettingsSection(QScrollArea):
 
     def _build_keybinds_card(self) -> QFrame:
         """One row per action: description, current binding, reset."""
+        # Kept so retranslate_ui can relabel them in place — the rows are built
+        # once, so without these a language switch left them in English.
+        self._keybind_group_lbls: dict[str, QLabel] = {}
+        self._keybind_action_lbls: dict[str, tuple[QLabel, str]] = {}
         from core.keybinds import ALL_ACTIONS, resolve
         from gui.widgets.keybind_editor import KeybindButton
 
@@ -915,9 +1166,11 @@ class SettingsSection(QScrollArea):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(10)
-        layout.addWidget(self._section_header(tr("settings_keybinds")))
+        self._hdr_keybinds = self._section_header(tr("settings_keybinds"))
+        layout.addWidget(self._hdr_keybinds)
 
         hint = QLabel(tr("keybind_hint"))
+        self._hint_keybinds = hint
         hint.setObjectName("TextMuted")
         hint.setStyleSheet("font-size: 11px;")
         hint.setWordWrap(True)
@@ -935,6 +1188,7 @@ class SettingsSection(QScrollArea):
             if act.group_key != current_group:
                 current_group = act.group_key
                 group = QLabel(tr(act.group_key))
+                self._keybind_group_lbls[act.group_key] = group
                 group.setObjectName("TextMuted")
                 group.setStyleSheet("font-size: 11px; font-weight: bold; margin-top: 8px;")
                 layout.addWidget(group)
@@ -942,6 +1196,7 @@ class SettingsSection(QScrollArea):
             row = QHBoxLayout()
             row.setSpacing(10)
             label = QLabel(tr(act.label_key))
+            self._keybind_action_lbls[act.id] = (label, act.label_key)
             label.setWordWrap(True)
             row.addWidget(label, 1)
 
@@ -956,6 +1211,7 @@ class SettingsSection(QScrollArea):
         layout.addWidget(self._keybind_conflict_lbl)
 
         reset = QPushButton(tr("keybind_reset_all"))
+        self._keybind_reset_btn = reset
         reset.setObjectName("BrowseBtn")
         reset.setFixedWidth(160)
         reset.clicked.connect(self._reset_all_keybinds)
@@ -1098,6 +1354,15 @@ class SettingsSection(QScrollArea):
             self._startup_check = None
             self._lbl_startup = None
             self._hint_startup = None
+
+        # A rule before ADVANCED: it is a different class of setting from the
+        # toggles above, and as a bare sub-header it read as part of them.
+        adv_rule = QFrame()
+        adv_rule.setObjectName("Separator")
+        adv_rule.setFixedHeight(1)
+        layout.addSpacing(4)
+        layout.addWidget(adv_rule)
+        layout.addSpacing(4)
 
         self._hdr_advanced = self._section_header(tr("settings_header_advanced"))
         layout.addWidget(self._hdr_advanced)
@@ -1403,6 +1668,13 @@ class SettingsSection(QScrollArea):
 
     def retranslate_ui(self) -> None:
         """Update all translatable text in the settings section."""
+        # Category rail, search box, and the current page's title.
+        for btn, (_cid, label_key, _icon, _cards) in zip(self._nav_buttons, self._CATEGORIES):
+            btn.setText(_nav_label(tr(label_key)))
+        self._search.setPlaceholderText(tr("settings_search_placeholder"))
+        self._rail_heading.setText(tr("settings_cat_heading"))
+        self._select_category(self._current_category)   # title + subtitle
+
         # Appearance
         self._hdr_appearance.setText(tr("settings_header_appearance"))
         self._lbl_theme.setText(tr("settings_label_theme"))
@@ -1488,6 +1760,24 @@ class SettingsSection(QScrollArea):
         self._hint_ytdlp.setText(tr("settings_hint_ytdlp"))
         self._ytdlp_btn.setText(tr("settings_btn_update_ytdlp"))
 
+        # File search. The drive rows carry translated status and button text,
+        # and they are only written by _refresh_index_rows — so a language
+        # switch left them in whatever language the app started in.
+        self._hdr_file_search.setText(tr("settings_file_search"))
+        self._hint_file_search.setText(tr("finder_index_hint"))
+        self._refresh_index_rows()
+
+        # Keyboard shortcuts. Built once per row, so each label has to be
+        # re-read rather than rebuilt.
+        self._hdr_keybinds.setText(tr("settings_keybinds"))
+        self._hint_keybinds.setText(tr("keybind_hint"))
+        for group_key, label in self._keybind_group_lbls.items():
+            label.setText(tr(group_key))
+        for label, label_key in self._keybind_action_lbls.values():
+            label.setText(tr(label_key))
+        self._keybind_reset_btn.setText(tr("keybind_reset_all"))
+
+        self.storage_card.retranslate_ui()
 
     def _on_update_ytdlp(self) -> None:
         from gui.worker import Worker
@@ -1710,6 +2000,9 @@ class SettingsSection(QScrollArea):
         self._theme_combo.blockSignals(True)
         self._theme_combo.setCurrentIndex({"auto": 0, "light": 1, "dark": 2}.get(mode, 0))
         self._theme_combo.blockSignals(False)
+        # Rail icons are tinted at load time, so they need redrawing for the
+        # new palette or they keep the old theme's colour.
+        self._retint_rail()
 
 
 # ── Welcome dialog (first launch) ────────────────────────────────────────────
@@ -1936,6 +2229,7 @@ class MainWindow(QMainWindow):
         self._pinned_windows: set = set()
         # Live RegionSelector, held so it is not garbage-collected mid-drag.
         self._region_selector = None
+        self._screen_zoom = None
         # Running OCR worker, held so the QThread is not garbage-collected.
         self._ocr_worker = None
         # Reused across invocations so the window keeps its size/position.
@@ -2235,6 +2529,7 @@ class MainWindow(QMainWindow):
             self._transcript_section,
             self._image_editor_section,
             self._photo_restore_section,
+            self._folder_rules_section,
             self._history_section,
             self._tutorial_section,
         ):
@@ -2344,6 +2639,8 @@ class MainWindow(QMainWindow):
         self._history_section = HistorySection()
         self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
+        self._settings_section_widget.storage_card.storage_changed.connect(
+            self._refresh_tool_install_states)
         self._tutorial_section = TutorialSection()
         self._bug_reporter_section = BugReporterSection()
 
@@ -2635,10 +2932,13 @@ class MainWindow(QMainWindow):
             "always_on_top": self._toggle_always_on_top,
             "extract_text": self._extract_screen_text,
             "find_files": self._open_file_finder,
+            "open_folder_rules": lambda: self._navigate_to(_section_index("folder_rules")),
+            "zoom_screen": self._open_screen_zoom,
         }
-        for action_id, index in SECTION_JUMP_TARGETS.items():
-            # i=index binds now; a bare closure would capture the last value.
-            handlers[action_id] = lambda _=None, i=index: self._navigate_to(i)
+        for action_id, section_id in SECTION_JUMP_TARGETS.items():
+            # sid=section_id binds now; a bare closure would capture the last.
+            handlers[action_id] = (
+                lambda _=None, sid=section_id: self._navigate_to(_section_index(sid)))
         return handlers
 
     def _apply_keybinds(self) -> None:
@@ -2760,6 +3060,44 @@ class MainWindow(QMainWindow):
             self._file_finder = finder      # held, or it is garbage-collected
         finder.open_at_cursor()
 
+    def _refresh_tool_install_states(self) -> None:
+        """Re-check what is installed after Settings → Storage removed something.
+
+        Each tool page caches its Install / Ready state, and some only check on
+        first build — without this they keep offering a model that is gone.
+        """
+        for section in self._section_widgets:
+            for name in ("_refresh_install_state", "_refresh_backend_status",
+                         "_refresh_model_status"):
+                refresh = getattr(section, name, None)
+                if callable(refresh):
+                    try:
+                        refresh()
+                    except Exception:
+                        pass
+
+    def _open_screen_zoom(self) -> None:
+        """Presenter zoom-and-draw over whatever is on screen (Ctrl+Alt+Z).
+
+        Global and window-agnostic like the other screen tools: it freezes the
+        desktop as it is, so Videl is never raised in front of the thing you
+        are presenting.
+        """
+        from gui.widgets.screen_zoom import ScreenZoom
+
+        if self._screen_zoom is not None:
+            return                      # one overlay at a time
+
+        overlay = ScreenZoom()
+        self._screen_zoom = overlay
+
+        def closed() -> None:
+            self._screen_zoom = None
+            overlay.deleteLater()
+
+        overlay.closed.connect(closed)
+        overlay.start()
+
     def _extract_screen_text(self) -> None:
         """Drag a region; its text goes to the clipboard.
 
@@ -2836,10 +3174,12 @@ class MainWindow(QMainWindow):
     def _toggle_always_on_top(self) -> None:
         """Pin or unpin whatever window the user is currently working in.
 
-        Deliberately targets the FOREGROUND window, not Videl: the hotkey is
-        global, so it is pressed while looking at the window to pin. Videl
-        itself is skipped — pinning the app from its own hotkey is never what
-        is meant, and it would trap the window above everything.
+        Targets the FOREGROUND window, because the hotkey is global and is
+        pressed while looking at the window to pin — including Videl itself.
+
+        Videl's own window used to be excluded on the assumption that pinning
+        the app from its own hotkey was never meant. It is: keeping Videl above
+        a browser while working through a download queue is exactly the case.
         """
         from core.window_tools import (
             foreground_window, is_window, toggle_topmost, window_title,
@@ -2847,9 +3187,6 @@ class MainWindow(QMainWindow):
 
         hwnd = foreground_window()
         if not hwnd:
-            return
-        if hwnd == int(self.winId()):
-            self.update_status(tr("pin_skip_self"), False)
             return
 
         title = window_title(hwnd) or "?"

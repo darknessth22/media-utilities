@@ -207,6 +207,30 @@ QPushButton#NavButton #NavButtonLabel { color: #8B949E; }
 QPushButton#NavButton:hover #NavButtonLabel { color: #E6EDF3; }
 QPushButton#NavButton[active="true"] #NavButtonLabel { color: #3B82F6; }
 
+/* Settings category rail */
+QPushButton#SettingsNavButton {
+    text-align: left; padding: 9px 12px; border: none; border-radius: 8px;
+    background: transparent; color: #8B949E; font-size: 13px;
+}
+QPushButton#SettingsNavButton::icon { margin-right: 10px; }
+QPushButton#SettingsNavButton:hover {
+    background-color: rgba(59,130,246,31); color: #E6EDF3;
+}
+QPushButton#SettingsNavButton[active="true"] {
+    background-color: rgba(59,130,246,46); color: #3B82F6; font-weight: bold;
+}
+#SettingsRail { background-color: #0D1526; border-right: 1px solid #1B2F4C; }
+#SettingsRailHeading {
+    color: #484F58; font-size: 10px; font-weight: bold; letter-spacing: 1.4px;
+    padding: 0 12px 2px 12px;
+}
+#SettingsPageTitle { font-size: 20px; font-weight: bold; color: #E6EDF3; }
+#SettingsSearch {
+    background-color: #111C38; border: 1px solid #1B2F4C; border-radius: 7px;
+    padding: 7px 10px; color: #E6EDF3;
+}
+#SettingsSearch:focus { border-color: #3B82F6; }
+
 /* Separator */
 #Separator { background-color: #1B2F4C; }
 
@@ -370,6 +394,30 @@ QPushButton#NavButton[active="true"] {
 QPushButton#NavButton #NavButtonLabel { color: #57606A; }
 QPushButton#NavButton:hover #NavButtonLabel { color: #0A1020; }
 QPushButton#NavButton[active="true"] #NavButtonLabel { color: #2563EB; }
+
+/* Settings category rail */
+QPushButton#SettingsNavButton {
+    text-align: left; padding: 9px 12px; border: none; border-radius: 8px;
+    background: transparent; color: #57606A; font-size: 13px;
+}
+QPushButton#SettingsNavButton::icon { margin-right: 10px; }
+QPushButton#SettingsNavButton:hover {
+    background-color: rgba(37,99,235,20); color: #0A1020;
+}
+QPushButton#SettingsNavButton[active="true"] {
+    background-color: rgba(37,99,235,33); color: #2563EB; font-weight: bold;
+}
+#SettingsRail { background-color: #FBFCFD; border-right: 1px solid #D0D7DE; }
+#SettingsRailHeading {
+    color: #8B949E; font-size: 10px; font-weight: bold; letter-spacing: 1.4px;
+    padding: 0 12px 2px 12px;
+}
+#SettingsPageTitle { font-size: 20px; font-weight: bold; color: #0A1020; }
+#SettingsSearch {
+    background-color: #FFFFFF; border: 1px solid #D0D7DE; border-radius: 7px;
+    padding: 7px 10px; color: #0A1020;
+}
+#SettingsSearch:focus { border-color: #2563EB; }
 
 /* Separator */
 #Separator { background-color: #D0D7DE; }

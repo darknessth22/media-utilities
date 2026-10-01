@@ -452,22 +452,22 @@ _TUTORIAL_DATA_EN = [
     {
         "emoji": "⌨",
         "title": "Keyboard Shortcuts",
-        "description": "Bindings available anywhere in the app.",
+        "description": "Every shortcut below is a default — change any of them in Settings → Shortcuts.",
         "steps": [
             "Ctrl + Enter — run the current section's action.",
             "Esc — cancel an in-progress operation.",
             "Ctrl + V — paste a URL into Download (when no text field is focused).",
-            "Ctrl + H — Home dashboard.",
-            "Ctrl + T — Tools page.",
+            "Ctrl + K — search Videl's tools.",
+            "Ctrl + H — Home dashboard.  Ctrl + T — Tools page.",
             "Ctrl + 1–9 — jump to a tool: 1 Download, 2 Convert, 3 Trim, 4 Document, 5 GIF, 6 Compress, 7 Merge, 8 Transform, 9 History.",
-            "Ctrl + , — Settings.",
-            "F1 — How to Use guide.",
-            "Ctrl + Q — quit.",
+            "Ctrl + Shift + R — Folder Rules.  Ctrl + , — Settings.  F1 — this guide.  Ctrl + Q — quit.",
+            "From anywhere, even minimised: Ctrl+Shift+F find files, Ctrl+Shift+T pin window, Ctrl+Shift+X copy screen text, Ctrl+Alt+Z zoom & draw, Ctrl+Shift+B pick a colour.",
         ],
         "tips": [
-            "The ⌨ icon in the title bar shows this list at a glance.",
+            "To rebind: Settings → Shortcuts, click a shortcut, press the new keys. Esc cancels, Backspace restores the default.",
+            "Two actions can't share a key — Videl warns you instead of letting one silently stop working.",
+            "The \"from anywhere\" shortcuts are reserved system-wide while Videl runs. If one clashes with another app, rebind it.",
             "Ctrl+V only intercepts when no text field has focus.",
-            "Navigation shortcuts work from any section.",
         ],
     },
     {
@@ -767,6 +767,73 @@ _TUTORIAL_DATA_EN = [
             "Face restore uses CodeFormer with RetinaFace detection — works on multiple faces per image.",
             "Upscale is intentionally NOT here — the dedicated AI Upscaler tab handles it (Real-ESRGAN x2/x4 with tiling).",
             "CPU mode works but is minutes per stage. NVIDIA GPU with the CUDA variant is strongly recommended.",
+        ],
+    },
+    {
+        "emoji": "🗂️",
+        "title": "Folder Rules",
+        "description": (
+            "If-this-then-that rules that tidy folders for you: move invoices out of "
+            "Downloads, recycle old temp files, strip EXIF from photos saved to the "
+            "Desktop. Nothing runs until you switch it on."
+        ),
+        "steps": [
+            "Open Folder Rules (Ctrl+Shift+R) and click Add rule.",
+            "Pick the folder to watch, then tick the file types — Images, Videos, Documents and so on. No need to type extensions.",
+            "Optionally add a name pattern like invoice*, a size range, or an age such as older than 30 days.",
+            "Choose what happens: move, copy, delete to the Recycle Bin, or strip EXIF metadata.",
+            "Click Preview what would happen. This is a dry run — it lists every file the rule would touch and changes nothing.",
+            "Happy with it? Tick the rule, then turn on Run rules automatically in the background.",
+        ],
+        "tips": [
+            "Two switches, both off by default: the master toggle and each rule's own checkbox. A rule never runs by accident.",
+            "Deletes go to the Recycle Bin, never straight off the disk.",
+            "Undo last 10 puts moved files back where they came from and removes copies.",
+            "Files still downloading (.crdownload, .part) are skipped, and rules wait a few seconds after a folder goes quiet.",
+            "A move never overwrites — a name clash becomes \"name (1).pdf\".",
+            "Hover a rule in the list to see its full description when the paths are long.",
+        ],
+    },
+    {
+        "emoji": "🔎",
+        "title": "Find Files",
+        "description": (
+            "Search every file and folder on your machine from anywhere — press "
+            "Ctrl+Shift+F even while Videl is minimised."
+        ),
+        "steps": [
+            "Press Ctrl+Shift+F and start typing a name.",
+            "Exact matches come first, then names that start with what you typed, then everything else — grouped by drive.",
+            "Enter opens the selected result; Esc closes the finder.",
+            "First time only: go to Settings → File Search and click Index for each drive other than C:.",
+        ],
+        "tips": [
+            "C: is covered by Windows Search. Other drives are indexed by Videl itself — about 30 seconds per drive, once.",
+            "After that first index the list keeps itself up to date as files are added and removed. No re-indexing needed.",
+            "Re-index is there if you ever want a guaranteed-clean rebuild.",
+            "This searches your files. Ctrl+K searches Videl's own tools.",
+        ],
+    },
+    {
+        "emoji": "🖥️",
+        "title": "Screen Tools",
+        "description": (
+            "Four tools that work over any window, even with Videl minimised: pin a "
+            "window on top, copy text off the screen, zoom and draw for a "
+            "presentation, and pick a colour."
+        ),
+        "steps": [
+            "Always On Top — Ctrl+Shift+T pins the window you are looking at above everything else. Press again to unpin. Works on Videl too.",
+            "Text Extractor — Ctrl+Shift+X, then drag a box around any text. It is copied to the clipboard.",
+            "Zoom & Draw — Ctrl+Alt+Z freezes the screen and zooms in, with a toolbar at the top for pen, pan, eraser, colours and brush size.",
+            "Scroll to zoom toward the pointer — the view then stays put. To move around, use the pan tool, the middle mouse button, or hold Space and drag.",
+            "Colour Picker — Ctrl+Shift+B, then click any pixel. The hex code is copied and sent to Hex Palette.",
+        ],
+        "tips": [
+            "Pinned windows are released when Videl quits, so nothing is left stuck on top.",
+            "Drawings stay attached to what you circled as you zoom and pan. Hover any toolbar button to see its keyboard shortcut.",
+            "Text Extractor needs the OCR component; Videl will say so if it is missing.",
+            "Every shortcut here can be changed in Settings → Shortcuts.",
         ],
     },
 ]
@@ -1206,22 +1273,22 @@ _TUTORIAL_DATA_AR = [
     {
         "emoji": "⌨",
         "title": "اختصارات لوحة المفاتيح",
-        "description": "اختصارات متاحة في أي مكان بالتطبيق.",
+        "description": "كل اختصار أدناه افتراضي — يمكنك تغيير أي منها من الإعدادات ← الاختصارات.",
         "steps": [
             "Ctrl + Enter — تشغيل إجراء القسم الحالي.",
             "Esc — إلغاء عملية جارية.",
-            "Ctrl + V — لصق رابط في التحميل (عندما لا يكون حقل نص مركّزاً).",
-            "Ctrl + H — الصفحة الرئيسية.",
-            "Ctrl + T — صفحة الأدوات.",
-            "Ctrl + 1-9 — الانتقال لأداة: 1 تحميل، 2 تحويل، 3 قص، 4 مستندات، 5 GIF، 6 ضغط، 7 دمج، 8 تحويل مكاني، 9 السجل.",
-            "Ctrl + , — الإعدادات.",
-            "F1 — دليل الاستخدام.",
-            "Ctrl + Q — إنهاء.",
+            "Ctrl + V — لصق رابط في التنزيل (عندما لا يكون هناك حقل نص محدد).",
+            "Ctrl + K — البحث في أدوات Videl.",
+            "Ctrl + H — الصفحة الرئيسية.  Ctrl + T — صفحة الأدوات.",
+            "Ctrl + 1–9 — الانتقال إلى أداة: 1 تنزيل، 2 تحويل، 3 قص، 4 مستند، 5 GIF، 6 ضغط، 7 دمج، 8 تحويل الوسائط، 9 السجل.",
+            "Ctrl + Shift + R — قواعد المجلدات.  Ctrl + , — الإعدادات.  F1 — هذا الدليل.  Ctrl + Q — خروج.",
+            "من أي مكان حتى أثناء التصغير: Ctrl+Shift+F بحث الملفات، Ctrl+Shift+T تثبيت النافذة، Ctrl+Shift+X نسخ نص الشاشة، Ctrl+Alt+Z تكبير ورسم، Ctrl+Shift+B اختيار لون.",
         ],
         "tips": [
-            "أيقونة ⌨ في شريط العنوان تعرض هذه القائمة.",
-            "Ctrl+V يعترض فقط عندما لا يكون حقل نص مركّزاً.",
-            "اختصارات التنقل تعمل من أي قسم.",
+            "لتغيير اختصار: الإعدادات ← الاختصارات، انقر الاختصار ثم اضغط المفاتيح الجديدة. Esc للإلغاء وBackspace لاستعادة الافتراضي.",
+            "لا يمكن لإجراءين مشاركة نفس المفتاح — ينبّهك Videl بدل أن يتوقف أحدهما بصمت.",
+            "اختصارات «من أي مكان» محجوزة على مستوى النظام أثناء تشغيل Videl. إن تعارض أحدها مع تطبيق آخر فغيّره.",
+            "Ctrl+V لا يعترض إلا عندما لا يكون هناك حقل نص محدد.",
         ],
     },
     {
@@ -1521,6 +1588,72 @@ _TUTORIAL_DATA_AR = [
             "وضع المعالج يعمل لكنه يستغرق دقائق لكل مرحلة. يُنصح بشدّة بكرت NVIDIA مع نسخة CUDA.",
         ],
     },
+    {
+        "emoji": "🗂️",
+        "title": "قواعد المجلدات",
+        "description": (
+            "قواعد «إذا حدث هذا فافعل ذلك» تنظّم مجلداتك عنك: نقل الفواتير من "
+            "التنزيلات، إعادة تدوير الملفات المؤقتة القديمة، إزالة بيانات EXIF من الصور "
+            "المحفوظة على سطح المكتب. لا شيء يعمل حتى تفعّله."
+        ),
+        "steps": [
+            "افتح قواعد المجلدات (Ctrl+Shift+R) وانقر «إضافة قاعدة».",
+            "اختر المجلد المراد مراقبته، ثم حدّد أنواع الملفات — الصور، الفيديو، المستندات وغيرها. لا حاجة لكتابة الامتدادات.",
+            "يمكنك إضافة نمط اسم مثل invoice* أو نطاق حجم أو عمر مثل «أقدم من 30 يومًا».",
+            "اختر الإجراء: نقل، نسخ، حذف إلى سلة المحذوفات، أو إزالة بيانات EXIF.",
+            "انقر «معاينة ما سيحدث». هذا تشغيل تجريبي — يعرض كل ملف ستلمسه القاعدة دون تغيير أي شيء.",
+            "راضٍ عن النتيجة؟ فعّل القاعدة، ثم شغّل «تشغيل القواعد تلقائيًا في الخلفية».",
+        ],
+        "tips": [
+            "مفتاحان معطّلان افتراضيًا: المفتاح الرئيسي ومربع كل قاعدة. لا تعمل أي قاعدة بالخطأ.",
+            "الحذف يذهب إلى سلة المحذوفات، ولا يُمحى من القرص مباشرة.",
+            "«تراجع عن آخر ١٠» يعيد الملفات المنقولة إلى مكانها ويزيل النسخ.",
+            "الملفات التي ما زالت تُنزَّل (.crdownload و.part) تُتخطّى، وتنتظر القواعد بضع ثوانٍ بعد هدوء المجلد.",
+            "النقل لا يستبدل أي ملف — تعارض الأسماء يصبح «name (1).pdf».",
+            "مرّر المؤشر فوق قاعدة في القائمة لرؤية وصفها الكامل عندما تكون المسارات طويلة.",
+        ],
+    },
+    {
+        "emoji": "🔎",
+        "title": "البحث عن الملفات",
+        "description": (
+            "ابحث في كل الملفات والمجلدات على جهازك من أي مكان — اضغط "
+            "Ctrl+Shift+F حتى وVidel مصغّر."
+        ),
+        "steps": [
+            "اضغط Ctrl+Shift+F وابدأ بكتابة الاسم.",
+            "المطابقات التامة أولًا، ثم الأسماء التي تبدأ بما كتبت، ثم الباقي — مجمّعة حسب القرص.",
+            "Enter يفتح النتيجة المحددة؛ Esc يغلق نافذة البحث.",
+            "أول مرة فقط: اذهب إلى الإعدادات ← بحث الملفات وانقر «فهرسة» لكل قرص غير C:.",
+        ],
+        "tips": [
+            "القرص C: يغطيه بحث Windows. الأقراص الأخرى يفهرسها Videl بنفسه — حوالي 30 ثانية لكل قرص، مرة واحدة.",
+            "بعد الفهرسة الأولى يبقى الفهرس محدّثًا تلقائيًا مع إضافة الملفات وحذفها. لا حاجة لإعادة الفهرسة.",
+            "زر «إعادة فهرسة» موجود إن أردت إعادة بناء نظيفة مضمونة.",
+            "هذا يبحث في ملفاتك. أما Ctrl+K فيبحث في أدوات Videl.",
+        ],
+    },
+    {
+        "emoji": "🖥️",
+        "title": "أدوات الشاشة",
+        "description": (
+            "أربع أدوات تعمل فوق أي نافذة حتى وVidel مصغّر: تثبيت نافذة في المقدمة، "
+            "نسخ نص من الشاشة، التكبير والرسم أثناء العرض، واختيار لون."
+        ),
+        "steps": [
+            "التثبيت في المقدمة — Ctrl+Shift+T يثبّت النافذة التي تنظر إليها فوق كل شيء. اضغط مرة أخرى لإلغاء التثبيت. يعمل على Videl أيضًا.",
+            "استخراج النص — Ctrl+Shift+X ثم اسحب مربعًا حول أي نص. يُنسخ إلى الحافظة.",
+            "التكبير والرسم — Ctrl+Alt+Z يجمّد الشاشة ويكبّرها، مع شريط أدوات في الأعلى للقلم والتحريك والممحاة والألوان وحجم القلم.",
+            "استخدم العجلة للتكبير نحو المؤشر — ثم يبقى العرض ثابتًا. للتنقل استخدم أداة التحريك أو زر الفأرة الأوسط، أو اضغط مطولًا على المسافة واسحب.",
+            "منتقي الألوان — Ctrl+Shift+B ثم انقر أي بكسل. يُنسخ رمز اللون ويُرسل إلى لوحة الألوان.",
+        ],
+        "tips": [
+            "النوافذ المثبّتة تُحرَّر عند إغلاق Videl، فلا يبقى شيء عالقًا في المقدمة.",
+            "تبقى الرسومات ملتصقة بما أحطته أثناء التكبير والتنقل. مرّر المؤشر فوق أي زر في الشريط لرؤية اختصاره.",
+            "استخراج النص يحتاج مكوّن OCR؛ سيخبرك Videl إن كان غير مثبّت.",
+            "يمكن تغيير كل اختصار هنا من الإعدادات ← الاختصارات.",
+        ],
+    },
 ]
 
 
@@ -1562,6 +1695,9 @@ _TUTORIAL_SECTION_IDS: list[str | None] = [
     "image_editor",    # 32 Image Editor
     "video_upscaler",  # 33 AI Video Upscaler
     "photo_restore",   # 34 AI Photo Restore
+    "folder_rules",    # 35 Folder Rules
+    None,              # 36 Find Files (global overlay, no section)
+    None,              # 37 Screen Tools (global overlays, no section)
 ]
 
 
