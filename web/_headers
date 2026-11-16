@@ -1,0 +1,20 @@
+# Cross-origin isolation enables multi-threaded WebAssembly (background remover
+# about 3.5x faster). "credentialless" keeps Google Fonts and the jsDelivr
+# FFmpeg core loading without CORP headers. Browsers without support ignore it.
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: credentialless
+
+# Page code is revalidated on every load so a deploy shows up immediately.
+/js/*
+  Cache-Control: no-cache
+/css/*
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+
+# Large, rarely changing files: keep for a week (rename them if they change).
+/models/*
+  Cache-Control: public, max-age=604800
+/vendor/*
+  Cache-Control: public, max-age=604800
