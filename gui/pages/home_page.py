@@ -90,6 +90,7 @@ _TOOL_CATEGORY: dict[str, str] = {
     "transcript": "audio",
     "image_editor": "image",
     "photo_restore": "image",
+    "pixel_art": "image",
 }
 
 # File-extension → tool routing for the home drop-zone. Picked so the most
@@ -134,8 +135,9 @@ _ALL_TOOLS_META: list[tuple[str, str, str, str, int]] = [
     ("transcript",      "transcript.svg",      "tool_transcript_name",      "tool_transcript_desc",     21),
     ("image_editor",    "image_editor.svg",    "tool_image_editor_name",    "tool_image_editor_desc",   22),
     ("photo_restore",   "photo_restore.svg",   "tool_photo_restore_name",   "tool_photo_restore_desc",  23),
-    ("folder_rules",    "scrub.svg",           "tool_folder_rules_name",    "tool_folder_rules_desc",   24),
-    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        25),
+    ("pixel_art",       "pixel_art.svg",       "tool_pixel_art_name",       "tool_pixel_art_desc",      24),
+    ("folder_rules",    "scrub.svg",           "tool_folder_rules_name",    "tool_folder_rules_desc",   25),
+    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        26),
 ]
 
 

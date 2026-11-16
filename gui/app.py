@@ -70,6 +70,7 @@ from gui.tabs.transcript_section import TranscriptSection
 from gui.tabs.image_editor_section import ImageEditorSection
 from gui.tabs.photo_restore_section import PhotoRestoreSection
 from gui.tabs.folder_rules_section import FolderRulesSection
+from gui.tabs.pixel_art_section import PixelArtSection
 from gui.widgets.storage_card import StorageCard
 from gui.tabs.bug_reporter import BugReporterSection
 from gui.pages.home_page import HomePage, ToolsPage
@@ -331,6 +332,13 @@ _SECTIONS_META = [
         "icon": "photo_restore.svg",
         "tab_keys": ["tab_photo_restore"],
         "action_key": "action_photo_restore",
+    },
+    {
+        "id": "pixel_art",
+        "label_key": "section_pixel_art",
+        "icon": "pixel_art.svg",
+        "tab_keys": ["tab_pixel_art"],
+        "action_key": "action_pixel_art",
     },
     {
         "id": "folder_rules",
@@ -2529,6 +2537,7 @@ class MainWindow(QMainWindow):
             self._transcript_section,
             self._image_editor_section,
             self._photo_restore_section,
+            self._pixel_art_section,
             self._folder_rules_section,
             self._history_section,
             self._tutorial_section,
@@ -2634,6 +2643,7 @@ class MainWindow(QMainWindow):
         self._transcript_section = TranscriptSection(self.settings)
         self._image_editor_section = ImageEditorSection(self.settings)
         self._photo_restore_section = PhotoRestoreSection(self.settings)
+        self._pixel_art_section = PixelArtSection(self.settings)
         self._folder_rules_section = FolderRulesSection(self.settings)
         self._folder_rules_section.rules_changed.connect(self._restart_rule_runner)
         self._history_section = HistorySection()
@@ -2669,11 +2679,12 @@ class MainWindow(QMainWindow):
             self._transcript_section,       # index 21 — transcript
             self._image_editor_section,     # index 22 — image editor
             self._photo_restore_section,    # index 23 — ai photo restore
-            self._folder_rules_section,     # index 24 — folder rules
-            self._history_section,          # index 25 — history
-            self._settings_section_widget,  # index 26 — settings
-            self._tutorial_section,         # index 27 — how to use
-            self._bug_reporter_section,     # index 28 — bug reporter
+            self._pixel_art_section,        # index 24 — pixel art
+            self._folder_rules_section,     # index 25 — folder rules
+            self._history_section,          # index 26 — history
+            self._settings_section_widget,  # index 27 — settings
+            self._tutorial_section,         # index 28 — how to use
+            self._bug_reporter_section,     # index 29 — bug reporter
         ]
 
         # Connect status signals from all operation sections.
@@ -2703,7 +2714,8 @@ class MainWindow(QMainWindow):
             self._transcript_section,     # index 21
             self._image_editor_section,   # index 22
             self._photo_restore_section,  # index 23
-            self._folder_rules_section,   # index 24
+            self._pixel_art_section,      # index 24
+            self._folder_rules_section,   # index 25
         )
         for section in _op_sections:
             section.status_message.connect(self._on_status_message)

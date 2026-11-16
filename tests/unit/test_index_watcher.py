@@ -129,6 +129,13 @@ def test_deleted_folder_is_unwatched(app, tmp_path, monkeypatch):
     folder.rmdir()
     watcher._pending.add(str(folder))
     watcher._flush()
+    # Qt sometimes refuses the first removal of a just-deleted folder and the
+    # watcher retries shortly after; give it the time it would have.
+    import time
+    end = time.time() + 1.5
+    while time.time() < end and watcher.watched_count():
+        app.processEvents()
+        time.sleep(0.02)
 
     assert watcher.watched_count() == 0, "dead watch should be released"
     watcher.stop()
@@ -149,6 +156,13 @@ def test_sweep_drops_folders_deleted_while_closed(app, tmp_path, monkeypatch):
     dead.rmdir()
 
     watcher._sweep_drives()
+    # Qt sometimes refuses the first removal of a just-deleted folder and the
+    # watcher retries shortly after; give it the time it would have.
+    import time
+    end = time.time() + 1.5
+    while time.time() < end and len(watcher._watcher.directories()) > 1:
+        app.processEvents()
+        time.sleep(0.02)
 
     watched = [os.path.normcase(p) for p in watcher._watcher.directories()]
     assert os.path.normcase(str(alive)) in watched

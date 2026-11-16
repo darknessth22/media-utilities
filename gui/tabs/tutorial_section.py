@@ -836,6 +836,29 @@ _TUTORIAL_DATA_EN = [
             "Every shortcut here can be changed in Settings → Shortcuts.",
         ],
     },
+    {
+        "emoji": "👾",
+        "title": "Pixel Art",
+        "description": (
+            "Turn a photo, GIF or video into retro pixel art. The preview "
+            "updates as you move each slider."
+        ),
+        "steps": [
+            "Drop a photo, GIF or video onto the tool, or click Browse.",
+            "Set the pixel size — bigger blocks look more retro.",
+            "Pick a palette: Automatic builds one from your image, or choose Game Boy, PICO-8, Commodore 64 and others.",
+            "With Automatic, set how many colours to keep. Fewer colours look more like real pixel art.",
+            "Optionally add dithering: Ordered gives the classic crosshatch, Floyd-Steinberg smooth gradients.",
+            "Click Make Pixel Art. The result is saved next to the original as name_pixel.",
+        ],
+        "tips": [
+            "The palette matters more than the pixel size: try 8–16 colours first.",
+            "Game Boy and Grayscale map by brightness, like the real screens, so any photo stays readable.",
+            "GIFs and videos use one palette for the whole clip, so colours never flicker between frames. Video keeps its sound.",
+            "Transparent images keep hard-edged transparency, ready to use as sprites.",
+            "Untick Keep the original size to save the tiny version — one pixel per block.",
+        ],
+    },
 ]
 
 _TUTORIAL_DATA_AR = [
@@ -1654,6 +1677,29 @@ _TUTORIAL_DATA_AR = [
             "يمكن تغيير كل اختصار هنا من الإعدادات ← الاختصارات.",
         ],
     },
+    {
+        "emoji": "👾",
+        "title": "فن البكسل",
+        "description": (
+            "حوّل صورة أو GIF أو فيديو إلى فن بكسل كلاسيكي. تتحدّث المعاينة "
+            "مع تحريك كل شريط."
+        ),
+        "steps": [
+            "اسحب صورة أو GIF أو فيديو إلى الأداة، أو انقر استعراض.",
+            "اضبط حجم البكسل — الكتل الأكبر تبدو أكثر كلاسيكية.",
+            "اختر لوحة ألوان: التلقائي يبنيها من صورتك، أو اختر Game Boy وPICO-8 وCommodore 64 وغيرها.",
+            "مع التلقائي، حدّد عدد الألوان. الألوان الأقل تبدو أقرب لفن البكسل الحقيقي.",
+            "يمكنك إضافة تنقيط: المنتظم يعطي النقش المتقاطع الكلاسيكي، وFloyd-Steinberg تدرّجات ناعمة.",
+            "انقر إنشاء فن البكسل. تُحفظ النتيجة بجانب الأصل باسم name_pixel.",
+        ],
+        "tips": [
+            "لوحة الألوان أهم من حجم البكسل: جرّب ٨–١٦ لونًا أولًا.",
+            "Game Boy والتدرّج الرمادي يعتمدان على السطوع مثل الشاشات الحقيقية، فتبقى أي صورة واضحة.",
+            "ملفات GIF والفيديو تستخدم لوحة واحدة للمقطع كله، فلا تومض الألوان بين الإطارات. ويحتفظ الفيديو بصوته.",
+            "الصور الشفافة تحتفظ بشفافية حادة الحواف، جاهزة للاستخدام كشخصيات ألعاب.",
+            "ألغِ «الحفاظ على الحجم الأصلي» لحفظ النسخة الصغيرة — بكسل واحد لكل كتلة.",
+        ],
+    },
 ]
 
 
@@ -1698,6 +1744,7 @@ _TUTORIAL_SECTION_IDS: list[str | None] = [
     "folder_rules",    # 35 Folder Rules
     None,              # 36 Find Files (global overlay, no section)
     None,              # 37 Screen Tools (global overlays, no section)
+    "pixel_art",       # 38 Pixel Art
 ]
 
 

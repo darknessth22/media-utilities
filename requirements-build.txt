@@ -2,6 +2,9 @@
 # AI packages are installed on-demand at runtime into ai_packages/ next to the exe.
 yt-dlp>=2023.3.4
 Pillow>=9.5.0
+# Pixel Art engine (core/pixel_art.py): Lab colour, k-means, Kuwahara.
+# Imported when the app starts, so it must be in the build, not an AI add-on.
+numpy>=1.26
 pillow-heif>=0.10.0
 PyMuPDF>=1.22.5
 python-docx>=0.8.11

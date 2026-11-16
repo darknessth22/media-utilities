@@ -2,6 +2,7 @@ yt-dlp>=2025.1.15
 # Bridges yt-dlp to a system Node.js runtime to solve YT n-sig challenges.
 yt-dlp-ejs
 Pillow>=9.5.0
+numpy>=1.26
 pillow-heif>=0.10.0
 # rembg and demucs installed on-demand via in-app button (not bundled in build)
 # onnxruntime is a dependency of rembg — also installed on-demand
