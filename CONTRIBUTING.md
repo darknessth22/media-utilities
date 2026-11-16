@@ -19,14 +19,14 @@ Thanks for your interest in improving Videl. This guide covers how to set up the
 
 ## Branching
 
-- `main` — release branch. Pushes here trigger CI + the Windows installer build.
+- `master` — the main branch. Every push runs CI (`pytest`); releases build only from `v*` tags.
 - Feature branches — `feature/<short-name>`, `fix/<short-name>`, or `phase<N>/<topic>`.
-- Open PRs against `main`. Pull requests do **not** trigger the build workflow; only merges to `main` do.
+- Open PRs against `master`. CI runs on them; the release build does not (it runs only on `v*` tags).
 
 ## Code conventions
 
 - **GUI vs core separation.** `core/` holds business logic and must not import Qt. `gui/` wires Qt widgets to core modules.
-- **Tabs.** One file per tool tab in `gui/tabs/<name>_section.py`. When adding a new tab, follow the checklist in [CLAUDE.md](CLAUDE.md) under *Adding a new section / tool tab* — every step is required or the app breaks.
+- **Tabs.** One file per tool tab in `gui/tabs/<name>_section.py`, registered by a single entry in `_SECTIONS_META` (`gui/app.py`). See [ARCHITECTURE.md](ARCHITECTURE.md) and [LEARNINGS.md](LEARNINGS.md).
 - **i18n.** Every UI-visible string lives in `locales/en.json` and `locales/ar.json`. Both files must be updated in the same change. Use `tr()` from `core/i18n.py`; never hardcode user-facing text.
 - **Tutorial.** New user-facing features must add steps to `gui/tabs/tutorial_section.py` (`_TUTORIAL_DATA_EN` and `_TUTORIAL_DATA_AR`, kept entry-for-entry aligned).
 - **README.** New features/tools must be reflected in `README.md` in the same change.
@@ -40,20 +40,20 @@ Run the suite locally before opening a PR:
 pytest
 ```
 
-CI runs `pytest` on Windows for every push to `main`. Add tests under `tests/` for new core logic. GUI smoke tests are welcome but not required.
+Run it as `python -m pytest tests` (a bare `pytest` also collects the bundled `runtime/`). CI runs it on Windows for every push. Add tests under `tests/` for new core logic. GUI smoke tests are welcome but not required.
 
 ## Commits
 
 - Conventional Commits style: `feat(scope): …`, `fix(scope): …`, `refactor(scope): …`, `docs(scope): …`.
 - Keep the subject ≤ 72 chars. Use the body for the *why*.
 - Do **not** add `Co-Authored-By` trailers for AI assistants.
-- For release-bound merges to `main`, also bump `APP_VERSION` in `main.py` and tag (`vX.Y.Z`) — see [CLAUDE.md](CLAUDE.md) *Deployment Protocol*.
+- Releases: bump `VERSION` in `core/version.py` in its own `chore: bump version to X.Y.Z` commit, then tag `vX.Y.Z` — see [WORKFLOW.md](WORKFLOW.md).
 
 ## Pull requests
 
 A good PR:
 
-- Targets `main` (or the active phase branch if directed).
+- Targets `master`.
 - Has a clear title and a description that explains motivation, approach, and any tradeoffs.
 - Includes screenshots or a short clip for any UI change.
 - Updates `README.md`, the tutorial, and `locales/ar.json` when applicable.
@@ -63,7 +63,7 @@ A good PR:
 
 Open a GitHub issue with:
 
-- OS + version, Python version, Videl version (`APP_VERSION` in `main.py`).
+- OS + version, Python version, Videl version (`VERSION` in `core/version.py`, also shown in the app).
 - Repro steps, expected vs actual behaviour.
 - Logs from the in-app Bug Reporter tab, or the console output when running `python main.py`.
 
