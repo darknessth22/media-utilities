@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.i18n import tr
-from gui.pages.home_page import _ALL_TOOLS_META, _resolved_tools
+from gui.pages.home_page import _TOOL_ORDER, _resolved_tools
 
 
 class CommandPalette(QDialog):
@@ -55,7 +55,7 @@ class CommandPalette(QDialog):
         self._empty.hide()
         layout.addWidget(self._empty)
 
-        self._all = _resolved_tools(_ALL_TOOLS_META)
+        self._all = _resolved_tools(_TOOL_ORDER)
         self._refilter("")
 
     # ── Filtering ──────────────────────────────────────────────────────────

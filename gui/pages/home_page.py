@@ -109,75 +109,47 @@ _DROP_EXT_TO_TOOL: dict[str, str] = {
     ".xlsx": "document", ".txt": "document",
 }
 
-# Static icon/id/index data — labels come from i18n at runtime.
-_ALL_TOOLS_META: list[tuple[str, str, str, str, int]] = [
-    ("download",     "download.svg",   "tool_download_name",     "tool_download_desc",     0),
-    ("convert",      "convert.svg",    "tool_convert_name",      "tool_convert_desc",      1),
-    ("compress",     "compress.svg",   "tool_compress_name",     "tool_compress_desc",     5),
-    ("merge",        "merge.svg",      "tool_merge_name",        "tool_merge_desc",        6),
-    ("trim",         "trim.svg",       "tool_trim_name",         "tool_trim_desc",         2),
-    ("mux",          "mux.svg",        "tool_mux_name",          "tool_mux_desc",          8),
-    ("gif",          "gif.svg",        "tool_gif_name",          "tool_gif_desc",          4),
-    ("spatial",      "spatial.svg",    "tool_spatial_name",      "tool_spatial_desc",      7),
-    ("document",     "document.svg",   "tool_document_name",     "tool_document_desc",     3),
-    ("scrub",        "scrub.svg",      "tool_scrub_name",        "tool_scrub_desc",        9),
-    ("chunk",        "chunk.svg",      "tool_chunk_name",        "tool_chunk_desc",       10),
-    ("watermark",    "watermark.svg",  "tool_watermark_name",    "tool_watermark_desc",   11),
-    ("frame_grabber","frame.svg",      "tool_frame_grabber_name","tool_frame_grabber_desc",12),
-    ("palette",      "palette.svg",    "tool_palette_name",      "tool_palette_desc",     13),
-    ("bg_eraser",       "bg_eraser.svg",       "tool_bg_eraser_name",       "tool_bg_eraser_desc",      14),
-    ("vocal_isolator",  "vocal_isolator.svg",  "tool_vocal_isolator_name",  "tool_vocal_isolator_desc", 15),
-    ("upscaler",        "upscaler.svg",        "tool_upscaler_name",        "tool_upscaler_desc",       16),
-    ("video_upscaler",  "video_upscaler.svg",  "tool_video_upscaler_name",  "tool_video_upscaler_desc", 17),
-    ("pdf_toolkit",     "document.svg",        "tool_pdf_toolkit_name",     "tool_pdf_toolkit_desc",    18),
-    ("jumpcut",         "jumpcut.svg",         "tool_jumpcut_name",         "tool_jumpcut_desc",        19),
-    ("subtitles",       "subtitles.svg",       "tool_subtitles_name",       "tool_subtitles_desc",      20),
-    ("transcript",      "transcript.svg",      "tool_transcript_name",      "tool_transcript_desc",     21),
-    ("image_editor",    "image_editor.svg",    "tool_image_editor_name",    "tool_image_editor_desc",   22),
-    ("photo_restore",   "photo_restore.svg",   "tool_photo_restore_name",   "tool_photo_restore_desc",  23),
-    ("pixel_art",       "pixel_art.svg",       "tool_pixel_art_name",       "tool_pixel_art_desc",      24),
-    ("folder_rules",    "scrub.svg",           "tool_folder_rules_name",    "tool_folder_rules_desc",   25),
-    ("history",         "history.svg",         "tool_history_name",         "tool_history_desc",        26),
+# Order of the tool cards (the first 7 also appear on Home). Everything else
+# about a tool comes from gui.app._SECTIONS_META -- icon and section index --
+# and from the locale keys tool_<id>_name / tool_<id>_desc. Keeping a second
+# copy of the icon and index here is what let cards drift onto the wrong tool.
+_TOOL_ORDER: list[str] = [
+    "download", "convert", "compress", "merge", "trim", "mux", "gif",
+    "spatial", "document", "scrub", "chunk", "watermark", "frame_grabber",
+    "palette", "bg_eraser", "vocal_isolator", "upscaler", "video_upscaler",
+    "pdf_toolkit", "jumpcut", "subtitles", "transcript", "image_editor",
+    "photo_restore", "pixel_art", "folder_rules", "history",
 ]
 
 
-def _section_index(tool_id: str, fallback: int) -> int:
-    """Look the section index up by id rather than trusting the number here.
+def _meta_for_tool(tool_id: str) -> tuple[str, str, str, str, int] | None:
+    """(id, icon, name_key, desc_key, section index), or None if no such section."""
+    from gui.app import _SECTIONS_META  # lazy: gui.app imports this module
 
-    The indices in _ALL_TOOLS_META were hardcoded, so inserting a section in
-    the middle of _SECTIONS_META silently pointed every later card at the
-    wrong tool. Resolving by id means the two lists cannot drift apart.
-    """
-    try:
-        from gui.app import _SECTIONS_META
-
-        for i, meta in enumerate(_SECTIONS_META):
-            if meta["id"] == tool_id:
-                return i
-    except Exception:
-        pass
-    return fallback
+    for i, meta in enumerate(_SECTIONS_META):
+        if meta["id"] == tool_id:
+            return (tool_id, meta["icon"], f"tool_{tool_id}_name",
+                    f"tool_{tool_id}_desc", i)
+    return None
 
 
-def _resolved_tools(meta: list) -> list[tuple[str, str, str, str, int]]:
-    """Resolve translation keys in tool metadata to current-language strings."""
-    return [(tid, icon, tr(nk), tr(dk), _section_index(tid, idx))
-            for tid, icon, nk, dk, idx in meta]
+def _resolved_tools(tool_ids: list[str]) -> list[tuple[str, str, str, str, int]]:
+    """Tool cards with labels in the current language."""
+    out = []
+    for tool_id in tool_ids:
+        meta = _meta_for_tool(tool_id)
+        if meta is not None:
+            _tid, icon, name_key, desc_key, idx = meta
+            out.append((tool_id, icon, tr(name_key), tr(desc_key), idx))
+    return out
 
 
 def _all_tools() -> list[tuple[str, str, str, str, int]]:
-    return _resolved_tools(_ALL_TOOLS_META)
+    return _resolved_tools(_TOOL_ORDER)
 
 
 def _home_tools() -> list[tuple[str, str, str, str, int]]:
-    return _resolved_tools(_ALL_TOOLS_META[:7])
-
-
-def _meta_for_tool(tool_id: str) -> tuple[str, str, str, str, int] | None:
-    for entry in _ALL_TOOLS_META:
-        if entry[0] == tool_id:
-            return entry
-    return None
+    return _resolved_tools(_TOOL_ORDER[:7])
 
 
 # ── Icon loader ───────────────────────────────────────────────────────────────

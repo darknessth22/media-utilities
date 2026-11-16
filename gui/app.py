@@ -162,6 +162,7 @@ _APP_LOGO = resource_path("assets", "videl_logo.png")
 _SECTIONS_META = [
     {
         "id": "download",
+        "cls": DownloadSection,
         "label_key": "section_download",
         "icon": "download.svg",
         "tab_keys": ["tab_media_download"],
@@ -169,6 +170,7 @@ _SECTIONS_META = [
     },
     {
         "id": "convert",
+        "cls": ConvertSection,
         "label_key": "section_convert",
         "icon": "convert.svg",
         "tab_keys": ["tab_convert", "tab_batch_convert"],
@@ -176,6 +178,7 @@ _SECTIONS_META = [
     },
     {
         "id": "trim",
+        "cls": TrimSection,
         "label_key": "section_trim",
         "icon": "trim.svg",
         "tab_keys": ["tab_trim_media"],
@@ -183,6 +186,7 @@ _SECTIONS_META = [
     },
     {
         "id": "document",
+        "cls": DocumentSection,
         "label_key": "section_document",
         "icon": "document.svg",
         "tab_keys": ["tab_document_convert", "tab_md_editor"],
@@ -190,6 +194,7 @@ _SECTIONS_META = [
     },
     {
         "id": "gif",
+        "cls": GifSection,
         "label_key": "section_gif",
         "icon": "gif.svg",
         "tab_keys": ["tab_gif_from_video"],
@@ -197,6 +202,7 @@ _SECTIONS_META = [
     },
     {
         "id": "compress",
+        "cls": CompressSection,
         "label_key": "section_compress",
         "icon": "compress.svg",
         "tab_keys": ["tab_compress_media"],
@@ -204,6 +210,7 @@ _SECTIONS_META = [
     },
     {
         "id": "merge",
+        "cls": MergeSection,
         "label_key": "section_merge",
         "icon": "merge.svg",
         "tab_keys": ["tab_merge_videos"],
@@ -211,6 +218,7 @@ _SECTIONS_META = [
     },
     {
         "id": "spatial",
+        "cls": SpatialSection,
         "label_key": "section_spatial",
         "icon": "spatial.svg",
         "tab_keys": ["tab_resize", "tab_crop", "tab_rotate_flip"],
@@ -218,6 +226,7 @@ _SECTIONS_META = [
     },
     {
         "id": "mux",
+        "cls": MuxSection,
         "label_key": "section_mux",
         "icon": "mux.svg",
         "tab_keys": ["tab_mute_video", "tab_replace_audio", "tab_add_audio"],
@@ -225,6 +234,7 @@ _SECTIONS_META = [
     },
     {
         "id": "scrub",
+        "cls": ScrubSection,
         "label_key": "section_scrub",
         "icon": "scrub.svg",
         "tab_keys": ["tab_metadata_scrubber"],
@@ -232,6 +242,7 @@ _SECTIONS_META = [
     },
     {
         "id": "chunk",
+        "cls": ChunkSection,
         "label_key": "section_chunk",
         "icon": "chunk.svg",
         "tab_keys": ["tab_smart_split"],
@@ -239,6 +250,7 @@ _SECTIONS_META = [
     },
     {
         "id": "watermark",
+        "cls": WatermarkSection,
         "label_key": "section_watermark",
         "icon": "watermark.svg",
         "tab_keys": ["tab_batch_watermark"],
@@ -246,6 +258,7 @@ _SECTIONS_META = [
     },
     {
         "id": "frame_grabber",
+        "cls": FrameGrabberSection,
         "label_key": "section_frame_grabber",
         "icon": "frame.svg",
         "tab_keys": ["tab_grab_frame"],
@@ -253,6 +266,7 @@ _SECTIONS_META = [
     },
     {
         "id": "palette",
+        "cls": PaletteSection,
         "label_key": "section_palette",
         "icon": "palette.svg",
         "tab_keys": ["tab_extract_palette", "tab_color_wheel"],
@@ -260,6 +274,7 @@ _SECTIONS_META = [
     },
     {
         "id": "bg_eraser",
+        "cls": BgEraserSection,
         "label_key": "section_bg_eraser",
         "icon": "bg_eraser.svg",
         "tab_keys": ["tab_remove_background", "tab_bg_erase"],
@@ -269,6 +284,7 @@ _SECTIONS_META = [
     },
     {
         "id": "vocal_isolator",
+        "cls": VocalIsolatorSection,
         "label_key": "section_vocal_isolator",
         "icon": "vocal_isolator.svg",
         "tab_keys": ["tab_vocal_isolator"],
@@ -276,6 +292,7 @@ _SECTIONS_META = [
     },
     {
         "id": "upscaler",
+        "cls": UpscalerSection,
         "label_key": "section_upscaler",
         "icon": "upscaler.svg",
         "tab_keys": ["tab_upscaler"],
@@ -283,6 +300,7 @@ _SECTIONS_META = [
     },
     {
         "id": "video_upscaler",
+        "cls": VideoUpscalerSection,
         "label_key": "section_video_upscaler",
         "icon": "video_upscaler.svg",
         "tab_keys": ["tab_video_upscaler"],
@@ -290,6 +308,7 @@ _SECTIONS_META = [
     },
     {
         "id": "pdf_toolkit",
+        "cls": PdfToolkitSection,
         "label_key": "section_pdf_toolkit",
         "icon": "document.svg",
         "tab_keys": ["tab_pdf_toolkit"],
@@ -297,6 +316,7 @@ _SECTIONS_META = [
     },
     {
         "id": "jumpcut",
+        "cls": JumpcutSection,
         "label_key": "section_jumpcut",
         "icon": "jumpcut.svg",
         "tab_keys": ["tab_jumpcut"],
@@ -304,6 +324,7 @@ _SECTIONS_META = [
     },
     {
         "id": "subtitles",
+        "cls": SubtitlesSection,
         "label_key": "section_subtitles",
         "icon": "subtitles.svg",
         "tab_keys": ["tab_subtitles"],
@@ -311,6 +332,7 @@ _SECTIONS_META = [
     },
     {
         "id": "transcript",
+        "cls": TranscriptSection,
         "label_key": "section_transcript",
         "icon": "transcript.svg",
         "tab_keys": ["tab_transcript"],
@@ -318,6 +340,7 @@ _SECTIONS_META = [
     },
     {
         "id": "image_editor",
+        "cls": ImageEditorSection,
         "label_key": "section_image_editor",
         "icon": "image_editor.svg",
         "tab_keys": [
@@ -328,6 +351,7 @@ _SECTIONS_META = [
     },
     {
         "id": "photo_restore",
+        "cls": PhotoRestoreSection,
         "label_key": "section_photo_restore",
         "icon": "photo_restore.svg",
         "tab_keys": ["tab_photo_restore"],
@@ -335,6 +359,7 @@ _SECTIONS_META = [
     },
     {
         "id": "pixel_art",
+        "cls": PixelArtSection,
         "label_key": "section_pixel_art",
         "icon": "pixel_art.svg",
         "tab_keys": ["tab_pixel_art"],
@@ -342,6 +367,7 @@ _SECTIONS_META = [
     },
     {
         "id": "folder_rules",
+        "cls": FolderRulesSection,
         "label_key": "section_folder_rules",
         "icon": "scrub.svg",
         "tab_keys": ["tab_folder_rules"],
@@ -349,6 +375,7 @@ _SECTIONS_META = [
     },
     {
         "id": "history",
+        "cls": HistorySection,
         "label_key": "section_history",
         "icon": "history.svg",
         "tab_keys": ["tab_history"],
@@ -356,6 +383,7 @@ _SECTIONS_META = [
     },
     {
         "id": "settings",
+        "cls": None,  # built by MainWindow — needs theme_manager
         "label_key": "section_settings",
         "icon": "settings.svg",
         "tab_keys": ["tab_settings"],
@@ -363,6 +391,7 @@ _SECTIONS_META = [
     },
     {
         "id": "tutorial",
+        "cls": TutorialSection,
         "label_key": "section_tutorial",
         "icon": "help.svg",
         "tab_keys": ["tab_how_to_use"],
@@ -370,6 +399,7 @@ _SECTIONS_META = [
     },
     {
         "id": "bug_reporter",
+        "cls": BugReporterSection,
         "label_key": "section_bug_reporter",
         "icon": "bug_report.svg",
         "tab_keys": ["tab_bug_reporter"],
@@ -2501,47 +2531,14 @@ class MainWindow(QMainWindow):
             is_busy = self._section_busy.get(self._current_section, False)
             self._primary_btn.setText(tr("action_cancel") if is_busy else action_label)
 
-        # Settings section
-        self._settings_section_widget.retranslate_ui()
-        self._bug_reporter_section.retranslate_ui()
-
         # Notify home/tools pages to refresh their text
         if hasattr(self._home_page, "retranslate_ui"):
             self._home_page.retranslate_ui()
         if hasattr(self._tools_page, "retranslate_ui"):
             self._tools_page.retranslate_ui()
 
-        # Notify all tool section tabs
-        for section in (
-            self._download_section,
-            self._convert_section,
-            self._trim_section,
-            self._document_section,
-            self._gif_section,
-            self._compress_section,
-            self._merge_section,
-            self._spatial_section,
-            self._mux_section,
-            self._scrub_section,
-            self._chunk_section,
-            self._watermark_section,
-            self._frame_grabber_section,
-            self._palette_section,
-            self._bg_eraser_section,
-            self._vocal_isolator_section,
-            self._upscaler_section,
-            self._video_upscaler_section,
-            self._pdf_toolkit_section,
-            self._jumpcut_section,
-            self._subtitles_section,
-            self._transcript_section,
-            self._image_editor_section,
-            self._photo_restore_section,
-            self._pixel_art_section,
-            self._folder_rules_section,
-            self._history_section,
-            self._tutorial_section,
-        ):
+        # Every section, tools and app pages alike
+        for section in self._section_widgets:
             if hasattr(section, "retranslate_ui"):
                 section.retranslate_ui()
 
@@ -2561,6 +2558,14 @@ class MainWindow(QMainWindow):
                 widget.apply_theme(want_dark)
 
     # ── T010: Right panel ─────────────────────────────────────────────────────
+
+    def _make_section(self, meta: dict) -> QWidget:
+        """Instantiate the section widget described by one _SECTIONS_META entry."""
+        if meta["id"] == "settings":
+            return SettingsSection(self.settings, self.theme_manager)
+        # Tool sections take the user settings; the app pages (history,
+        # tutorial, bug reporter) take none.
+        return meta["cls"](self.settings) if meta["action_key"] else meta["cls"]()
 
     def _build_right_panel(self) -> QWidget:
         panel = QWidget()
@@ -2618,110 +2623,36 @@ class MainWindow(QMainWindow):
         self._content_stack.setObjectName("ContentStack")
         layout.addWidget(self._content_stack, 1)
 
-        # ── Instantiate section widgets (Phase 4) ─────────────────────────────
-        self._download_section = DownloadSection(self.settings)
-        self._convert_section = ConvertSection(self.settings)
-        self._trim_section = TrimSection(self.settings)
-        self._document_section = DocumentSection(self.settings)
-        self._gif_section = GifSection(self.settings)
-        self._compress_section = CompressSection(self.settings)
-        self._merge_section = MergeSection(self.settings)
-        self._spatial_section = SpatialSection(self.settings)
-        self._mux_section = MuxSection(self.settings)
-        self._scrub_section = ScrubSection(self.settings)
-        self._chunk_section = ChunkSection(self.settings)
-        self._watermark_section = WatermarkSection(self.settings)
-        self._frame_grabber_section = FrameGrabberSection(self.settings)
-        self._palette_section = PaletteSection(self.settings)
-        self._bg_eraser_section = BgEraserSection(self.settings)
-        self._vocal_isolator_section = VocalIsolatorSection(self.settings)
-        self._upscaler_section = UpscalerSection(self.settings)
-        self._video_upscaler_section = VideoUpscalerSection(self.settings)
-        self._pdf_toolkit_section = PdfToolkitSection(self.settings)
-        self._jumpcut_section = JumpcutSection(self.settings)
-        self._subtitles_section = SubtitlesSection(self.settings)
-        self._transcript_section = TranscriptSection(self.settings)
-        self._image_editor_section = ImageEditorSection(self.settings)
-        self._photo_restore_section = PhotoRestoreSection(self.settings)
-        self._pixel_art_section = PixelArtSection(self.settings)
-        self._folder_rules_section = FolderRulesSection(self.settings)
+        # ── Instantiate section widgets ───────────────────────────────────────
+        # Built from _SECTIONS_META alone, so the stack order, the widget list
+        # and the operation sections cannot drift apart. Adding a tool = one
+        # meta entry.
+        self._sections: dict[str, QWidget] = {
+            m["id"]: self._make_section(m) for m in _SECTIONS_META
+        }
+        self._section_widgets: list[QWidget] = list(self._sections.values())
+
+        # Named handles for the sections the window talks to directly.
+        s = self._sections
+        self._download_section = s["download"]
+        self._palette_section = s["palette"]
+        self._folder_rules_section = s["folder_rules"]
+        self._history_section = s["history"]
+        self._settings_section_widget = s["settings"]
+
         self._folder_rules_section.rules_changed.connect(self._restart_rule_runner)
-        self._history_section = HistorySection()
-        self._settings_section_widget = SettingsSection(self.settings, self.theme_manager)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
         self._settings_section_widget.storage_card.storage_changed.connect(
             self._refresh_tool_install_states)
-        self._tutorial_section = TutorialSection()
-        self._bug_reporter_section = BugReporterSection()
 
-        self._section_widgets: list[QWidget] = [
-            self._download_section,         # index 0 — download
-            self._convert_section,          # index 1 — convert / batch convert
-            self._trim_section,             # index 2 — trim
-            self._document_section,         # index 3 — document convert
-            self._gif_section,              # index 4 — gif creator
-            self._compress_section,         # index 5 — compress media
-            self._merge_section,            # index 6 — merge videos
-            self._spatial_section,          # index 7 — transform media
-            self._mux_section,              # index 8 — audio muxing
-            self._scrub_section,            # index 9 — metadata scrubber
-            self._chunk_section,            # index 10 — auto-chunker
-            self._watermark_section,        # index 11 — batch watermark
-            self._frame_grabber_section,    # index 12 — frame grabber
-            self._palette_section,          # index 13 — hex palette
-            self._bg_eraser_section,        # index 14 — bg eraser
-            self._vocal_isolator_section,   # index 15 — vocal isolator
-            self._upscaler_section,         # index 16 — ai upscaler
-            self._video_upscaler_section,   # index 17 — ai video upscaler
-            self._pdf_toolkit_section,      # index 18 — pdf toolkit
-            self._jumpcut_section,          # index 19 — jump-cutter
-            self._subtitles_section,        # index 20 — subtitles
-            self._transcript_section,       # index 21 — transcript
-            self._image_editor_section,     # index 22 — image editor
-            self._photo_restore_section,    # index 23 — ai photo restore
-            self._pixel_art_section,        # index 24 — pixel art
-            self._folder_rules_section,     # index 25 — folder rules
-            self._history_section,          # index 26 — history
-            self._settings_section_widget,  # index 27 — settings
-            self._tutorial_section,         # index 28 — how to use
-            self._bug_reporter_section,     # index 29 — bug reporter
-        ]
-
-        # Connect status signals from all operation sections.
-        # Route through _on_status_message so tray notifications fire too (T019).
-        _op_sections = (
-            self._download_section,   # index 0
-            self._convert_section,    # index 1
-            self._trim_section,       # index 2
-            self._document_section,   # index 3
-            self._gif_section,        # index 4
-            self._compress_section,   # index 5
-            self._merge_section,      # index 6
-            self._spatial_section,    # index 7
-            self._mux_section,        # index 8
-            self._scrub_section,      # index 9
-            self._chunk_section,          # index 10
-            self._watermark_section,      # index 11
-            self._frame_grabber_section,  # index 12
-            self._palette_section,        # index 13
-            self._bg_eraser_section,      # index 14
-            self._vocal_isolator_section, # index 15
-            self._upscaler_section,       # index 16
-            self._video_upscaler_section, # index 17
-            self._pdf_toolkit_section,    # index 18
-            self._jumpcut_section,        # index 19
-            self._subtitles_section,      # index 20
-            self._transcript_section,     # index 21
-            self._image_editor_section,   # index 22
-            self._photo_restore_section,  # index 23
-            self._pixel_art_section,      # index 24
-            self._folder_rules_section,   # index 25
-        )
-        for section in _op_sections:
+        # Operation sections (those with a primary action): status messages go
+        # through _on_status_message so tray notifications fire too, and
+        # busy_changed flips the primary button between its label and Cancel.
+        for idx, meta in enumerate(_SECTIONS_META):
+            if not meta["action_key"]:
+                continue
+            section = self._section_widgets[idx]
             section.status_message.connect(self._on_status_message)
-
-        # busy_changed → toggle primary button text between label and "Cancel"
-        for idx, section in enumerate(_op_sections):
             section.busy_changed.connect(
                 lambda busy, i=idx: self._on_section_busy_changed(i, busy)
             )
