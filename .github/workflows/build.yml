@@ -58,8 +58,6 @@ jobs:
         run: choco install innosetup --no-progress -y
 
       - name: Build (clean venv)
-        env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: python build_executable.py
 
       - name: Snapshot clean build
@@ -101,8 +99,6 @@ jobs:
           pip install rembg demucs torch onnxruntime --quiet
 
       - name: Build (polluted venv)
-        env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: python build_executable.py
 
       - name: Compare clean vs polluted (SC-002)
@@ -231,8 +227,6 @@ jobs:
           chmod +x tools/linuxdeploy-x86_64.AppImage tools/linuxdeploy-plugin-qt-x86_64.AppImage tools/appimagetool-x86_64.AppImage
 
       - name: Build AppImage
-        env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: bash build_appimage.sh
 
       - name: Read app version

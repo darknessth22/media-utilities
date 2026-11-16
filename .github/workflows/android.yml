@@ -66,11 +66,7 @@ jobs:
 
       - name: Build release APK (arm64-v8a)
         working-directory: mobile
-        env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-        run: |
-          flutter build apk --release --android-skip-build-dependency-validation \
-            --dart-define=SENDGRID_API_KEY=$SENDGRID_API_KEY
+        run: flutter build apk --release --android-skip-build-dependency-validation
 
       - name: Rename APK
         run: |

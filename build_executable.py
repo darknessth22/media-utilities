@@ -228,55 +228,6 @@ def ensure_build_venv() -> str:
     return str(python)
 
 
-def _load_env_file(path: Path) -> None:
-    """Load KEY=VALUE pairs from a .env file into os.environ (no overwrite)."""
-    if not path.is_file():
-        return
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        k = k.strip()
-        v = v.strip().strip('"').strip("'")
-        if k and k not in os.environ:
-            os.environ[k] = v
-
-
-def embed_sendgrid_key():
-    """Substitute @@SENDGRID_API_KEY@@ in bug_reporter.py with the env value.
-
-    Returns the original file text (or None if no substitution happened) so the
-    caller can restore it after PyInstaller finishes.
-    """
-    _load_env_file(Path(".env"))
-    key = (os.environ.get("SENDGRID_API_KEY") or "").strip()
-    if not key:
-        print("[WARN] SENDGRID_API_KEY not set — bug reporter will fail in built app.")
-        return None
-    # Reject keys containing characters that would break the Python string
-    # literal in bug_reporter.py (newlines, quotes, backslashes). A malformed
-    # source file makes PyInstaller silently drop the module.
-    if any(c in key for c in '\r\n"\\'):
-        print("[FAIL] SENDGRID_API_KEY contains illegal characters (newline/quote/backslash).")
-        sys.exit(1)
-    f = Path("gui/tabs/bug_reporter.py")
-    original = f.read_text(encoding="utf-8")
-    patched = original.replace("@@SENDGRID_API_KEY@@", key)
-    if patched == original:
-        return None
-    f.write_text(patched, encoding="utf-8")
-    print("[OK] Embedded SENDGRID_API_KEY into bug_reporter.py")
-    return original
-
-
-def restore_bug_reporter(original: str | None):
-    if original is None:
-        return
-    Path("gui/tabs/bug_reporter.py").write_text(original, encoding="utf-8")
-    print("[OK] Restored bug_reporter.py placeholder.")
-
-
 def build_executable(build_python):
     """Build the executable using PyInstaller"""
     print_step("Building Executable with PyInstaller")
@@ -488,14 +439,10 @@ def main():
     if not provision_runtime():
         sys.exit(1)
 
-    # Step 4: PyInstaller (embed SendGrid key first; restore source after build).
+    # Step 4: PyInstaller.
     build_python = ensure_build_venv()
-    _bug_reporter_backup = embed_sendgrid_key()
-    try:
-        if not build_executable(build_python):
-            sys.exit(1)
-    finally:
-        restore_bug_reporter(_bug_reporter_backup)
+    if not build_executable(build_python):
+        sys.exit(1)
 
     # Step 4b: Verify excludes (no AI packages leaked into dist/Videl/)
     run_exclude_test(build_python)

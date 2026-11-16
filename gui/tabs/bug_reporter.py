@@ -1,9 +1,10 @@
-"""Bug Reporter section — form that sends bug reports via SendGrid HTTP API."""
+"""Bug Reporter section — form that sends bug reports through the Videl relay."""
 from __future__ import annotations
 
 import base64
 import json
 import os
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -18,73 +19,57 @@ from PySide6.QtWidgets import (
 from core.i18n import tr
 from gui.worker import Worker
 
-_SENDGRID_URL = "https://api.sendgrid.com/v3/mail/send"
-_SENDER_EMAIL = "videl.support@gmail.com"
-_SENDER_NAME = "Videl Bug Reporter"
-_RECIPIENT_EMAIL = "videl.support@gmail.com"
-_SENDGRID_API_KEY_BUILTIN = "@@SENDGRID_API_KEY@@"  # replaced at build time
+# Reports go to our Cloudflare Worker (tools/bug_relay/), which holds the mail
+# key server-side. Never ship a mail-service key in the app: anything inside a
+# public installer or APK can be extracted.
+_RELAY_URL = "https://videl-bug-relay.mostafafares080.workers.dev/report"
 
 _BUG_TYPES_EN = ["UI Problem", "Feature Problem", "Crash / Error", "Performance", "Other"]
 _BUG_TYPES_AR = ["مشكلة واجهة", "مشكلة ميزة", "تعطل / خطأ", "أداء", "أخرى"]
 
+_IMAGE_MIME = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".webp": "image/webp", ".bmp": "image/bmp",
+}
+
 
 def _send_email(subject: str, body: str, screenshot_path: str, reporter_email: str = "") -> None:
-    """Send bug report via SendGrid API. Runs in a Worker thread."""
-    # Packaging subprocess must not require secrets (GitHub Actions, etc.).
+    """Send a bug report through the relay. Runs in a Worker thread."""
+    # Packaging subprocess must never send anything.
     if os.environ.get("VIDEL_PYINSTALLER_BUILD") == "1":
         return None
 
-    api_key = (os.environ.get("SENDGRID_API_KEY") or "").strip()
-    if not api_key and not _SENDGRID_API_KEY_BUILTIN.startswith("@@"):
-        api_key = _SENDGRID_API_KEY_BUILTIN
-    if not api_key:
-        raise RuntimeError("SENDGRID_API_KEY is not set (check .env or system environment).")
-
-    to_list = [{"email": _RECIPIENT_EMAIL}]
-    if reporter_email:
-        to_list.append({"email": reporter_email})
-
-    payload: dict = {
-        "personalizations": [{"to": to_list}],
-        "from": {"email": _SENDER_EMAIL, "name": _SENDER_NAME},
-        "subject": subject,
-        "content": [{"type": "text/plain", "value": body}],
-    }
-
+    payload: dict = {"subject": subject, "body": body, "reporter_email": reporter_email}
     if screenshot_path:
         path = Path(screenshot_path)
-        if path.is_file():
-            data = base64.b64encode(path.read_bytes()).decode()
-            suffix = path.suffix.lower()
-            mime = {
-                ".png": "image/png", ".jpg": "image/jpeg",
-                ".jpeg": "image/jpeg", ".webp": "image/webp",
-                ".bmp": "image/bmp",
-            }.get(suffix, "application/octet-stream")
-            payload["attachments"] = [{
-                "content": data,
+        mime = _IMAGE_MIME.get(path.suffix.lower())
+        if path.is_file() and mime:
+            payload["screenshot"] = {
+                "name": path.name,
                 "type": mime,
-                "filename": path.name,
-                "disposition": "attachment",
-            }]
+                "data": base64.b64encode(path.read_bytes()).decode(),
+            }
 
-    data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
-        _SENDGRID_URL,
-        data=data,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
+        _RELAY_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "User-Agent": "Videl"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        if resp.status not in (200, 202):
-            raise RuntimeError(f"SendGrid returned HTTP {resp.status}")
+    try:
+        with urllib.request.urlopen(req, timeout=30):
+            return None
+    except urllib.error.HTTPError as exc:
+        # The relay explains rejections ("Screenshot is larger than 5 MB.").
+        try:
+            message = json.loads(exc.read().decode("utf-8")).get("message", "")
+        except Exception:
+            message = ""
+        raise RuntimeError(message or f"HTTP {exc.code}") from None
 
 
 class BugReporterSection(QScrollArea):
-    """Full-page bug report form. Sends directly via SMTP in a background thread."""
+    """Full-page bug report form. Sends through the relay in a background thread."""
 
     status_message = Signal(str, bool)
 

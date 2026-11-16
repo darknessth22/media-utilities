@@ -8,12 +8,10 @@ import 'package:path/path.dart' as p;
 
 import '../../core/theme/videl_theme.dart';
 
-const _sendgridUrl = 'https://api.sendgrid.com/v3/mail/send';
-const _senderEmail = 'videl.support@gmail.com';
-const _recipientEmail = 'videl.support@gmail.com';
-
-// Replaced at build time by CI — same token as the desktop build.
-const _sendgridApiKey = String.fromEnvironment('SENDGRID_API_KEY', defaultValue: '');
+// Reports go to the Videl Cloudflare Worker (tools/bug_relay/), which holds the
+// mail key server-side. Never compile a mail-service key into the APK: anything
+// in a public build can be extracted.
+const _relayUrl = 'https://videl-bug-relay.mostafafares080.workers.dev/report';
 
 const _bugTypes = ['UI Problem', 'Feature Problem', 'Crash / Error', 'Performance', 'Other'];
 
@@ -74,14 +72,6 @@ class _BugReporterPageState extends State<BugReporterPage> {
       return;
     }
 
-    if (_sendgridApiKey.isEmpty) {
-      setState(() {
-        _feedback = 'SENDGRID_API_KEY not configured in this build.';
-        _feedbackError = true;
-      });
-      return;
-    }
-
     setState(() {
       _sending = true;
       _feedback = 'Sending…';
@@ -93,54 +83,34 @@ class _BugReporterPageState extends State<BugReporterPage> {
       final body =
           'Bug Type: $_bugType\nReporter Email: ${email.isEmpty ? "(not provided)" : email}\n\n--- Description ---\n$desc';
 
-      final toList = [
-        {'email': _recipientEmail},
-        if (email.isNotEmpty) {'email': email},
-      ];
-
       final Map<String, dynamic> payload = {
-        'personalizations': [
-          {'to': toList}
-        ],
-        'from': {'email': _senderEmail, 'name': 'Videl Bug Reporter'},
         'subject': subject,
-        'content': [
-          {'type': 'text/plain', 'value': body}
-        ],
+        'body': body,
+        'reporter_email': email,
       };
 
       if (_screenshotPath != null) {
         final file = File(_screenshotPath!);
-        if (await file.exists()) {
-          final bytes = await file.readAsBytes();
-          final b64 = base64Encode(bytes);
-          final ext = p.extension(_screenshotPath!).toLowerCase();
-          final mime = {
-            '.png': 'image/png',
-            '.jpg': 'image/jpeg',
-            '.jpeg': 'image/jpeg',
-            '.webp': 'image/webp',
-            '.bmp': 'image/bmp',
-          }[ext] ??
-              'application/octet-stream';
-          payload['attachments'] = [
-            {
-              'content': b64,
-              'type': mime,
-              'filename': p.basename(_screenshotPath!),
-              'disposition': 'attachment',
-            }
-          ];
+        final mime = {
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.webp': 'image/webp',
+          '.bmp': 'image/bmp',
+        }[p.extension(_screenshotPath!).toLowerCase()];
+        if (mime != null && await file.exists()) {
+          payload['screenshot'] = {
+            'name': p.basename(_screenshotPath!),
+            'type': mime,
+            'data': base64Encode(await file.readAsBytes()),
+          };
         }
       }
 
       final resp = await http
           .post(
-            Uri.parse(_sendgridUrl),
-            headers: {
-              'Authorization': 'Bearer $_sendgridApiKey',
-              'Content-Type': 'application/json',
-            },
+            Uri.parse(_relayUrl),
+            headers: {'Content-Type': 'application/json'},
             body: jsonEncode(payload),
           )
           .timeout(const Duration(seconds: 30));
@@ -156,8 +126,13 @@ class _BugReporterPageState extends State<BugReporterPage> {
           _feedbackError = false;
         });
       } else {
+        // The relay explains rejections ("Screenshot is larger than 5 MB.").
+        String message = 'HTTP ${resp.statusCode}';
+        try {
+          message = (jsonDecode(resp.body) as Map)['message'] as String? ?? message;
+        } catch (_) {}
         setState(() {
-          _feedback = 'SendGrid returned HTTP ${resp.statusCode}.';
+          _feedback = 'Could not send: $message';
           _feedbackError = true;
         });
       }
