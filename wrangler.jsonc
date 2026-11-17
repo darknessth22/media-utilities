@@ -1,9 +1,11 @@
 // Videl download page. Same files as the gh-pages branch, served at https://videl.app.
-// Deploy from this folder:  npx wrangler deploy
+// A push to gh-pages deploys it (.github/workflows/deploy-site.yml). By hand,
+// from this folder:  npx wrangler deploy
 // GitHub Pages still serves these files at the old github.io address; index.html
 // sends those visitors here.
 {
   "name": "videl-site",
+  "account_id": "20f3a38fbdebfcdda8f82c766faf6ce8",
   "compatibility_date": "2026-11-13",
   "assets": { "directory": "." },
   "routes": [{ "pattern": "videl.app", "custom_domain": true }],

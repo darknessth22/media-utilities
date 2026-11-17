@@ -1,0 +1,31 @@
+# Deploys this branch to https://videl.app (Worker videl-site) on every push,
+# so a push is the only step. GitHub Pages keeps serving the same files at the
+# old github.io address on its own.
+#
+# Needs one repository secret, CLOUDFLARE_API_TOKEN: a Cloudflare token made
+# from the "Edit Cloudflare Workers" template, limited to this account and the
+# videl.app zone. Until it exists, runs only print a reminder.
+name: Deploy videl.app
+
+on:
+  push:
+    branches: [gh-pages]
+  workflow_dispatch:
+
+concurrency: deploy-videl-site
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - if: env.CLOUDFLARE_API_TOKEN == ''
+        run: echo "::warning::CLOUDFLARE_API_TOKEN secret is missing, so videl.app was not updated. Add it, or run 'npx wrangler deploy' in this branch's folder."
+      - if: env.CLOUDFLARE_API_TOKEN != ''
+        uses: actions/checkout@v6
+      - if: env.CLOUDFLARE_API_TOKEN != ''
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          wranglerVersion: "4.164.0"

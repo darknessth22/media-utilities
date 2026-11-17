@@ -3,3 +3,4 @@
 wrangler.jsonc
 .assetsignore
 .nojekyll
+.github
