@@ -1,18 +1,92 @@
 # Videl
 
-Offline media workstation for Windows — download, convert, trim, compress, merge, transform, watermark, scrub metadata, split, upscale, isolate vocals, erase backgrounds and objects, work with PDFs, and more. Built with PySide6.
+Free, open-source media toolkit for Windows, Linux and Android, plus a web app that needs no install. Download videos and music, convert, trim, compress and merge video, make GIFs, edit PDFs, remove image backgrounds, isolate vocals, upscale photos and more. Your files are processed on your own device, never uploaded.
+
+- **Website and downloads:** [videl.app](https://videl.app)
+- **Web app, runs in your browser:** [app.videl.app](https://app.videl.app)
+- **Privacy:** [videl.app/privacy](https://videl.app/privacy)
+- **Report a bug:** [app.videl.app/#/report](https://app.videl.app/#/report), or the Report a Bug page inside the apps
+
+Built with PySide6 (desktop), Flutter (Android) and plain HTML and JavaScript (web app).
 
 ---
 
-## UI
+## Screenshots
 
-![Videl GUI](<new screen gui.png>)
+![Videl desktop app, home screen](<new screen gui.png>)
 
-![App Overview](<app-gui.gif>)
+![Videl desktop app tour](<app-gui.gif>)
+
+---
+
+## Download
+
+- **Windows 10 or later:** [Videl_Setup.exe](https://github.com/darknessth22/media-utilities/releases/latest/download/Videl_Setup.exe)
+- **Linux x86_64** (Ubuntu 22.04+ / glibc 2.35+): [Videl-x86_64.AppImage](https://github.com/darknessth22/media-utilities/releases/latest/download/Videl-x86_64.AppImage)
+- **Android 10 or later** (arm64): [videl-android-arm64-v8a.apk](https://github.com/darknessth22/media-utilities/releases/latest/download/videl-android-arm64-v8a.apk)
+- **Any modern browser:** [app.videl.app](https://app.videl.app), for the everyday tools without installing anything
+
+All builds are on the [Releases](https://github.com/darknessth22/media-utilities/releases/latest) page. The apps update themselves.
 
 ---
 
 ## Features
+
+### Desktop app (Windows and Linux)
+
+**Download**
+- Media Download: videos, audio and whole playlists from YouTube, TikTok, Instagram, X (Twitter), Facebook, Twitch, LinkedIn and 1000+ other sites, with quality and time-range choices
+- Spotify links (track, album or playlist): each song is found on YouTube and saved as an MP3 with title, artist, album and cover art
+
+**Video and audio**
+- Convert, Compress, Trim, Merge, Transform (resize, crop, rotate) and GIF Creator
+- Audio Mixing, Subtitles (burn in SRT, VTT or ASS captions), Jump-Cutter (removes silent gaps)
+- Auto-Chunker (split files by duration or size), Batch Watermark, Metadata Scrubber (strips GPS, timestamps and EXIF)
+
+**AI tools, offline after a one-time download**
+- Vocal Isolator (separates vocals from music)
+- AI Transcript (speech to text in English and Arabic, saved as SRT)
+- AI Upscaler for photos and AI Video Upscaler (Real-ESRGAN, 2x or 4x)
+- AI Photo Restore (colorize, fix faces and upscale old photos)
+- BG Eraser (remove backgrounds, or erase an object or person and fill the gap)
+
+**Images**
+- Image Editor with reusable presets, Frame Grabber, Hex Palette, Pixel Art
+
+**Documents**
+- Document Convert (PDF, DOCX, PPTX and Markdown, with a Markdown viewer)
+- PDF Toolkit (compress, merge, split and extract images)
+
+**Files**
+- Folder Rules (auto-sort and tidy folders), History of past jobs
+
+The interface is available in English and Arabic.
+
+### Android app
+
+The downloader (the same sites, plus Spotify links), Convert, Trim, Crop, GIF, Extract Audio, Mute and History.
+
+### Free online tools in the web app
+
+These run entirely in your browser, so nothing is uploaded and there is nothing to install:
+
+- [Compress video](https://app.videl.app/compress-video)
+- [Convert video and audio to MP4, MP3, WebM and more](https://app.videl.app/convert-video)
+- [Trim video and audio](https://app.videl.app/trim-video)
+- [Video to GIF](https://app.videl.app/video-to-gif)
+- [Merge videos](https://app.videl.app/merge-videos)
+- [Remove or replace audio in a video](https://app.videl.app/remove-audio-from-video)
+- [Merge PDF files](https://app.videl.app/merge-pdf)
+- [Split a PDF](https://app.videl.app/split-pdf)
+- [Rotate PDF pages](https://app.videl.app/rotate-pdf)
+- [JPG to PDF](https://app.videl.app/jpg-to-pdf)
+- [PDF to JPG or PNG](https://app.videl.app/pdf-to-jpg)
+- [Remove the background from an image](https://app.videl.app/remove-background)
+- [Convert, resize and compress images](https://app.videl.app/convert-image)
+- [Pixel art maker](https://app.videl.app/pixel-art-maker)
+- [Color palette generator](https://app.videl.app/color-palette-generator)
+
+---
 
 ## Requirements
 
@@ -75,13 +149,11 @@ python main.py
 
 The Compress / Watermark sections expose a Hardware Acceleration dropdown populated with encoders detected on the current machine.
 
-| Option | Encoder | Requires |
-|---|---|---|
-| None (CPU) | libx264 | Always available |
-| NVIDIA | h264_nvenc | NVIDIA GPU + drivers |
-| AMD | h264_amf | AMD GPU + drivers |
-| Intel | h264_qsv | Intel GPU + drivers |
-| VideoToolbox | h264_videotoolbox | macOS only |
+- **None (CPU):** `libx264`, always available
+- **NVIDIA:** `h264_nvenc`, needs an NVIDIA GPU and drivers
+- **AMD:** `h264_amf`, needs an AMD GPU and drivers
+- **Intel:** `h264_qsv`, needs an Intel GPU and drivers
+- **VideoToolbox:** `h264_videotoolbox`, macOS only
 
 If a job fails after enabling hardware acceleration, switch back to None (CPU). Hardware acceleration only applies to video.
 
@@ -89,7 +161,7 @@ If a job fails after enabling hardware acceleration, switch back to None (CPU). 
 
 ## Cookie Support
 
-Required for Instagram, TikTok, and other authenticated platforms.
+Public posts download without cookies. Cookies are needed for private or age-restricted posts, and when a site asks you to log in.
 
 1. Install the *Get cookies.txt LOCALLY* extension in Chrome/Brave/Edge/Firefox
 2. Log into the target site
@@ -119,5 +191,6 @@ Alternatively, select a browser directly (less reliable).
 
 - `core/version.py` is the single source of truth for the app version
 - `size-budget.json` defines installer/installed size limits — `build_executable.py` fails the build if exceeded by more than 5%
-- Push to `master` triggers CI (pytest) + Build (PyInstaller + Inno Setup → Releases)
-- Tagging `vX.Y.Z` triggers a release artifact upload
+- Pushing to `master` runs CI (pytest) only. Release builds run only on tags: `vX.Y.Z` builds Windows, Linux and Android and publishes the GitHub Release; `android-*` builds Android only
+- Release builds install the exact library versions in `constraints-build.txt`, so updates stay small
+- How Videl is built, how a change ships, and known gotchas: [ARCHITECTURE.md](ARCHITECTURE.md), [WORKFLOW.md](WORKFLOW.md), [LEARNINGS.md](LEARNINGS.md)

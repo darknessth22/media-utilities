@@ -48,6 +48,7 @@ A change is done when every item that applies is true:
 - [ ] New runtime files, dynamic imports or binaries are in `media_util_gui.spec`, and files opened by path use `resource_path`.
 - [ ] New core logic has a test in `tests/unit/`.
 - [ ] Anything non-obvious you learned is a bullet in `LEARNINGS.md`; structural changes are reflected in `ARCHITECTURE.md`.
+- [ ] If the apps or the sites now contact a new service, or bug reports carry or keep new data, `privacy.html` on gh-pages (https://videl.app/privacy) says so, with a new "Last updated" date. It lists every connection Videl makes; a stale line there is a broken promise.
 - [ ] You ran it for real with `python main.py`.
 
 
@@ -140,6 +141,8 @@ npx wrangler deploy          # from the repo root; uses wrangler.jsonc (assets: 
 
 Live at https://app.videl.app. The domain `videl.app` is registered on Cloudflare (same account as the Workers).
 
+**Search pages.** Each tool also has its own address for search engines, such as `/compress-video` and `/merge-pdf`, because Google ignores everything after `#`. They are copies of `web/index.html` written by `python tools/web_tool_pages.py` (which also writes `web/sitemap.xml`, `web/robots.txt` and the footer tool links). **Run it after any change to `web/index.html`** (a `?v=` bump included) and before deploying, or the tool pages keep the old version. The titles, descriptions, how-to steps and questions live in that script; keep them true to what each tool does.
+
 Test locally with `python -m http.server 8765` inside `web/`, then open http://127.0.0.1:8765. Library versions are pinned in `web/vendor/`; the FFmpeg core version is the `CORE` constant in `web/js/engines.js`.
 
 
@@ -148,4 +151,4 @@ Test locally with `python -m http.server 8765` inside `web/`, then open http://1
 - The app compares its `VERSION` with the latest release.
 - **Windows**: downloads only the changed files (the delta updater) and verifies the Ed25519 signature before installing.
 - **Linux**: replaces the AppImage in place after verifying its signature.
-- **Download site**: https://videl.app, served from the `gh-pages` branch (checked out at `../media-utilities-pages`). It links to `/releases/latest/download/<asset>`. After editing it, push the branch **and** run `npx wrangler deploy` inside that folder (Worker `videl-site`). GitHub Pages still serves the same files at the old github.io address, and a script in `index.html` sends those visitors to videl.app, because older app versions open that address. `www.videl.app` redirects to `videl.app` (a Cloudflare redirect rule).
+- **Download site**: https://videl.app, served from the `gh-pages` branch (checked out at `../media-utilities-pages`). It links to `/releases/latest/download/<asset>`. Pushing the branch deploys it to the Worker `videl-site` through `.github/workflows/deploy-site.yml` on that branch, using the repository secret `CLOUDFLARE_API_TOKEN`. That token ("videl-autodepoly" in Cloudflare) has only Workers Scripts Edit and Account Settings Read on the account, plus Workers Routes Edit and Zone Read on videl.app. If the secret is ever missing the run only warns, and `npx wrangler deploy` inside that folder does it by hand. The workflow can also be started from the Actions tab ("Deploy videl.app"). GitHub Pages still serves the same files at the old github.io address, and a script in `index.html` sends those visitors to videl.app, because older app versions open that address. `www.videl.app` redirects to `videl.app` (a Cloudflare redirect rule). The web app does the same for its old `workers.dev` address (script in `web/index.html`, keeping the `#/route`). Both sites serve their own `404.html` for unknown addresses (`not_found_handling: "404-page"` in each wrangler config), carry link-preview tags with a 1200x630 card (`assets/og-card.jpg`; regenerate it if the app's look changes), and link the privacy page (`privacy.html`, served at `/privacy`). Both sites link to each other with the same names ("Web app", "Desktop app", "Report a bug") and open them in the same tab.
