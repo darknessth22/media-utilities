@@ -1,10 +1,13 @@
 // Videl web app (web/) on Cloudflare Workers static assets.
 // Deploy from the repo root:  npx wrangler deploy
-// Live at https://videl-web.mostafafares080.workers.dev
+// Live at https://app.videl.app (also https://videl-web.mostafafares080.workers.dev)
 {
   "name": "videl-web",
   "compatibility_date": "2026-11-13",
   "assets": {
     "directory": "web"
-  }
+  },
+  "routes": [{ "pattern": "app.videl.app", "custom_domain": true }],
+  // Keep the old address alive: old links and bookmarks still point at it.
+  "workers_dev": true
 }

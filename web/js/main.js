@@ -8,7 +8,7 @@ let cleanup = null;
 let pendingFiles = [];
 let firstPaint = true;
 
-const DESKTOP_URL = "https://darknessth22.github.io/media-utilities/";
+const DESKTOP_URL = "https://videl.app/";
 const LIVE_TOOLS = TOOLS.filter((t) => !t.soon);
 
 // Desktop-only features, with the desktop app's own icons and colours.
