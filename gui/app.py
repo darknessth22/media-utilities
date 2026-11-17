@@ -3362,7 +3362,12 @@ class MainWindow(QMainWindow):
         )
 
     def _paste_url_from_clipboard(self) -> None:
-        """Paste a URL from the clipboard into the download section's URL field."""
+        """Ctrl+V outside a text field: a screenshot on a page that takes one
+        (the bug reporter), otherwise a URL for the download section."""
+        page = self._content_stack.currentWidget()
+        if hasattr(page, "paste_screenshot"):
+            page.paste_screenshot()
+            return
         from PySide6.QtWidgets import QApplication
         text = QApplication.clipboard().text().strip()
         if text and (text.startswith("http://") or text.startswith("https://")):

@@ -7,9 +7,10 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 
 import '../../core/theme/videl_theme.dart';
+import '../../core/update_checker.dart' show kAppVersion;
 
-// Reports go to the Videl Cloudflare Worker (tools/bug_relay/), which holds the
-// mail key server-side. Never compile a mail-service key into the APK: anything
+// Reports go to the Videl Cloudflare Worker (tools/bug_relay/), which sends the
+// email server-side. Never compile a mail-service key into the APK: anything
 // in a public build can be extracted.
 const _relayUrl = 'https://videl-bug-relay.mostafafares080.workers.dev/report';
 
@@ -110,7 +111,11 @@ class _BugReporterPageState extends State<BugReporterPage> {
       final resp = await http
           .post(
             Uri.parse(_relayUrl),
-            headers: {'Content-Type': 'application/json'},
+            // The relay shows this as "Sent from" in the email.
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'Videl-Android/$kAppVersion',
+            },
             body: jsonEncode(payload),
           )
           .timeout(const Duration(seconds: 30));

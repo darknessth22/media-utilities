@@ -46,6 +46,7 @@ The user preference behind several of these: **enrich the feature that was named
 
 ## Qt / GUI
 
+- **Ctrl+V outside a text field never reaches the page**: the window-wide `paste_url` shortcut takes it. Pages that want a paste get it through that handler: `_paste_url_from_clipboard` calls the current page's `paste_screenshot()` if it has one (the bug reporter does). Inside a text field the field consumes Ctrl+V first, so the bug reporter catches it with an event filter, and only when the clipboard holds an image and no text, so text pasting is untouched.
 - **A `QShortcut` never fires while minimised**, in any context. Anything that must work from the tray needs an OS hotkey (`core/hotkey.py`, `RegisterHotKey`).
 - `RegisterHotKey` claims a combination **exclusively** across the whole OS. Global = Ctrl+Shift+B, in-app = Ctrl+B. A global hotkey must **not** restore the window.
 - **Never `grabMouse()`/`grabKeyboard()` on an overlay.** The grab is system-wide; a missed release froze the whole desktop.
