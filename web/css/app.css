@@ -553,6 +553,8 @@ p { margin: 0; }
   min-height: 40px; padding: 0 16px; margin-right: 12px; border-radius: 999px; cursor: pointer;
   border: 1px solid var(--line); background: var(--panel-2); color: var(--paper); font: 600 var(--t-sm) var(--ui);
 }
+.shot-preview { display: block; max-width: min(320px, 100%); max-height: 200px; margin-top: 12px; border-radius: 10px; border: 1px solid var(--line); }
+.shot-preview[hidden] { display: none; }
 .report-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 24px; }
 .report-status { color: var(--muted); font-size: var(--t-sm); }
 .report-status.is-error { color: var(--danger); }
@@ -560,6 +562,21 @@ p { margin: 0; }
 .status a { color: var(--ribbon-light); }
 
 /* Footer -------------------------------------------------------------------------- */
+/* How-to and questions under a tool, on its search page (/compress-video and so on). */
+.seo-copy { width: 100%; padding-top: 40px; padding-bottom: 64px; }   /* full width, aligned with the tool above */
+.seo-copy > * { max-width: 760px; }
+.seo-copy h2 { font-size: clamp(1.3rem, 2.2vw, 1.6rem); margin: 0 0 14px; }
+.seo-copy h2 + * { margin-top: 0; }
+.seo-copy ol { margin: 0 0 40px; padding-left: 1.3em; color: var(--muted); line-height: 1.7; }
+.seo-copy li + li { margin-top: 6px; }
+.seo-copy details { border-top: 1px solid var(--line); padding: 14px 0; }
+.seo-copy details:last-child { border-bottom: 1px solid var(--line); }
+.seo-copy summary { cursor: pointer; font-weight: 600; min-height: 24px; }
+.seo-copy details p { margin: 10px 0 0; color: var(--muted); line-height: 1.65; }
+.foot-tools ul { max-width: var(--max); margin: 0 auto; padding: 22px var(--gutter) 0; list-style: none;
+  display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: var(--t-sm); }
+.foot-tools a { color: var(--muted); text-decoration: none; }
+.foot-tools a:hover, .foot-tools a[aria-current] { color: var(--paper); text-decoration: underline; }
 .foot { border-top: 1px solid var(--line); background: color-mix(in srgb, var(--ink) 60%, transparent); }
 .foot p { max-width: var(--max); margin: 0 auto; padding: 22px var(--gutter); color: var(--muted); font-size: var(--t-sm); }
 

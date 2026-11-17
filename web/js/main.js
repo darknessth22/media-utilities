@@ -61,8 +61,14 @@ function mostUsed(n = 6) {
 }
 
 // Routing ------------------------------------------------------------------------------
+// Search pages such as /compress-video (made by tools/web_tool_pages.py) name their tool
+// on <html data-tool>. With no #route they open it and keep their own <title>, because
+// search engines ignore everything after "#".
+const START_TOOL = document.documentElement.dataset.tool || "";
+
 function route() {
-  const [, kind, id] = location.hash.replace(/^#/, "").split("/");
+  const hash = location.hash.replace(/^#/, "");
+  const [, kind, id] = (hash || (START_TOOL ? `/tool/${START_TOOL}` : "")).split("/");
   cleanup?.();
   cleanup = null;
   const tool = kind === "tool" ? toolById(id) : null;
@@ -75,8 +81,10 @@ function route() {
   for (const a of document.querySelectorAll("[data-nav]")) {
     if (a.dataset.nav === page) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
-  document.title = tool ? `${tool.name} — Videl` : page === "tools" ? "All tools — Videl"
-    : page === "report" ? "Report a bug — Videl" : "Videl — media tools in your browser";
+  if (hash || !START_TOOL) {
+    document.title = tool ? `${tool.name} — Videl` : page === "tools" ? "All tools — Videl"
+      : page === "report" ? "Report a bug — Videl" : "Videl — free video, PDF and image tools in your browser";
+  }
   if (!firstPaint) { window.scrollTo(0, 0); main.focus({ preventScroll: true }); }
   firstPaint = false;
 }

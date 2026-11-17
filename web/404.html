@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Page not found — Videl</title>
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,700..800&family=Geist:wght@400;500;600&display=swap">
+  <style>
+    :root { --ink:#05070F; --paper:#E7ECF5; --muted:#A3AFC6; --line:#1E2D45; --ribbon:#3B7BFF; --ribbon-deep:#2563EB; }
+    @media (prefers-color-scheme: light) { :root { --ink:#F3F6FC; --paper:#0C1528; --muted:#4A5873; --line:#D5DDEB; } }
+    * { box-sizing: border-box; margin: 0; }
+    body { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; background: var(--ink); color: var(--paper);
+           font-family: 'Geist', system-ui, sans-serif; overflow-x: hidden; }
+    body::before { content: ""; position: fixed; inset: -25% auto auto -20%; width: 70vw; height: 70vw; border-radius: 50%;
+                   background: radial-gradient(circle, rgba(29,78,216,.32), transparent 65%); pointer-events: none; }
+    main { position: relative; max-width: 520px; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; font: 800 22px 'Bricolage Grotesque', sans-serif; margin-bottom: 40px; }
+    .brand img { height: 27px; }
+    .code { font-size: 14px; font-weight: 600; color: var(--muted); }
+    h1 { margin-top: 8px; font: 800 clamp(2.2rem, 7vw, 3.4rem)/1.05 'Bricolage Grotesque', sans-serif; font-stretch: 82%; letter-spacing: -.02em; }
+    p { margin-top: 16px; color: var(--muted); line-height: 1.6; font-size: 17px; }
+    .actions { margin-top: 32px; display: flex; flex-wrap: wrap; gap: 12px; }
+    .btn { display: inline-flex; align-items: center; min-height: 46px; padding: 0 22px; border-radius: 999px; font-weight: 600;
+           text-decoration: none; color: inherit; border: 1px solid var(--line); }
+    .btn:hover { border-color: var(--ribbon); }
+    .primary { background: var(--ribbon-deep); border-color: var(--ribbon-deep); color: #fff; }
+    .primary:hover { background: var(--ribbon); }
+    a:focus-visible { outline: 2px solid var(--ribbon); outline-offset: 3px; }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="brand" href="/" aria-label="Videl home"><img src="/assets/videl-logo.png" alt="">Videl</a>
+    <div class="code">404</div>
+    <h1>Page not found</h1>
+    <p>There's nothing at this address. The link may have a typo, or the page may have moved. All the tools are one click away.</p>
+    <div class="actions">
+      <a class="btn primary" href="/#/tools">See all tools</a>
+      <a class="btn" href="/">Go to the home page</a>
+    </div>
+  </main>
+</body>
+</html>

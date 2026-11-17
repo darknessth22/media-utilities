@@ -2,16 +2,36 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <script>
+    // The old workers.dev address still serves these files; send visitors to the
+    // real one, keeping the #/route. (Assets such as the email logo still load there.)
+    if (location.hostname.endsWith("workers.dev"))
+      location.replace("https://app.videl.app/" + location.search + location.hash);
+  </script>
+  <link rel="canonical" href="https://app.videl.app/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Videl — media tools in your browser</title>
-  <meta name="description" content="Convert, trim, compress and combine video, PDFs and images in your browser. Files never leave your device.">
+  <title>Videl — free video, PDF and image tools in your browser</title>
+  <meta name="description" content="Free online tools to compress, convert, trim and merge videos, merge and split PDFs, and remove image backgrounds. Everything runs in your browser, so your files never leave your device.">
   <meta name="theme-color" content="#05070F">
-  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Videl","alternateName":"Videl web app","url":"https://app.videl.app/"}</script>
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <meta property="og:site_name" content="Videl">
+  <meta property="og:title" content="Videl — free video, PDF and image tools in your browser">
+  <meta property="og:description" content="Convert, trim, compress and combine video, PDFs and images in your browser. Your files never leave your device.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://app.videl.app/">
+  <meta property="og:image" content="https://app.videl.app/assets/og-card.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Videl web app: media tools in your browser, with a screenshot of the tools page">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=Geist:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="css/app.css?v=8">
-  <script type="module" src="js/main.js?v=8"></script>
+  <link rel="stylesheet" href="css/app.css?v=11">
+  <script type="module" src="js/main.js?v=10"></script>
 </head>
 <body>
   <div class="backdrop" aria-hidden="true"><i class="glow glow-a"></i><i class="glow glow-b"></i></div>
@@ -37,7 +57,10 @@
   <main id="main" tabindex="-1"></main>
 
   <footer class="foot">
-    <p>Files are processed on your device and never uploaded. The desktop app adds the downloader, AI upscaling, vocal isolation, transcripts and more.</p>
+    <!-- tool-links: written by tools/web_tool_pages.py -->
+    <nav class="foot-tools" aria-label="All tools"><ul><li><a href="/compress-video">Compress video</a></li><li><a href="/convert-video">Convert video and audio</a></li><li><a href="/trim-video">Trim video and audio</a></li><li><a href="/video-to-gif">Video to GIF</a></li><li><a href="/merge-videos">Merge videos</a></li><li><a href="/remove-audio-from-video">Remove or replace audio in a video</a></li><li><a href="/merge-pdf">Merge PDF files</a></li><li><a href="/split-pdf">Split a PDF</a></li><li><a href="/rotate-pdf">Rotate PDF pages</a></li><li><a href="/jpg-to-pdf">Images to PDF</a></li><li><a href="/pdf-to-jpg">PDF to JPG or PNG</a></li><li><a href="/remove-background">Remove the background from an image</a></li><li><a href="/convert-image">Convert, resize and compress images</a></li><li><a href="/pixel-art-maker">Pixel art maker</a></li><li><a href="/color-palette-generator">Colour palette from an image</a></li></ul></nav>
+    <!-- /tool-links -->
+    <p>Files are processed on your device and never uploaded. The desktop app adds the downloader, AI upscaling, vocal isolation, transcripts and more. <a href="https://videl.app/privacy">Privacy</a></p>
   </footer>
 
   <div class="sr-only" aria-live="polite" id="live"></div>

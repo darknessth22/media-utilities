@@ -53,7 +53,8 @@ export function renderWorkspace(main, tool, initialFiles = []) {
       h("a", { class: "btn btn-icon btn-quiet back", href: "#/tools", "aria-label": "All tools", html: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>' }),
       icon(tool.icon),
       h("div", { class: "ws-title" },
-        h("h1", {}, tool.name),
+        // A tool's search page (/compress-video) gives it a fuller heading, "Compress video".
+        h("h1", {}, (document.documentElement.dataset.tool === tool.id && document.documentElement.dataset.h1) || tool.name),
         h("p", {}, tool.blurb),
         h("p", { class: "ws-io" }, h("span", {}, h("em", {}, "Takes "), tool.takes), h("span", {}, h("em", {}, "Gives "), tool.gives))),
       steps),

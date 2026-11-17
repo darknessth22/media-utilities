@@ -27,7 +27,8 @@ export function renderReport(main) {
     placeholder: "What did you do, what did you expect, and what happened instead?" },
     prefill ? `Tool: ${prefill.toolName}\nError: ${prefill.message}\n\nWhat I did:\n` : "");
   const email = h("input", { id: "r-email", type: "email", autocomplete: "email", placeholder: "you@example.com" });
-  const shot = h("input", { id: "r-shot", type: "file", accept: SHOT_TYPES.join(",") });
+  const shot = h("input", { id: "r-shot", type: "file", accept: SHOT_TYPES.join(","), onchange: showPreview });
+  const preview = h("img", { class: "shot-preview", alt: "The screenshot that will be sent", hidden: true });
   const send = h("button", { class: "btn btn-primary btn-lg", type: "submit" }, "Send report");
   const status = h("p", { class: "report-status", role: "status" });
 
@@ -35,14 +36,40 @@ export function renderReport(main) {
     field("r-type", "Type of problem", type),
     field("r-title", "Title", title),
     field("r-desc", "What happened", desc),
-    field("r-email", "Your email (optional)", email, "Only used to reply to you about this report."),
-    field("r-shot", "Screenshot (optional)", shot, "PNG, JPG or WebP, up to 5 MB."),
+    field("r-email", "Your email (optional)", email, "We'll send you a short confirmation, and only use it to reply about this report."),
+    field("r-shot", "Screenshot (optional)", h("div", {}, shot, preview), "PNG, JPG or WebP, up to 5 MB. You can also paste one you just copied with Ctrl+V."),
     h("div", { class: "report-actions" }, send, status));
 
   main.replaceChildren(h("div", { class: "wrap report" },
     h("h1", {}, "Report a bug"),
     h("p", { class: "cat-lede" }, "Tell us what went wrong. The report goes straight to the Videl team. Your files are never sent, only what you write here and the screenshot, if you add one."),
     form));
+  document.addEventListener("paste", onPaste);
+
+  // Ctrl+V anywhere on the page takes a copied screenshot. In a text box, a
+  // clipboard that also holds text is left alone so ordinary pasting still works.
+  async function onPaste(e) {
+    if (!form.isConnected) return document.removeEventListener("paste", onPaste);   // left the page
+    const item = [...e.clipboardData.items].find((i) => i.kind === "file" && i.type.startsWith("image/"));
+    if (!item) return;
+    if (e.clipboardData.types.includes("text/plain") && e.target.closest?.("input, textarea")) return;
+    e.preventDefault();
+    let file = item.getAsFile();
+    // Screenshots arrive as PNG; a full 4K one can pass the 5 MB limit, so re-encode those.
+    if (!SHOT_TYPES.includes(file.type) || file.size > MAX_SHOT) file = await toJpeg(file);
+    const dt = new DataTransfer();
+    dt.items.add(new File([file], `pasted-screenshot.${file.type === "image/jpeg" ? "jpg" : "png"}`, { type: file.type }));
+    shot.files = dt.files;
+    showPreview();
+    setStatus("Screenshot pasted.");
+  }
+
+  function showPreview() {
+    const file = shot.files[0];
+    if (preview.src) URL.revokeObjectURL(preview.src);
+    preview.hidden = !file;
+    if (file) preview.src = URL.createObjectURL(file);
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -88,6 +115,14 @@ export function renderReport(main) {
 
 function field(id, label, control, hint) {
   return h("div", { class: "field" }, h("label", { for: id }, label), control, hint ? h("span", { class: "hint" }, hint) : null);
+}
+
+async function toJpeg(file) {
+  const bitmap = await createImageBitmap(file);
+  const canvas = Object.assign(document.createElement("canvas"), { width: bitmap.width, height: bitmap.height });
+  canvas.getContext("2d").drawImage(bitmap, 0, 0);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+  return new File([blob], "pasted-screenshot.jpg", { type: "image/jpeg" });
 }
 
 function base64(file) {

@@ -5,7 +5,8 @@
   "name": "videl-web",
   "compatibility_date": "2026-11-13",
   "assets": {
-    "directory": "web"
+    "directory": "web",
+    "not_found_handling": "404-page"
   },
   "routes": [{ "pattern": "app.videl.app", "custom_domain": true }],
   // Keep the old address alive: old links and bookmarks still point at it.
