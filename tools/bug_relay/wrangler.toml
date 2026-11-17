@@ -16,3 +16,9 @@ simple = { limit = 5, period = 60 }
 [[send_email]]
 name = "EMAIL"
 destination_address = "videl.support@gmail.com"
+
+# One confirmation email per reporter address per day. Keys are SHA-256 hashes
+# of the address, never the address itself, and expire after 24 hours.
+[[kv_namespaces]]
+binding = "CONFIRMATIONS"
+id = "cff1cc0461ef42a78b2b5f1c59bb0a4b"
