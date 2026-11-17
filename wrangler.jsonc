@@ -7,7 +7,7 @@
   "name": "videl-site",
   "account_id": "20f3a38fbdebfcdda8f82c766faf6ce8",
   "compatibility_date": "2026-11-13",
-  "assets": { "directory": "." },
+  "assets": { "directory": ".", "not_found_handling": "404-page" },
   "routes": [{ "pattern": "videl.app", "custom_domain": true }],
   "workers_dev": false
 }

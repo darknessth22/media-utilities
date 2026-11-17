@@ -11,14 +11,22 @@
 <link rel="canonical" href="https://videl.app/">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache">
-<title>Videl | The All-in-One Media Workstation</title>
-<meta name="description" content="Offline media workstation for Windows &amp; Linux. AI vocal isolation, video downloader, image upscaler, jump-cutter, PDF suite — 25+ tools, 100% local.">
-<link rel="icon" type="image/png" href="assets/videl_icon.png?v=2026-05-18">
-<meta property="og:title" content="Videl — The All-in-One Media Workstation">
-<meta property="og:description" content="25+ integrated media tools for Windows &amp; Linux. Demucs v4 vocals, Real-ESRGAN upscaling, jump-cut auto-silence removal, PDF suite. 100% offline.">
+<title>Videl: Free Video Downloader and Media Toolkit for PC and Android</title>
+<meta name="description" content="Free media workstation for Windows, Linux and Android. AI vocal isolation, video downloader, image upscaler, jump-cutter, PDF suite: 25+ tools that run on your own device.">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192.png">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Videl","url":"https://videl.app/"}</script>
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta property="og:site_name" content="Videl">
+<meta property="og:title" content="Videl: free video downloader and media toolkit for PC and Android">
+<meta property="og:description" content="25+ media tools for Windows, Linux and Android: AI vocal isolation, upscaling, downloads, PDF tools and more. Runs on your own device.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://videl.app/">
-<meta property="og:image" content="assets/videl_logo.png?v=2026-05-18">
+<meta property="og:image" content="https://videl.app/assets/og-card.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Videl, the all-in-one media workstation, with a screenshot of the desktop app">
+<meta name="twitter:card" content="summary_large_image">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -362,7 +370,9 @@ footer{
 }
 footer a{color:var(--muted-2); text-decoration:none; transition:color .2s}
 footer a:hover{color:var(--text)}
-.footer-links{display:flex; gap:24px}
+.footer-links{display:flex; flex-wrap:wrap; gap:12px 24px}
+.footer-tools{flex-basis:100%; display:flex; flex-wrap:wrap; gap:8px 20px; padding-bottom:20px; margin-bottom:4px; border-bottom:1px solid var(--border)}
+.footer-tools span{color:var(--muted)}
 
 /* ─── Skeleton ─────────────────────────────────────────────── */
 @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
@@ -417,7 +427,7 @@ footer a:hover{color:var(--text)}
 
 <section class="hero" id="download">
   <img src="assets/videl_logo.png" alt="Videl Logo" class="hero-logo">
-  <div class="hero-badge"><span class="live"></span>Free &amp; Open Source · Windows &amp; Linux</div>
+  <div class="hero-badge"><span class="live"></span>Free &amp; Open Source · Windows, Linux &amp; Android</div>
   <h1>The All-in-One<br>Media Workstation</h1>
   <p>25+ integrated tools for video, audio, image, and PDF — powered by Demucs v4, Real-ESRGAN, FFmpeg, and PyMuPDF. Runs entirely on your machine.</p>
 
@@ -537,8 +547,11 @@ footer a:hover{color:var(--text)}
 </section>
 
 <footer>
-  <span>© 2025 Videl. All rights reserved.</span>
+  <div class="footer-tools"><span>Free online tools, no install:</span><a href="https://app.videl.app/compress-video">Compress video</a><a href="https://app.videl.app/convert-video">Convert video to MP4 or MP3</a><a href="https://app.videl.app/video-to-gif">Video to GIF</a><a href="https://app.videl.app/trim-video">Trim video</a><a href="https://app.videl.app/merge-pdf">Merge PDF</a><a href="https://app.videl.app/jpg-to-pdf">JPG to PDF</a><a href="https://app.videl.app/remove-background">Remove image background</a><a href="https://app.videl.app/convert-image">Resize and convert images</a></div>
+  <span>© <span id="year">2026</span> Videl. All rights reserved.</span>
+  <script>document.getElementById("year").textContent = new Date().getFullYear();</script>
   <div class="footer-links">
+    <a href="/privacy">Privacy</a>
     <a href="https://github.com/darknessth22/media-utilities" target="_blank" rel="noopener">GitHub</a>
     <a href="https://github.com/darknessth22/media-utilities/releases" target="_blank" rel="noopener">Releases</a>
     <a href="https://app.videl.app/#/report">Report a bug</a>

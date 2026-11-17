@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script>
+  if (location.hostname.endsWith("github.io")) location.replace("https://videl.app/privacy");
+</script>
+<link rel="canonical" href="https://videl.app/privacy">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy | Videl</title>
+<meta name="description" content="What Videl sends over the internet and when: your files stay on your device, there are no accounts or analytics, and bug reports only include what you choose to send.">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192.png">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#05070f; --text:#f1f5f9; --body:#cbd5e1; --muted:#94a3b8; --blue:#0D6EFD; --link:#9DBBFF; --border:#1e2d45; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--body); font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 17px; line-height: 1.7; overflow-x: hidden; }
+  body::before { content: ""; position: fixed; inset: -30% auto auto -25%; width: 70vw; height: 70vw; border-radius: 50%;
+                 background: radial-gradient(circle, rgba(29,78,216,.28), transparent 65%); pointer-events: none; z-index: -1; }
+  header, main, footer { max-width: 760px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+  @media (min-width: 640px) { header, main, footer { padding-left: 32px; padding-right: 32px; } }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 22px; padding-bottom: 22px; }
+  header img { height: 32px; display: block; }
+  header nav { display: flex; gap: 20px; font-size: 15px; }
+  a { color: var(--link); }
+  header nav a { color: var(--muted); text-decoration: none; }
+  header nav a:hover { color: var(--text); }
+  a:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; border-radius: 4px; }
+  main { padding-top: 32px; padding-bottom: 64px; }
+  h1 { color: var(--text); font-size: clamp(2.2rem, 6vw, 3.2rem); font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+  .updated { margin-top: 10px; color: var(--muted); font-size: 15px; }
+  .lede { margin-top: 24px; font-size: 19px; color: var(--text); max-width: 62ch; }
+  h2 { margin-top: 48px; color: var(--text); font-size: 1.35rem; font-weight: 700; letter-spacing: -.01em; }
+  h3 { margin-top: 24px; color: var(--text); font-size: 1.05rem; font-weight: 600; }
+  p, ul { margin-top: 12px; max-width: 66ch; }
+  ul { padding-left: 1.2em; }
+  li + li { margin-top: 8px; }
+  strong { color: var(--text); font-weight: 600; }
+  code { font-family: ui-monospace, Consolas, Menlo, monospace; font-size: .9em; color: var(--text); }
+  footer { border-top: 1px solid var(--border); padding-top: 24px; padding-bottom: 40px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/" aria-label="Videl home"><img src="/assets/videl_logo.png" alt="Videl"></a>
+  <nav aria-label="Main">
+    <a href="/">Download</a>
+    <a href="https://app.videl.app/">Web app</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Privacy</h1>
+  <p class="updated">Last updated 17 November 2026</p>
+  <p class="lede">Videl is built so your files stay on your device. This page explains exactly what leaves it, and when.</p>
+
+  <h2>Your files</h2>
+  <ul>
+    <li>The desktop and Android apps process your files on your device. They are never uploaded to us.</li>
+    <li>The web app at app.videl.app processes your files inside your browser. They are never uploaded either.</li>
+    <li>There are no accounts, no ads, no analytics and no tracking cookies.</li>
+  </ul>
+
+  <h2>When the apps go online</h2>
+  <p>The desktop and Android apps only connect to the internet to:</p>
+  <ul>
+    <li><strong>Check for and download updates</strong>, from GitHub.</li>
+    <li><strong>Install optional AI components</strong>, only when you choose to, from GitHub, PyPI (Python packages) and Hugging Face (AI models).</li>
+    <li><strong>Download media</strong> from the links you give the downloader, directly from those sites. For a Spotify link, the app reads Spotify's public page for the track names and finds the songs on YouTube.</li>
+    <li><strong>Send a bug report</strong>, when you press Send (see below).</li>
+  </ul>
+  <p>Like any download, these services see your IP address, and their own privacy policies apply. The Videl browser extension only talks to the Videl app on your own computer.</p>
+
+  <h2>The websites</h2>
+  <ul>
+    <li>videl.app and app.videl.app are hosted by Cloudflare, which handles connection data such as your IP address to deliver the pages and protect them from abuse.</li>
+    <li>Fonts come from Google Fonts, and the web app's video engine (FFmpeg) loads from jsDelivr. Your browser contacts them directly when it fetches these files.</li>
+    <li>The download page asks GitHub for the latest version number, and the installers download from GitHub.</li>
+    <li>The web app remembers how often you use each tool, in your browser's own storage, so your most used tools come first. This never leaves your device. Clearing the site's data removes it.</li>
+  </ul>
+
+  <h2>Bug reports</h2>
+  <h3>What is sent</h3>
+  <p>Only when you press Send in the bug reporter:</p>
+  <ul>
+    <li>The type, title and description you write, and a screenshot if you add one.</li>
+    <li>Your email address, only if you enter it.</li>
+    <li>Where the report came from: the app version and operating system, or your browser's name and version in the web app.</li>
+  </ul>
+  <h3>Where it goes</h3>
+  <p>The report travels through our relay on Cloudflare to the Videl support inbox, a Gmail account. Your IP address is used only to limit how many reports can be sent per minute. It isn't stored with the report.</p>
+  <h3>If you enter your email</h3>
+  <p>We send you one short confirmation with a reference number, through Resend, an email delivery service, and we may reply to you from the support inbox. To send at most one confirmation a day per address, a scrambled one-way form of your address (a hash) is kept for 24 hours and then deleted automatically.</p>
+  <h3>How long reports are kept</h3>
+  <p>Reports stay in the support inbox for as long as they help us fix problems. To have yours deleted, email <a href="mailto:videl.support@gmail.com">videl.support@gmail.com</a> with its reference number (it looks like <code>VB-7K2Q9D</code>).</p>
+
+  <h2>Contact</h2>
+  <p>Questions about this page or your data: <a href="mailto:videl.support@gmail.com">videl.support@gmail.com</a>. If anything here changes, we'll update this page and the date at the top.</p>
+</main>
+
+<footer>
+  © <span id="year">2026</span> Videl · <a href="/">Download</a> · <a href="https://app.videl.app/">Web app</a> · <a href="https://app.videl.app/#/report">Report a bug</a>
+  <script>document.getElementById("year").textContent = new Date().getFullYear();</script>
+</footer>
+</body>
+</html>
