@@ -1,0 +1,5 @@
+.git
+.wrangler
+wrangler.jsonc
+.assetsignore
+.nojekyll

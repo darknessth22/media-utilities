@@ -2,6 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>
+  // This file is also served by GitHub Pages at the old address, which older
+  // Videl versions still open. Send those visitors to the real home.
+  if (location.hostname.endsWith("github.io"))
+    location.replace("https://videl.app/" + location.search + location.hash);
+</script>
+<link rel="canonical" href="https://videl.app/">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache">
 <title>Videl | The All-in-One Media Workstation</title>
@@ -10,6 +17,7 @@
 <meta property="og:title" content="Videl — The All-in-One Media Workstation">
 <meta property="og:description" content="25+ integrated media tools for Windows &amp; Linux. Demucs v4 vocals, Real-ESRGAN upscaling, jump-cut auto-silence removal, PDF suite. 100% offline.">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://videl.app/">
 <meta property="og:image" content="assets/videl_logo.png?v=2026-05-18">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -395,7 +403,7 @@ footer a:hover{color:var(--text)}
     <li><a href="#highlights">Highlights</a></li>
     <li><a href="#tech">Stack</a></li>
     <li><a href="https://github.com/darknessth22/media-utilities" target="_blank" rel="noopener">GitHub</a></li>
-    <li class="nav-keep"><a href="https://videl-web.mostafafares080.workers.dev/" class="nav-web" target="_blank" rel="noopener" title="Use Videl in your browser" aria-label="Videl web app">
+    <li class="nav-keep"><a href="https://app.videl.app/" class="nav-web" target="_blank" rel="noopener" title="Use Videl in your browser" aria-label="Videl web app">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
       <span>Web app</span>
     </a></li>
