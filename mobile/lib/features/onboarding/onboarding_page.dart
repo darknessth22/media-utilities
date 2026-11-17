@@ -32,7 +32,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       icon: Icons.cloud_download_rounded,
       title: 'Universal Downloader',
       body:
-          'Grab videos and audio from YouTube, TikTok, Instagram, X, Facebook and 1000+ sites — all offline, no accounts.',
+          'Grab videos and audio from YouTube, TikTok, Instagram, X, Facebook and 1000+ sites, and songs from Spotify links. No accounts needed.',
     ),
     _Slide(
       icon: Icons.high_quality_rounded,

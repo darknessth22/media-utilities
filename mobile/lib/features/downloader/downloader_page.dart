@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:video_player/video_player.dart';
 
@@ -32,6 +33,10 @@ class _DownloaderPageState extends State<DownloaderPage>
   int _duration = 0; // seconds
   String _streamUrl = ''; // direct stream URL for preview
   List<Map<String, dynamic>> _formats = [];
+  // Songs of a Spotify link (videl_dl.spotify_tracks): each one is found on
+  // YouTube and saved as a tagged MP3, like the desktop app does.
+  List<Map<String, dynamic>> _spotify = [];
+  String _songLabel = ''; // "Song 2 of 12" while a Spotify list downloads
 
   // Time range
   bool _useRange = false;
@@ -57,7 +62,7 @@ class _DownloaderPageState extends State<DownloaderPage>
       final speed = e['speed'] ?? '';
       setState(() {
         _pct = pct;
-        _status = 'Downloading · $speed';
+        _status = _songLabel.isEmpty ? 'Downloading · $speed' : '$_songLabel · $speed';
       });
       PythonRunner.fgUpdate(
           title: _title.isEmpty ? 'Videl' : _title,
@@ -141,14 +146,10 @@ class _DownloaderPageState extends State<DownloaderPage>
 
   bool _isAudio(Map<String, dynamic> f) =>
       f['vcodec'] == 'none' && f['acodec'] != 'none';
-  bool _isVideo(Map<String, dynamic> f) {
-    final v = f['vcodec'];
-    return v != null && v != '' && v != 'none';
-  }
-  bool _hasAudio(Map<String, dynamic> f) {
-    final a = f['acodec'];
-    return a != null && a != '' && a != 'none';
-  }
+  // A missing codec means "unknown", not "absent": X labels none of its MP4s,
+  // which already carry sound. Only an explicit 'none' rules a stream out.
+  bool _isVideo(Map<String, dynamic> f) => f['vcodec'] != 'none';
+  bool _hasAudio(Map<String, dynamic> f) => f['acodec'] != 'none';
 
   List<Map<String, dynamic>> _visible() {
     final list = _formats
@@ -166,6 +167,7 @@ class _DownloaderPageState extends State<DownloaderPage>
       _busy = true;
       _status = 'Fetching formats...';
       _formats = [];
+      _spotify = [];
       _useRange = false;
       _previewCtrl?.dispose();
       _previewCtrl = null;
@@ -181,8 +183,12 @@ class _DownloaderPageState extends State<DownloaderPage>
         _rangeEnd = dur.toDouble();
         _formats = List<Map<String, dynamic>>.from(
             (res['formats'] as List).map((e) => Map<String, dynamic>.from(e)));
-        _status = 'Pick a format to download';
+        _spotify = _songsFrom(res);
+        _status = _spotify.isEmpty
+            ? 'Pick a format to download'
+            : '${_spotify.length} song${_spotify.length == 1 ? '' : 's'} from Spotify. Tap Best MP3 to save ${_spotify.length == 1 ? 'it' : 'them'}.';
       });
+      if (_spotify.isNotEmpty) _tab.animateTo(1);
     } catch (e) {
       _showError(e);
     } finally {
@@ -249,10 +255,21 @@ class _DownloaderPageState extends State<DownloaderPage>
         ]);
         final vPath = results[0];
         final aPath = results[1];
-        setState(() => _status = 'Merging streams...');
-        out = await FfmpegRunner.mux(vPath, aPath);
-        try { File(vPath).deleteSync(); } catch (_) {}
-        try { File(aPath).deleteSync(); } catch (_) {}
+        // Only a video-only part ("….video.<ext>", see videl_dl.py) needs the audio.
+        // Otherwise the video already has sound: no audio stream at all (most X
+        // posts), or the best video was a file with sound built in.
+        final videoOnly = vPath.contains(RegExp(r'\.video\.[^./\\]+$'));
+        if (aPath.isEmpty || !videoOnly) {
+          out = vPath;
+          if (aPath.isNotEmpty) {
+            try { File(aPath).deleteSync(); } catch (_) {}
+          }
+        } else {
+          setState(() => _status = 'Merging streams...');
+          out = await FfmpegRunner.mux(vPath, aPath);
+          try { File(vPath).deleteSync(); } catch (_) {}
+          try { File(aPath).deleteSync(); } catch (_) {}
+        }
       }
       if (_useRange) {
         setState(() => _status = 'Trimming...');
@@ -290,6 +307,10 @@ class _DownloaderPageState extends State<DownloaderPage>
       setState(() => _status = 'Downloading audio...');
       String src = await PythonRunner.ytdlpDownload(
           url: url, outDir: dir, format: fmt);
+      if (src.isEmpty) {
+        // No audio-only stream (most X posts): take the video, the MP3 step keeps only its sound.
+        src = await PythonRunner.ytdlpDownload(url: url, outDir: dir, format: 'b');
+      }
       if (_useRange) {
         setState(() => _status = 'Trimming...');
         final trimmed = await FfmpegRunner.trim(src, _rangeStart, _rangeEnd);
@@ -309,8 +330,110 @@ class _DownloaderPageState extends State<DownloaderPage>
     }
   }
 
-  void _download(Map<String, dynamic>? f) =>
-      _filter == _Filter.audio ? _downloadAudio(f) : _downloadVideo(f);
+  void _download(Map<String, dynamic>? f) {
+    if (_isSpotify(_urlCtrl.text)) {
+      _downloadSpotify();
+    } else if (_filter == _Filter.audio) {
+      _downloadAudio(f);
+    } else {
+      _downloadVideo(f);
+    }
+  }
+
+  bool _isSpotify(String url) => url.contains('open.spotify.com/');
+
+  List<Map<String, dynamic>> _songsFrom(Map<String, dynamic> res) =>
+      List<Map<String, dynamic>>.from(((res['spotify'] ?? const []) as List)
+          .map((e) => Map<String, dynamic>.from(e)));
+
+  // Spotify can't be downloaded directly (DRM). Each song is found on YouTube
+  // ("ytsearch1:Artist - Title", handled by videl_dl.download) and saved as an
+  // MP3 named and tagged from Spotify, with the cover art.
+  Future<void> _downloadSpotify() async {
+    if (!await _ensureStorage()) {
+      setState(() => _status = 'Storage permission required');
+      return;
+    }
+    await _ensureNotifications();
+    await PythonRunner.fgStart();
+    setState(() {
+      _busy = true;
+      _pct = 0;
+      _status = 'Reading the Spotify link...';
+    });
+    const dir = '/storage/emulated/0/Music/Videl';
+    final covers = <String, String>{}; // cover URL -> local file; album songs share one
+    final failed = <String>[];
+    var saved = 0;
+    try {
+      var songs = _spotify;
+      if (songs.isEmpty) {
+        songs = _songsFrom(await PythonRunner.ytdlpFormats(_urlCtrl.text.trim()));
+      }
+      for (var i = 0; i < songs.length; i++) {
+        final s = songs[i];
+        final name = s['name'] as String? ?? '';
+        _songLabel = songs.length > 1 ? 'Song ${i + 1} of ${songs.length}' : 'Downloading';
+        setState(() {
+          _pct = 0;
+          _status = '$_songLabel: $name';
+        });
+        try {
+          final query = s['query'] as String;
+          var src = await PythonRunner.ytdlpDownload(url: query, outDir: dir, format: 'ba');
+          if (src.isEmpty) {
+            src = await PythonRunner.ytdlpDownload(url: query, outDir: dir, format: 'b');
+          }
+          final coverUrl = s['cover'] as String? ?? '';
+          if (coverUrl.isNotEmpty && !covers.containsKey(coverUrl)) {
+            covers[coverUrl] = await _fetchCover(coverUrl, dir);
+          }
+          setState(() => _status = 'Converting to MP3: $name');
+          final mp3 = await FfmpegRunner.toTaggedMp3(
+            src,
+            fileName: s['file'] as String? ?? name,
+            tags: {
+              'title': s['title'] as String? ?? '',
+              'artist': s['artist'] as String? ?? '',
+              'album': s['album'] as String? ?? '',
+              'track': (s['track'] ?? 0) == 0 ? '' : '${s['track']}',
+            },
+            coverPath: covers[coverUrl],
+          );
+          try { File(src).deleteSync(); } catch (_) {}
+          await PythonRunner.mediaScan(mp3);
+          saved++;
+        } catch (_) {
+          failed.add(name);
+        }
+      }
+      setState(() => _status = failed.isEmpty
+          ? 'Saved $saved song${saved == 1 ? '' : 's'} to Music/Videl'
+          : 'Saved $saved of ${songs.length}. Not found: ${failed.take(3).join(', ')}${failed.length > 3 ? '...' : ''}');
+    } catch (e) {
+      _showError(e);
+    } finally {
+      _songLabel = '';
+      for (final path in covers.values) {
+        if (path.isEmpty) continue;
+        try { File(path).deleteSync(); } catch (_) {}
+      }
+      await PythonRunner.fgStop();
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<String> _fetchCover(String url, String dir) async {
+    try {
+      final r = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 15));
+      if (r.statusCode != 200) return '';
+      final f = File('$dir/.cover-${url.hashCode}.jpg');
+      await f.writeAsBytes(r.bodyBytes);
+      return f.path;
+    } catch (_) {
+      return ''; // a song without a cover is still worth saving
+    }
+  }
 
   void _showError(Object e) {
     final msg = e is PlatformException
@@ -609,8 +732,8 @@ class _DownloaderPageState extends State<DownloaderPage>
                     ),
                   ],
 
-                  // Preview card
-                  if (_title.isNotEmpty) ...[
+                  // Preview card (not for Spotify: there is nothing to stream until a song is found)
+                  if (_title.isNotEmpty && _spotify.isEmpty) ...[
                     const SizedBox(height: 10),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -777,8 +900,10 @@ class _DownloaderPageState extends State<DownloaderPage>
                     ),
                   ),
 
-                  // Format list
-                  if (list.isEmpty)
+                  // Format list, or the songs of a Spotify link
+                  if (_spotify.isNotEmpty)
+                    _SpotifyList(songs: _spotify)
+                  else if (list.isEmpty)
                     _EmptyState(busy: _busy)
                   else
                     ListView.builder(
@@ -883,6 +1008,39 @@ class _StatusStrip extends StatelessWidget {
                     fontWeight: FontWeight.w600)),
         ]),
       ]),
+    );
+  }
+}
+
+class _SpotifyList extends StatelessWidget {
+  const _SpotifyList({required this.songs});
+  final List<Map<String, dynamic>> songs;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      itemCount: songs.length,
+      itemBuilder: (ctx, i) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Row(children: [
+          SizedBox(
+            width: 28,
+            child: Text('${i + 1}',
+                style: const TextStyle(color: VidelColors.textMuted, fontSize: 12)),
+          ),
+          const Icon(Icons.music_note_rounded, size: 16, color: VidelColors.accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(songs[i]['name'] as String? ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13)),
+          ),
+        ]),
+      ),
     );
   }
 }

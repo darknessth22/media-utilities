@@ -72,6 +72,9 @@ The user preference behind several of these: **enrich the feature that was named
 
 ## Media, GPU & AI
 
+- **Spotify on Android** mirrors the desktop (`core/downloader.py`; change the two together): `videl_dl.spotify_tracks` reads the public embed page's `__NEXT_DATA__` (single tracks also read the track page for the album name), and the app downloads each song from `ytsearch1:Artist - Title` through the normal `download()`, which unwraps the search's one-entry playlist. FFmpegKit then writes an MP3 named, tagged and given cover art from Spotify (`FfmpegRunner.toTaggedMp3`, arguments as a list so quotes in titles are safe). Spotify joins several artists with non-breaking spaces; they are normalised.
+- Flutter is installed at `C:/src/flutter` but not on PATH: run `C:/src/flutter/bin/flutter analyze` in `mobile/` after Dart changes.
+- **Android downloads X/Twitter**: the app fetches video and audio in parallel and muxes them with FFmpeg (no FFmpeg inside Chaquopy). That assumed YouTube's shape. X serves video and audio both as `.mp4`, so the two parts had the same file name and collided, and most X posts have no audio-only stream at all (every MP4 already has sound, with codecs unlabelled), so `ba` failed the whole download. `videl_dl.py` now names parts `.video`/`.audio` (a file with sound keeps the plain name) and returns `""` when an audio selector finds nothing; the Dart side then keeps the video, and the MP3 path falls back to `b`. An unknown codec (`None`) counts as present; only an explicit `'none'` means absent.
 - `h264_nvenc` hard-caps at **4096×4096**; use `hevc_nvenc` above that. Pick the encoder from **output** dimensions.
 - Real-ESRGAN `tile=0` above ~720p spills into shared memory: 22× slower. Use `auto_tile_size()`. ×2 costs the same GPU time as ×4 (both models are native ×4).
 - `detect_hw_encoders()` returns **labels** (`nvidia`/`amd`/`intel`), not encoder names.

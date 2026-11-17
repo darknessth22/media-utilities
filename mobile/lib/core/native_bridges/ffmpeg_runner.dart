@@ -13,8 +13,10 @@ class FfmpegRunner {
   // otherwise re-encodes audio to AAC. Returns merged path.
   static Future<String> mux(String videoPath, String audioPath) async {
     final dir = p.dirname(videoPath);
-    final base = p.basenameWithoutExtension(videoPath);
-    final out = p.join(dir, '${base}_merged.mp4');
+    // The parts arrive as "<title> [id].video.<ext>" and ".audio.<ext>" (videl_dl.py),
+    // so the merged file can take the plain name without overwriting either.
+    final base = p.basenameWithoutExtension(videoPath).replaceFirst(RegExp(r'\.video$'), '');
+    final out = p.join(dir, '$base.mp4');
     // Try copy-only first (works when audio is AAC/m4a). Falls back to re-encode.
     final isM4a = audioPath.toLowerCase().endsWith('.m4a');
     final aCodec = isM4a ? 'copy' : 'aac';
@@ -75,9 +77,35 @@ class FfmpegRunner {
   }
 
   // Convert any audio file to 192k MP3. Returns mp3 path.
+  // MP3 for a Spotify song: named, tagged and given cover art from Spotify, not
+  // from the YouTube match. Arguments go as a list, so quotes in titles are safe.
+  static Future<String> toTaggedMp3(String src,
+      {required String fileName,
+      required Map<String, String> tags,
+      String? coverPath}) async {
+    final out = p.join(p.dirname(src), '$fileName.mp3');
+    final hasCover = coverPath != null && coverPath.isNotEmpty && File(coverPath).existsSync();
+    final args = <String>[
+      '-y', '-i', src,
+      if (hasCover) ...['-i', coverPath!],
+      '-map', '0:a',
+      if (hasCover) ...['-map', '1:v', '-c:v', 'copy', '-disposition:v', 'attached_pic'],
+      '-map_metadata', '-1', '-c:a', 'libmp3lame', '-b:a', '192k', '-id3v2_version', '3',
+      for (final t in tags.entries)
+        if (t.value.isNotEmpty) ...['-metadata', '${t.key}=${t.value}'],
+      out,
+    ];
+    final session = await FFmpegKit.executeWithArguments(args);
+    final rc = await session.getReturnCode();
+    if (!ReturnCode.isSuccess(rc)) {
+      throw Exception('mp3 convert failed: ${await session.getAllLogsAsString()}');
+    }
+    return out;
+  }
+
   static Future<String> toMp3(String audioPath) async {
     final dir = p.dirname(audioPath);
-    final base = p.basenameWithoutExtension(audioPath);
+    final base = p.basenameWithoutExtension(audioPath).replaceFirst(RegExp(r'\.audio$'), '');
     final out = p.join(dir, '$base.mp3');
     final cmd =
         '-y -i "$audioPath" -vn -c:a libmp3lame -b:a 192k "$out"';
