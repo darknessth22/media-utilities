@@ -37,6 +37,7 @@ The user preference behind several of these: **enrich the feature that was named
 
 - Bundled asset paths always go through `core.paths.resource_path(...)`. Never `os.path.dirname(__file__)` + `..`: Windows collapses `..` lexically, but Linux walks real directories, so icons vanish in the AppImage.
 - Anything imported at startup must be in **both** `requirements.txt` and `requirements-build.txt`. AI libraries go in `manifests/`, never the app requirements.
+- Release builds are pinned by `constraints-build.txt` (plus `python-version: "3.12.10"` for the Windows job; Linux stays on `"3.12"` because its update is a full AppImage anyway). Before this, `>=` requirements let each CI build pull the newest PySide6, PyMuPDF and Playwright, and the v5.0.8 delta update was about 740 MB of the app's 1 GB for a few MB of real changes. yt-dlp stays unpinned on purpose: it breaks often, and each release should bundle the newest.
 - AI components install with `--no-deps`, so **every** transitive dependency must be listed in the manifest (e.g. `codeformer-pip` also needs `lpips` and `gdown`).
 - torch lives in `ai_packages/torch_runtime/`. Child scripts must put it on `sys.path` after the component's own directory.
 - The gyan.dev FFmpeg zip pinned in `build_config.json` periodically returns 404 (they keep a rolling window). Update all four fields from the `.sha256` sidecar. Don't switch to the floating URL.

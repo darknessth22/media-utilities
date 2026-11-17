@@ -162,7 +162,8 @@ def provision_runtime():
         print(f"Downloading {_GET_PIP_URL} ...")
         urllib.request.urlretrieve(_GET_PIP_URL, get_pip)
         subprocess.check_call(
-            [str(py_exe), str(get_pip), "--no-warn-script-location"]
+            [str(py_exe), str(get_pip), "--no-warn-script-location",
+             "-c", "constraints-build.txt"]
         )
         print("[OK] pip bootstrapped in bundled runtime.")
         try:
@@ -176,6 +177,7 @@ def provision_runtime():
             str(py_exe), "-m", "pip", "install",
             "--no-warn-script-location",
             "--disable-pip-version-check",
+            "-c", "constraints-build.txt",
             "setuptools", "wheel",
         ])
         print("[OK] setuptools + wheel installed in bundled runtime.")
@@ -220,9 +222,11 @@ def ensure_build_venv() -> str:
     print("Installing build requirements (no AI packages)...")
     subprocess.check_call([
         str(python), "-m", "pip", "install", "--upgrade", "pip", "--quiet",
+        "-c", "constraints-build.txt",
     ])
     subprocess.check_call([
         str(python), "-m", "pip", "install", "-r", "requirements-build.txt", "--quiet",
+        "-c", "constraints-build.txt",
     ])
     print("[OK] Build requirements installed.")
     return str(python)

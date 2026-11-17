@@ -35,13 +35,13 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.12.10"   # exact: a Python patch bump changes the bundled DLLs, and the Windows delta update with them
 
       - name: Cache pip
         uses: actions/cache@v5
         with:
           path: ~\AppData\Local\pip\Cache
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-build.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-build.txt', 'constraints-build.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
@@ -52,7 +52,7 @@ jobs:
           key: ${{ runner.os }}-ffmpeg-${{ hashFiles('build_config.json') }}
 
       - name: Install build-only Python dependencies
-        run: pip install -r requirements-build.txt
+        run: pip install -r requirements-build.txt -c constraints-build.txt
 
       - name: Install Inno Setup 6
         run: choco install innosetup --no-progress -y
@@ -185,13 +185,13 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.12"   # Linux updates are a full AppImage either way
 
       - name: Cache pip
         uses: actions/cache@v5
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-build.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-build.txt', 'constraints-build.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
@@ -213,7 +213,7 @@ jobs:
             libxkbcommon-x11-0 libpulse0
 
       - name: Install build-only Python dependencies
-        run: pip install -r requirements-build.txt
+        run: pip install -r requirements-build.txt -c constraints-build.txt
 
       - name: Install AppImage tooling
         run: |

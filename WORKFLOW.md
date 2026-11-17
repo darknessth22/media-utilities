@@ -28,6 +28,8 @@ Related documents: [ARCHITECTURE.md](ARCHITECTURE.md) covers how Videl works, an
 - Long work runs on the background `Worker` (`gui/worker.py`). Never block the GUI thread.
 - Heavy AI libraries are on-demand components in `manifests/`, never app requirements.
 - Anything imported at startup goes in both `requirements.txt` and `requirements-build.txt`.
+- A new build dependency also gets an exact `==` line in `constraints-build.txt`, using the version you tested with. Release builds install with `-c constraints-build.txt`, so an unpinned package floats to the newest version on every build.
+- Upgrading a library is a deliberate change: bump its line in `constraints-build.txt` (PySide6 also pins its Addons, Essentials and shiboken6 packages to the same version), build, test, release. Expect that release's Windows delta update to be large.
 
 **Adding a tool tab**
 1. `gui/app.py`: import the class and add one `_SECTIONS_META` entry, including `cls`. The window builds everything else from it.
