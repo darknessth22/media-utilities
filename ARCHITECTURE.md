@@ -200,8 +200,8 @@ All path lookups go through `utils/paths.py` and `core/paths.resource_path()`.
 - **Browser extension** (`browser_extension/`, Manifest V3): adds "Download with Videl" to `<video>` elements and posts the URL to the local bridge.
 - **Android app** (`mobile/`, Flutter, package `videl_mobile`): downloader with time-range trim and preview, convert, extract audio, history, self-update, bug reporter. Its version is tracked separately in `pubspec.yaml`.
 - **Bug relay** (`tools/bug_relay/`): Cloudflare Worker `videl-bug-relay` at `https://videl-bug-relay.mostafafares080.workers.dev/report`.
-- **Website** (`gh-pages` branch): download links point at `/releases/latest/download/<asset>`.
-- **Web app** (`web/`): a browser-only version of the basic tools, live at `https://videl-web.mostafafares080.workers.dev`. It's plain HTML, CSS and ES modules, with no framework and no build step.
+- **Website** (`gh-pages` branch, live at `https://videl.app` through the Worker `videl-site`): download links point at `/releases/latest/download/<asset>`.
+- **Web app** (`web/`): a browser-only version of the basic tools, live at `https://app.videl.app` (the old `https://videl-web.mostafafares080.workers.dev` still works). It's plain HTML, CSS and ES modules, with no framework and no build step.
   - Video tools run ffmpeg.wasm (single-threaded, so no COOP/COEP headers). The 31 MB core comes from jsDelivr on first use; the `@ffmpeg/ffmpeg` wrapper is kept in `web/vendor/`, because its worker must be same-origin.
   - PDF tools use pdf-lib and pdf.js. Image tools use canvas. ZIP output uses fflate.
   - Each tool is one declarative entry in `web/js/tools/*.js` (fields, accept, `run()`). `web/js/workspace.js` renders the files, preview, trim timeline, settings, progress and results for every tool.

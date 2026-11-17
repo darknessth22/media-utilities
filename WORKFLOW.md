@@ -134,6 +134,8 @@ The email layout is `tools/bug_relay/ticket-email.html`, bundled into the Worker
 npx wrangler deploy          # from the repo root; uses wrangler.jsonc (assets: web/)
 ```
 
+Live at https://app.videl.app. The domain `videl.app` is registered on Cloudflare (same account as the Workers).
+
 Test locally with `python -m http.server 8765` inside `web/`, then open http://127.0.0.1:8765. Library versions are pinned in `web/vendor/`; the FFmpeg core version is the `CORE` constant in `web/js/engines.js`.
 
 
@@ -142,4 +144,4 @@ Test locally with `python -m http.server 8765` inside `web/`, then open http://1
 - The app compares its `VERSION` with the latest release.
 - **Windows**: downloads only the changed files (the delta updater) and verifies the Ed25519 signature before installing.
 - **Linux**: replaces the AppImage in place after verifying its signature.
-- **Download site**: the `gh-pages` branch, checked out at `../media-utilities-pages`, links to `/releases/latest/download/<asset>`.
+- **Download site**: https://videl.app, served from the `gh-pages` branch (checked out at `../media-utilities-pages`). It links to `/releases/latest/download/<asset>`. After editing it, push the branch **and** run `npx wrangler deploy` inside that folder (Worker `videl-site`). GitHub Pages still serves the same files at the old github.io address, and a script in `index.html` sends those visitors to videl.app, because older app versions open that address. `www.videl.app` redirects to `videl.app` (a Cloudflare redirect rule).

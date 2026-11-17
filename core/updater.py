@@ -63,7 +63,7 @@ APPIMAGE_DOWNLOAD_URL = (
 APPIMAGE_MANIFEST_URL = (
     "https://github.com/darknessth22/media-utilities/releases/latest/download/Videl-x86_64.AppImage.sig.json"
 )
-STOREFRONT_URL = "https://darknessth22.github.io/media-utilities/"
+STOREFRONT_URL = "https://videl.app/"
 
 # Delta updates: signed per-file manifest published on the latest release, and
 # the content-addressed blob store. Blobs are sharded across 16 rolling releases
