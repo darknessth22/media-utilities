@@ -1,6 +1,7 @@
 // Run: node tools/bug_relay/worker.test.mjs
 import assert from "node:assert/strict";
-import { ticketVariables } from "./worker.js";
+import { readFileSync } from "node:fs";
+import { renderTicket, ticketVariables } from "./ticket.js";
 
 const now = new Date("2026-11-16T14:32:00Z");
 
@@ -21,5 +22,11 @@ assert.equal(v.RECEIVED_AT, "16 Nov 2026, 14:32 UTC");
 const w = ticketVariables("Something odd", "free text", "", null, now);
 assert.deepEqual([w.BUG_TYPE, w.TITLE, w.DESCRIPTION, w.REPORTER_EMAIL, w.SCREENSHOT],
   ["Bug", "Something odd", "free text", "Not provided", "None"]);
+
+// Every placeholder in the real template gets filled.
+const html = renderTicket(readFileSync(new URL("./ticket-email.html", import.meta.url), "utf8"), v);
+assert.doesNotMatch(html, /\{\{\{/);
+assert.match(html, /Trim closes the app/);
+assert.match(html, /app\.videl\.app\/assets\/videl-logo\.png/);
 
 console.log("ok");

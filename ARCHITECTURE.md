@@ -111,7 +111,7 @@ Settings > Storage (`core/storage.py`) lists everything that has been downloaded
 - **Wallpaper scheduler** (`core/wallpaper_scheduler.py`): applies saved multi-monitor wallpaper setups on a schedule.
 - **Updater** (`core/updater.py`): see section 8.
 - **yt-dlp updater** (`utils/ytdlp_updater.py`): updates yt-dlp without rebuilding Videl. The new version takes effect on the next launch.
-- **Bug reporter** (`gui/tabs/bug_reporter.py`, the same form in the mobile app, and the web app's `#/report` page in `web/js/report.js`, also linked from any failed tool): sends a JSON report to the Cloudflare Worker in `tools/bug_relay/`. The Worker emails it to `videl.support@gmail.com` through Resend, using the designed template `tools/bug_relay/ticket-email.html` (plain text if the template send fails). The reporter's address goes in Reply-To. Each report's size is capped, and at most 5 reports per minute per IP are accepted. All keys are Worker secrets; none ship inside the app.
+- **Bug reporter** (`gui/tabs/bug_reporter.py`, the same form in the mobile app, and the web app's `#/report` page in `web/js/report.js`, also linked from any failed tool): sends a JSON report to the Cloudflare Worker in `tools/bug_relay/`. The Worker emails it to `videl.support@gmail.com` from `bugs@videl.app` through Cloudflare Email Service (a `send_email` binding locked to that one inbox), filling the designed template `tools/bug_relay/ticket-email.html` (plain text if that send fails). The reporter's address goes in Reply-To. Each report's size is capped, and at most 5 reports per minute per IP are accepted. There is no mail API key at all, so nothing secret ships inside the app.
 
 
 ## 7. Tool catalog

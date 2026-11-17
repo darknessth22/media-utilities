@@ -116,15 +116,16 @@ The relay is deployed separately from app releases. The code is in `tools/bug_re
 # from the repo root; always name the config (see LEARNINGS.md, Web app)
 set -a; . ~/.cloudflare/videl.env; set +a                      # loads CLOUDFLARE_API_TOKEN
 node tools/bug_relay/worker.test.mjs                           # report parsing check
-npx wrangler deploy -c tools/bug_relay/wrangler.toml           # after editing worker.js
-npx wrangler secret put RESEND_API_KEY -c tools/bug_relay/wrangler.toml   # after rotating the key
+npx wrangler deploy -c tools/bug_relay/wrangler.toml           # after editing worker.js or ticket-email.html
 ```
 
-The web app's "Report a bug" page (`web/js/report.js`) posts to the same relay from the browser. The relay only answers browsers from the origins in `WEB_ORIGINS` in `worker.js`. **When the site moves to a custom domain, add it there and redeploy the relay**, or web reports fail.
+The web app's "Report a bug" page (`web/js/report.js`) posts to the same relay from the browser. The relay only answers browsers from the origins in `WEB_ORIGINS` in `worker.js`. **If the web app gets another address, add it there and redeploy the relay**, or web reports fail.
 
 Changing the relay doesn't need an app release, as long as the request format (`subject`, `body`, `reporter_email`, `screenshot`) stays the same.
 
-The email layout is a Resend template ("Videl bug report", ID in `TEMPLATE_ID` in `worker.js`). Its source is `tools/bug_relay/ticket-email.html`: edit that file, paste it into the Resend editor, and publish. The template owns From, Subject and preview text. Its variables are `BUG_TYPE`, `TITLE`, `REPORTER_EMAIL`, `RECEIVED_AT`, `SCREENSHOT` and `DESCRIPTION`. If a template send fails, the relay falls back to a plain-text email, so reports are never lost.
+Mail goes out through Cloudflare Email Service: the `send_email` binding in `tools/bug_relay/wrangler.toml` can only deliver to `videl.support@gmail.com`, which is a verified Email Routing destination address (free, no quota). `videl.app` has Email Routing enabled, which is what lets the relay send from `bugs@videl.app`. If the support inbox ever changes, add and verify the new address (`npx wrangler email routing addresses create <address>`, then click the link it sends) and update both `destination_address` and `SUPPORT` in `worker.js`.
+
+The email layout is `tools/bug_relay/ticket-email.html`, bundled into the Worker: edit it and redeploy the relay. Its placeholders are `{{{BUG_TYPE}}}`, `{{{TITLE}}}`, `{{{REPORTER_EMAIL}}}`, `{{{RECEIVED_AT}}}`, `{{{SCREENSHOT}}}` and `{{{DESCRIPTION}}}`, filled by `ticket.js`. If the designed send fails, the relay falls back to a plain-text email, so reports are never lost.
 
 
 ## 9. Web app

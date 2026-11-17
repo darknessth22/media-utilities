@@ -1,15 +1,19 @@
 // Videl bug-report relay (Cloudflare Worker).
 //
-// The Resend key lives here as a Worker secret, never inside the app: a key
-// baked into a public installer or APK can be extracted by anyone. The relay
-// only ever mails the support inbox, so it cannot be abused as an open mail
-// relay; the reporter's address goes into Reply-To instead of receiving a copy.
+// Mail goes out through Cloudflare Email Service (the EMAIL binding in
+// wrangler.toml), so there is no API key anywhere: nothing to leak from a public
+// installer or APK. The binding can only deliver to the support inbox, so the
+// relay cannot be abused as an open mail relay; the reporter's address goes into
+// Reply-To instead of receiving a copy. Sending to a verified destination
+// address is free on the Workers Free plan and counts toward no quota.
 //
 // Deploy:  npx wrangler deploy -c tools/bug_relay/wrangler.toml   (from the repo root; see WORKFLOW.md)
-// Secret:  npx wrangler secret put RESEND_API_KEY -c tools/bug_relay/wrangler.toml
 
-const SUPPORT = "videl.support@gmail.com";
-const TEMPLATE_ID = "a0f0da5f-aa3b-4e0b-bef7-88c62380fc17";   // "Videl bug report" in Resend → Templates
+import TEMPLATE from "./ticket-email.html";
+import { SHOT_CID, inline, renderTicket, ticketVariables } from "./ticket.js";
+
+const SUPPORT = "videl.support@gmail.com";   // must match destination_address in wrangler.toml
+const FROM = { email: "bugs@videl.app", name: "Videl Bug Reporter" };
 const MAX_SUBJECT = 200;
 const MAX_BODY = 20_000;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -18,7 +22,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Browsers may only call the relay from the Videl web app (the apps send no Origin).
 // The local address is the test server in WORKFLOW.md.
-const WEB_ORIGINS = new Set(["https://videl-web.mostafafares080.workers.dev", "http://127.0.0.1:8765"]);
+const WEB_ORIGINS = new Set(["https://app.videl.app", "https://videl-web.mostafafares080.workers.dev", "http://127.0.0.1:8765"]);
 
 export default {
   async fetch(request, env) {
@@ -67,7 +71,7 @@ export default {
       shot.name = String(shot.name || "screenshot").slice(0, 100);
     }
 
-    if (!env.RESEND_API_KEY) return reply(503, "Bug reporting is not configured.");
+    if (!env.EMAIL) return reply(503, "Bug reporting is not configured.");
     try {
       await sendEmail(env, { subject, body, reporter, shot });
     } catch (err) {
@@ -79,66 +83,26 @@ export default {
 };
 
 async function sendEmail(env, { subject, body, reporter, shot }) {
-  const base = { to: [SUPPORT] };
-  if (reporter) base.reply_to = reporter;
-  if (shot) base.attachments = [{ filename: shot.name, content: shot.data }];
+  const mail = { from: FROM, to: SUPPORT, subject, text: body };
+  if (reporter) mail.replyTo = reporter;
 
-  // The designed email (tools/bug_relay/ticket-email.html, stored in Resend).
-  // The template sets From, Subject and preview text itself. The screenshot is
-  // embedded in the body (cid:), so it shows without opening an attachment.
-  const templated = await resend(env, {
-    ...base,
-    attachments: base.attachments?.map((a) => (inline(shot) ? { ...a, content_id: SHOT_CID } : a)),
-    template: { id: TEMPLATE_ID, variables: ticketVariables(subject, body, reporter, shot) },
-  });
-  if (templated.ok) return;
-  console.error(`Template send failed (${templated.status}): ${await templated.text()}`);
+  // The designed email (ticket-email.html). The screenshot is embedded in the
+  // body (cid:), so it still shows after a Gmail Reply, which drops attachments.
+  const attachments = shot ? [{
+    content: shot.data,
+    filename: shot.name,
+    type: shot.type,
+    ...(inline(shot) ? { disposition: "inline", contentId: SHOT_CID } : { disposition: "attachment" }),
+  }] : undefined;
+  try {
+    await env.EMAIL.send({ ...mail, html: renderTicket(TEMPLATE, ticketVariables(subject, body, reporter, shot)), attachments });
+    return;
+  } catch (err) {
+    console.error(`Designed send failed (${err.code}): ${err.message}`);
+  }
 
-  // Never lose a report because the template is missing or broken: fall back to plain text.
-  // Without a verified domain, Resend sends from onboarding@resend.dev and only
-  // to the account owner's address -- which is exactly SUPPORT.
-  const plain = await resend(env, { ...base, from: "Videl Bug Reporter <onboarding@resend.dev>", subject, text: body });
-  if (!plain.ok) throw new Error(`Resend HTTP ${plain.status}: ${await plain.text()}`);
-}
-
-function resend(env, mail) {
-  return fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify(mail),
-  });
-}
-
-/**
- * Template variables from the report. Both apps send
- *   subject "[Videl Bug] <type>: <title>"
- *   body    "Bug Type: ...\nReporter Email: ...\n\n--- Description ---\n<text>"
- * Anything that doesn't match that shape is passed through whole.
- */
-export function ticketVariables(subject, body, reporter, shot, now = new Date()) {
-  const head = /^\[Videl Bug\]\s*([^:]+):\s*(.+)$/s.exec(subject);
-  const marker = body.indexOf("--- Description ---");
-  const description = marker >= 0 ? body.slice(marker + 19).trim() : body;
-  const received = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(now);
-  return {
-    BUG_TYPE: escapeHtml(head ? head[1].trim() : "Bug"),
-    TITLE: escapeHtml(head ? head[2].trim() : subject),
-    REPORTER_EMAIL: escapeHtml(reporter || "Not provided"),
-    RECEIVED_AT: `${received} UTC`,
-    SCREENSHOT: !shot ? "None"
-      : !inline(shot) ? escapeHtml(`Attached (${shot.name})`)
-      : `${escapeHtml(shot.name)}<br><img src="cid:${SHOT_CID}" alt="Screenshot from the reporter" width="420" style="display:block;width:100%;max-width:420px;height:auto;margin-top:8px;border:1px solid #E3E8F2;border-radius:8px;">`,
-    DESCRIPTION: escapeHtml(description || "No description was given."),
-  };
-}
-
-// Mail clients show PNG, JPEG and WebP inline; BMP stays a plain attachment.
-const SHOT_CID = "screenshot";
-const inline = (shot) => !!shot && shot.type !== "image/bmp";
-
-// Template variables go into the HTML as-is, so reporter text is escaped first.
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  // Never lose a report because of the design or the screenshot: send the text alone.
+  await env.EMAIL.send(shot ? { ...mail, text: `${body}\n\n(The screenshot could not be attached.)` } : mail);
 }
 
 function respond(status, message, cors) {
