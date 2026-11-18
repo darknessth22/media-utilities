@@ -20,10 +20,27 @@ function probe(file) {
   });
 }
 
+/** A custom field's typed text as the value the tool uses, or null if it doesn't fit. */
+export function customValue(c, text) {
+  if (c.ratio) {
+    const m = /^\s*(\d+(?:\.\d+)?)\s*[:x/]\s*(\d+(?:\.\d+)?)\s*$/i.exec(text);
+    return m && Number(m[1]) > 0 && Number(m[2]) > 0 ? `${Number(m[1])}:${Number(m[2])}` : null;
+  }
+  const n = Number(text);
+  return text.trim() !== "" && n >= c.min && n <= c.max && (!c.whole || Number.isInteger(n)) ? String(n) : null;
+}
+
 export function renderWorkspace(main, tool, initialFiles = []) {
   const urls = new Set();
   const objectURL = (blob) => { const u = URL.createObjectURL(blob); urls.add(u); return u; };
-  const values = Object.fromEntries(tool.fields.map((f) => [f.key, f.value]));
+  // A search page can preselect settings, e.g. /video-to-mp3 opens Convert set to MP3
+  // (<html data-preset>, written by tools/web_tool_pages.py).
+  const page = document.documentElement.dataset;
+  const preset = page.tool === tool.id && page.preset ? JSON.parse(page.preset) : {};
+  const values = { ...Object.fromEntries(tool.fields.map((f) => [f.key, f.value])), ...preset };
+  // Choice fields with `custom` also offer "Custom", a typed value (see customBox).
+  const customOn = new Set(tool.fields.filter((f) => f.custom && !f.options.some(([v]) => v === values[f.key])).map((f) => f.key));
+  const badCustom = new Set();   // keys whose typed value is out of range
   const state = { files: [], probes: [], start: 0, end: 0, busy: false, results: [] };
 
   // Layout ------------------------------------------------------------------
@@ -50,7 +67,7 @@ export function renderWorkspace(main, tool, initialFiles = []) {
 
   main.replaceChildren(h("div", { class: "wrap ws", style: `--tool:${tool.color}` },
     h("div", { class: "ws-head" },
-      h("a", { class: "btn btn-icon btn-quiet back", href: "#/tools", "aria-label": "All tools", html: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>' }),
+      h("a", { class: "btn btn-icon btn-quiet back", href: "/#/tools", "aria-label": "All tools", html: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>' }),
       icon(tool.icon),
       h("div", { class: "ws-title" },
         // A tool's search page (/compress-video) gives it a fuller heading, "Compress video".
@@ -347,12 +364,27 @@ export function renderWorkspace(main, tool, initialFiles = []) {
       scheduleLive();
     };
     if (f.type === "seg") {
+      const custom = customOn.has(f.key);
+      // Moving between a listed choice and Custom adds or removes the typed box.
+      const pick = (value, toCustom) => {
+        if (toCustom === custom) return onChange(value);
+        if (toCustom) customOn.add(f.key); else { customOn.delete(f.key); badCustom.delete(f.key); }
+        values[f.key] = value;
+        clearResults();
+        renderForm();
+        form.querySelector(toCustom ? `#${id}-custom` : `[name="${id}"]:checked`)?.focus();
+        scheduleLive();
+      };
       return h("div", { class: "field" },
         h("fieldset", { class: "seg", "aria-describedby": describedBy },
           h("legend", {}, f.label),
           f.options.map(([value, label]) => h("label", {},
-            h("input", { type: "radio", name: id, value, checked: values[f.key] === value, onchange: () => onChange(value) }),
-            label))),
+            h("input", { type: "radio", name: id, value, checked: !custom && values[f.key] === value, onchange: () => pick(value, false) }),
+            label)),
+          f.custom && h("label", {},
+            h("input", { type: "radio", name: id, value: "custom", checked: custom, onchange: () => pick(f.custom.value, true) }),
+            "Custom")),
+        custom && customBox(f, id),
         hint);
     }
     if (f.type === "color") {
@@ -372,13 +404,23 @@ export function renderWorkspace(main, tool, initialFiles = []) {
         hint);
     }
     if (f.type === "range") {
-      const out = h("output", { for: id }, `${values[f.key]}${f.unit ?? ""}`);
+      const set = (n) => { values[f.key] = n; clearResults(); scheduleLive(); };
+      const slider = h("input", { id, type: "range", min: f.min, max: f.max, step: f.step, value: values[f.key], "aria-describedby": describedBy,
+        oninput: (e) => { exact.value = e.target.value; set(Number(e.target.value)); } });
+      // The box takes an exact value. Typing outside the range is ignored, and leaving
+      // the box shows the value in use again.
+      const exact = h("input", { type: "number", class: "range-num", min: f.min, max: f.max, step: "any", value: values[f.key],
+        "aria-label": `${f.label}, exact value`,
+        oninput: (e) => {
+          const n = Number(e.target.value);
+          if (e.target.value === "" || !(n >= f.min && n <= f.max)) return;
+          slider.value = n;
+          set(n);
+        },
+        onchange: (e) => { e.target.value = values[f.key]; } });
       return h("div", { class: "field" },
         h("label", { for: id }, f.label),
-        h("div", { class: "range-row" },
-          h("input", { id, type: "range", min: f.min, max: f.max, step: f.step, value: values[f.key], "aria-describedby": describedBy,
-            oninput: (e) => { out.textContent = `${e.target.value}${f.unit ?? ""}`; values[f.key] = Number(e.target.value); clearResults(); scheduleLive(); } }),
-          out),
+        h("div", { class: "range-row" }, slider, exact, f.unit?.trim() && h("span", { class: "unit" }, f.unit.trim())),
         hint);
     }
     return h("div", { class: "field" },
@@ -388,11 +430,34 @@ export function renderWorkspace(main, tool, initialFiles = []) {
       hint);
   }
 
+  // A typed value for a choice field: a number from custom.min to custom.max (whole
+  // numbers only with custom.whole), or with custom.ratio a shape such as 3:2.
+  function customBox(f, id) {
+    const c = f.custom;
+    badCustom.delete(f.key);   // the box starts from the last good value
+    return h("div", { class: "custom-row" },
+      h("input", { id: `${id}-custom`, type: c.ratio ? "text" : "number", value: values[f.key], min: c.min, max: c.max,
+        step: "any", inputmode: c.ratio ? "text" : "decimal", autocomplete: "off",
+        "aria-label": `${f.label}, custom value`, "aria-describedby": `${id}-range`,
+        oninput: (e) => {
+          const v = customValue(c, e.target.value);
+          if (v === null) badCustom.add(f.key); else { badCustom.delete(f.key); values[f.key] = v; }
+          e.target.setAttribute("aria-invalid", String(v === null));
+          clearResults();
+          scheduleLive();
+        } }),
+      c.unit && h("span", { class: "unit" }, c.unit),
+      h("span", { class: "hint", id: `${id}-range` }, c.ratio ? "Width:height, such as 3:2" : `${c.min} to ${c.max}`));
+  }
+
   // Run --------------------------------------------------------------------------------
   function problem() {
     const min = tool.minFiles || 1;
     if (state.files.length < min) return min > 1 ? `Add at least ${min} files.` : "Add a file to start.";
     if (tool.preview === "timeline" && state.end - state.start < 0.1) return "Pick a longer clip.";
+    const bad = tool.fields.find((f) => badCustom.has(f.key) && (!f.when || f.when(values)));
+    if (bad) return bad.custom.ratio ? `${bad.label}: type a shape such as 3:2.`
+      : `${bad.label}: type a ${bad.custom.whole ? "whole number" : "number"} from ${bad.custom.min} to ${bad.custom.max}${bad.custom.unit ? ` ${bad.custom.unit}` : ""}.`;
     return tool.validate?.(state.files, values) || null;
   }
 
@@ -422,7 +487,7 @@ export function renderWorkspace(main, tool, initialFiles = []) {
     status.classList.toggle("is-error", isError);
     if (failed) {
       noteProblem(tool.name, note || title);
-      statusNote.append(note ? " " : "", h("a", { href: "#/report" }, "Report this problem"));
+      statusNote.append(note ? " " : "", h("a", { href: "/#/report" }, "Report this problem"));
     }
   }
 

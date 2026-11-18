@@ -246,7 +246,8 @@ export const imageTools = [
       { key: "quality", type: "range", label: "Quality", value: 82, min: 40, max: 100, step: 1, unit: "%",
         when: (v) => v.format !== "png" },
       { key: "maxSide", type: "seg", label: "Longest side", value: "keep",
-        options: [["keep", "Keep"], ["3840", "3840 px"], ["1920", "1920 px"], ["1280", "1280 px"], ["800", "800 px"]] },
+        options: [["keep", "Keep"], ["3840", "3840 px"], ["1920", "1920 px"], ["1280", "1280 px"], ["800", "800 px"]],
+        custom: { value: "1600", min: 16, max: 10000, unit: "px", whole: true } },
     ],
     async run({ files, values, progress }) {
       const results = [];

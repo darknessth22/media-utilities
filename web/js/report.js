@@ -99,7 +99,7 @@ export function renderReport(main) {
       form.replaceWith(h("div", { class: "panel report-done" },
         h("h2", {}, "Report sent"),
         h("p", {}, email.value.trim() ? "Thanks. We'll reply to your email if we need more details." : "Thanks. The team will look into it."),
-        h("a", { class: "btn", href: "#/tools" }, "Back to the tools")));
+        h("a", { class: "btn", href: "/#/tools" }, "Back to the tools")));
       announce("Report sent");
     } catch (err) {
       send.disabled = false;

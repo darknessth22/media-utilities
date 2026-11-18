@@ -6,20 +6,23 @@ export const GROUPS = [
   { id: "video", name: "Video and audio", note: "FFmpeg, running inside this tab." },
   { id: "pdf", name: "PDF", note: "Combine, split and turn pages into pictures." },
   { id: "image", name: "Images", note: "Formats, sizes, colours, and AI background removal." },
-  { id: "next", name: "Coming next", note: "The downloader needs a Videl server, so it comes after the in-browser tools." },
+  { id: "download", name: "Downloader", note: "Hands links to the free Videl desktop app, which downloads on your own connection." },
 ];
 
-const nextTools = [
+// Video sites block downloads from browser tabs and from servers (tested in
+// specs/002-downloader-server/spec.md), so this page hands the link to the
+// desktop app (renderHandoff in main.js).
+const downloadTools = [
   {
     id: "download",
-    group: "next",
+    group: "download",
     icon: "download",
     name: "Downloader",
-    blurb: "Save videos and audio from YouTube, Instagram, TikTok and other sites.",
-    soon: true,
-    soonText: [
-      "Video sites block downloads made straight from a browser tab, so the downloader needs a Videl server to do the fetching. That server is the next step.",
-      "Until it's ready, the desktop app downloads from most video sites, with quality and time-range options.",
+    blurb: "Send a YouTube, Instagram or TikTok link to the free Videl app to save the video or audio.",
+    handoff: true,
+    text: [
+      "Paste a link and press Open in Videl. The Videl desktop app comes to the front with the link filled in: choose video or audio, the quality, and where to save.",
+      "Video sites block downloads made from a browser tab, so the download runs in the app, on your own connection. The app has to be open on this computer.",
     ],
   },
 ];
@@ -33,6 +36,8 @@ const META = {
   gif: { color: "#FACC15", takes: "Video", gives: "Animated GIF" },
   merge: { color: "#A855F7", takes: "Two or more videos", gives: "One MP4" },
   mux: { color: "#EC4899", takes: "Video, plus audio", gives: "Video with new sound" },
+  split: { color: "#06B6D4", takes: "A long video or recording", gives: "Parts in the same format" },
+  transform: { color: "#FB923C", takes: "Video", gives: "Rotated, cropped or smaller MP4" },
   "pdf-merge": { color: "#EF4444", takes: "Two or more PDFs", gives: "One PDF" },
   "pdf-split": { color: "#EF4444", takes: "PDF", gives: "PDF pages or ZIP" },
   "pdf-rotate": { color: "#EF4444", takes: "PDF", gives: "Rotated PDF" },
@@ -45,6 +50,6 @@ const META = {
   "bg-eraser": { color: "#10B981", takes: "Photos (JPG, PNG, WebP)", gives: "Transparent PNG, or a new background" },
 };
 
-export const TOOLS = [...videoTools, ...pdfTools, ...imageTools, bgEraserTool, ...nextTools]
+export const TOOLS = [...videoTools, ...pdfTools, ...imageTools, bgEraserTool, ...downloadTools]
   .map((t) => ({ ...t, ...META[t.id] }));
 export const toolById = (id) => TOOLS.find((t) => t.id === id);

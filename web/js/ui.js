@@ -111,7 +111,7 @@ export function bindDrop(el, onFiles) {
 
 /** Accept-attribute matcher, e.g. "video/*,.mkv". */
 export function accepts(accept, file) {
-  return accept.split(",").map((s) => s.trim()).some((rule) => {
+  return (accept || "").split(",").map((s) => s.trim()).some((rule) => {   // the Downloader takes no files
     if (!rule) return false;
     if (rule.startsWith(".")) return file.name.toLowerCase().endsWith(rule);
     if (rule.endsWith("/*")) return file.type.startsWith(rule.slice(0, -1));

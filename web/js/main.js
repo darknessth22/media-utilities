@@ -2,6 +2,9 @@ import { h, icon, mark as logoMark, bindDrop, accepts, reducedMotion } from "./u
 import { GROUPS, TOOLS, toolById } from "./tools/index.js";
 import { renderWorkspace } from "./workspace.js";
 import { renderReport } from "./report.js";
+import { PAGES, PAGE_OF } from "./pages.js";
+
+const toolHref = (id) => (PAGE_OF[id] ? `/${PAGE_OF[id]}` : `/#/tool/${id}`);
 
 const main = document.getElementById("main");
 let cleanup = null;
@@ -61,19 +64,33 @@ function mostUsed(n = 6) {
 }
 
 // Routing ------------------------------------------------------------------------------
-// Search pages such as /compress-video (made by tools/web_tool_pages.py) name their tool
-// on <html data-tool>. With no #route they open it and keep their own <title>, because
-// search engines ignore everything after "#".
-const START_TOOL = document.documentElement.dataset.tool || "";
+// Each tool has its own address such as /compress-video (a static page from
+// tools/web_tool_pages.py, for search engines, since they ignore everything after
+// "#"). Other pages are /#/tools, /#/report and so on. Links between them swap the
+// page in place (see the click handler below) instead of loading a new document.
+const root = document.documentElement.dataset;
+const pageInfo = () => PAGES[location.pathname.replace(/^\/|\.html$/g, "")] || null;
 
 function route() {
+  let info = pageInfo();
   const hash = location.hash.replace(/^#/, "");
-  const [, kind, id] = (hash || (START_TOOL ? `/tool/${START_TOOL}` : "")).split("/");
+  const [, kind, id] = (hash || (info ? `/tool/${info.tool}` : "")).split("/");
+  // A tool always shows at its own address with its own how-to, so old links such
+  // as /compress-video#/tool/gif or /#/tool/gif move to /video-to-gif.
+  const own = info && kind === "tool" && id === info.tool;
+  if (!own && (info || (kind === "tool" && PAGE_OF[id]))) {
+    history.replaceState(null, "", kind === "tool" && PAGE_OF[id] ? `/${PAGE_OF[id]}` : `/#${hash}`);
+    return route();
+  }
   cleanup?.();
   cleanup = null;
+  // workspace.js reads the page's heading and preset settings from <html data-*>.
+  if (info) Object.assign(root, { tool: info.tool, h1: info.h1, preset: info.preset ? JSON.stringify(info.preset) : "" });
+  else for (const key of ["tool", "h1", "preset"]) delete root[key];
+  renderCopy(info);
   const tool = kind === "tool" ? toolById(id) : null;
   let page = "home";
-  if (tool?.soon) { renderSoon(tool); page = tool.id; }
+  if (tool?.handoff) { countUse(tool.id); renderHandoff(tool); page = tool.id; }
   else if (tool) { countUse(tool.id); cleanup = renderWorkspace(main, tool, pendingFiles.splice(0)); page = "tools"; }
   else if (kind === "tools") { renderTools(); page = "tools"; }
   else if (kind === "report") { renderReport(main); page = "report"; }
@@ -81,13 +98,49 @@ function route() {
   for (const a of document.querySelectorAll("[data-nav]")) {
     if (a.dataset.nav === page) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
-  if (hash || !START_TOOL) {
-    document.title = tool ? `${tool.name} — Videl` : page === "tools" ? "All tools — Videl"
-      : page === "report" ? "Report a bug — Videl" : "Videl — free video, PDF and image tools in your browser";
+  document.title = info ? info.title : tool ? `${tool.name} — Videl` : page === "tools" ? "All tools — Videl"
+    : page === "report" ? "Report a bug — Videl" : "Videl — free video, PDF and image tools in your browser";
+  for (const a of document.querySelectorAll(".foot-tools a")) {
+    if (info && a.getAttribute("href") === location.pathname) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
   if (!firstPaint) { window.scrollTo(0, 0); main.focus({ preventScroll: true }); }
   firstPaint = false;
 }
+
+// The how-to, related tools and questions under a tool, from the same copy as the
+// static page (pages.js is written by tools/web_tool_pages.py).
+function renderCopy(info) {
+  let section = document.querySelector(".seo-copy");
+  if (!info) { section?.setAttribute("hidden", ""); return; }
+  if (!section) {
+    section = h("section", { class: "seo-copy wrap", "aria-labelledby": "how-h" });
+    document.querySelector("footer.foot").before(section);
+  }
+  section.removeAttribute("hidden");
+  section.replaceChildren(
+    h("h2", { id: "how-h" }, info.how),
+    h("ol", {}, info.steps.map((s) => h("li", {}, s))),
+    h("h2", {}, "Related tools"),
+    h("ul", { class: "related" }, info.related.map(([slug, name]) => h("li", {}, h("a", { href: `/${slug}` }, name)))),
+    h("h2", {}, "Questions"),
+    info.faq.map(([q, a]) => h("details", {}, h("summary", {}, q), h("p", {}, a))));
+}
+
+// Links between Videl pages swap the page in place: fast, keeps the short fade, and
+// files dropped on Home survive the move to their tool.
+function go(url) {
+  if (url !== location.href) history.pushState(null, "", url);
+  navigate();
+}
+document.addEventListener("click", (e) => {
+  const a = e.target.closest?.("a[href]");
+  if (!a || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target) return;
+  const url = new URL(a.href);
+  const slug = url.pathname.slice(1);
+  if (url.origin !== location.origin || (slug && !PAGES[slug])) return;
+  e.preventDefault();
+  if (url.href !== location.href) go(url.href);
+});
 
 function navigate() {
   if (document.startViewTransition && !reducedMotion()) document.startViewTransition(route);
@@ -113,7 +166,7 @@ function renderHome() {
         : "None of the browser tools take this file type yet. Try a video, audio file, PDF or image."),
       h("div", { class: "suggest" },
         fits.map((t) => h("button", { class: "btn", type: "button", style: `--tool:${t.color}`,
-          onclick: () => { pendingFiles = files; location.hash = `#/tool/${t.id}`; } }, icon(t.icon), t.name)),
+          onclick: () => { pendingFiles = files; go(new URL(toolHref(t.id), location.origin).href); } }, icon(t.icon), t.name)),
         h("button", { class: "btn btn-quiet", type: "button", onclick: () => suggestBox.replaceChildren() }, "Clear"))));
     suggestBox.querySelector(".suggest .btn")?.focus();
   }
@@ -126,13 +179,13 @@ function renderHome() {
       h("p", { class: "home-lede" }, "Convert, trim and compress video, combine PDFs, rework images and remove backgrounds. Everything runs on your device, so your files stay private."),
       h("div", { class: "home-actions" },
         h("button", { class: "btn btn-primary btn-lg", type: "button", onclick: () => input.click() }, "Choose a file"),
-        h("a", { class: "btn btn-lg", href: "#/tools" }, `Browse all ${LIVE_TOOLS.length} tools`)),
+        h("a", { class: "btn btn-lg", href: "/#/tools" }, `Browse all ${LIVE_TOOLS.length} tools`)),
       h("p", { class: "home-drop-hint" }, "Or drop a file anywhere on this page."),
       suggestBox, input),
     h("section", { class: "home-fav", "aria-labelledby": "fav-h" },
       h("div", { class: "fav-head" },
         h("h2", { id: "fav-h" }, personal ? "Your most used" : "Most used"),
-        h("a", { class: "btn btn-sm btn-quiet", href: "#/tools" }, "See all tools")),
+        h("a", { class: "btn btn-sm btn-quiet", href: "/#/tools" }, "See all tools")),
       h("ul", { class: "cat-grid is-entering" }, favourites.map(tile))),
     desktopPromo());
 
@@ -230,7 +283,7 @@ function catalog() {
 
 function tile(t) {
   return h("li", { class: "cat-item", style: `--tool:${t.color}` },
-    h("a", { class: t.soon ? "tile is-soon" : "tile", href: `#/tool/${t.id}` },
+    h("a", { class: t.soon ? "tile is-soon" : "tile", href: toolHref(t.id) },
       h("div", { class: "tile-top" },
         icon(t.icon),
         t.soon ? h("span", { class: "pill" }, "Coming next") : null),
@@ -241,19 +294,41 @@ function tile(t) {
         h("span", {}, h("em", {}, "Gives "), t.gives))));
 }
 
-// Coming next ---------------------------------------------------------------------
-function renderSoon(tool) {
+// Downloader: hands the link to the desktop app's local bridge
+// (core/extension_bridge.py, which only accepts this site's origin). Videl
+// 5.0.9 and older reject it, which looks the same here as the app not running.
+const BRIDGE = "http://127.0.0.1:17654/url";
+const PHONE = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+
+function renderHandoff(tool) {
+  const input = h("input", { type: "url", required: true, autocomplete: "off", "aria-label": "Video link",
+    placeholder: "Paste a link from YouTube, Instagram, TikTok…" });
+  const status = h("p", { class: "handoff-status", role: "status" });
+  async function send(e) {
+    e.preventDefault();
+    status.textContent = "Sending the link to Videl…";
+    try {
+      const r = await fetch(BRIDGE, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page: input.value.trim() }) });
+      status.textContent = r.ok ? "Sent. Videl is open with the link in its Downloader."
+        : "Videl couldn't use that link. Check that it's the full address of a video page.";
+    } catch {
+      status.replaceChildren("Couldn't reach Videl on this computer. Open the desktop app (the latest version) and press Open in Videl again. "
+        + "If your browser asks to let this site reach apps on your device, allow it. No app yet? ",
+        h("a", { href: DESKTOP_URL, rel: "noopener" }, "Get it free"), ".");
+    }
+  }
   main.replaceChildren(h("div", { class: "wrap" },
     h("section", { class: "soon" },
-      h("span", { class: "pill" }, "Coming next"),
       h("h1", {}, tool.name),
-      tool.soonText.map((t) => h("p", {}, t)),
-      tool.id === "download" && h("div", { class: "fake-url", "aria-hidden": "true" },
-        h("input", { type: "text", placeholder: "Paste a link from YouTube, Instagram, TikTok…", disabled: true, tabindex: "-1" }),
-        h("button", { class: "btn btn-primary", type: "button", disabled: true, tabindex: "-1" }, "Download")),
-      h("a", { class: "btn btn-primary", href: DESKTOP_URL, rel: "noopener" }, "Get the desktop app"),
-      " ",
-      h("a", { class: "btn btn-quiet", href: "#/tools" }, "Back to the tools"))));
+      PHONE
+        ? [h("p", {}, "On a phone, use the Videl Android app: it downloads from the same sites. There's no iPhone app yet."),
+           h("a", { class: "btn btn-primary", href: DESKTOP_URL, rel: "noopener" }, "Get the Android app")]
+        : [...tool.text.map((t) => h("p", {}, t)),
+           h("form", { class: "link-box", onsubmit: send }, input,
+             h("button", { class: "btn btn-primary", type: "submit" }, "Open in Videl")),
+           status,
+           h("a", { class: "btn btn-quiet", href: DESKTOP_URL, rel: "noopener" }, "Get the desktop app")])));
 }
 
 // Tool tiles: a soft spotlight follows the pointer (one listener, rAF-throttled).
@@ -275,8 +350,8 @@ document.addEventListener("keydown", (e) => {
   const input = document.querySelector(".cat-search-input");
   e.preventDefault();
   if (input) input.focus();
-  else { location.hash = "#/tools"; setTimeout(() => document.querySelector(".cat-search-input")?.focus(), 350); }
+  else { go(new URL("/#/tools", location.origin).href); setTimeout(() => document.querySelector(".cat-search-input")?.focus(), 350); }
 });
 
-window.addEventListener("hashchange", navigate);
+window.addEventListener("popstate", navigate);   // back/forward, and typed #routes
 route();

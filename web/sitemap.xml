@@ -3,10 +3,16 @@
   <url><loc>https://app.videl.app/</loc></url>
   <url><loc>https://app.videl.app/compress-video</loc></url>
   <url><loc>https://app.videl.app/convert-video</loc></url>
+  <url><loc>https://app.videl.app/video-to-mp3</loc></url>
+  <url><loc>https://app.videl.app/audio-converter</loc></url>
   <url><loc>https://app.videl.app/trim-video</loc></url>
   <url><loc>https://app.videl.app/video-to-gif</loc></url>
   <url><loc>https://app.videl.app/merge-videos</loc></url>
   <url><loc>https://app.videl.app/remove-audio-from-video</loc></url>
+  <url><loc>https://app.videl.app/split-video</loc></url>
+  <url><loc>https://app.videl.app/rotate-video</loc></url>
+  <url><loc>https://app.videl.app/crop-video</loc></url>
+  <url><loc>https://app.videl.app/resize-video</loc></url>
   <url><loc>https://app.videl.app/merge-pdf</loc></url>
   <url><loc>https://app.videl.app/split-pdf</loc></url>
   <url><loc>https://app.videl.app/rotate-pdf</loc></url>
@@ -14,6 +20,10 @@
   <url><loc>https://app.videl.app/pdf-to-jpg</loc></url>
   <url><loc>https://app.videl.app/remove-background</loc></url>
   <url><loc>https://app.videl.app/convert-image</loc></url>
+  <url><loc>https://app.videl.app/compress-image</loc></url>
+  <url><loc>https://app.videl.app/resize-image</loc></url>
+  <url><loc>https://app.videl.app/png-to-jpg</loc></url>
+  <url><loc>https://app.videl.app/webp-to-jpg</loc></url>
   <url><loc>https://app.videl.app/pixel-art-maker</loc></url>
   <url><loc>https://app.videl.app/color-palette-generator</loc></url>
 </urlset>

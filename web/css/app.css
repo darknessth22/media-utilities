@@ -484,8 +484,13 @@ p { margin: 0; }
   background: var(--panel-2); border: 1px solid var(--line);
 }
 .field input[type="range"] { width: 100%; accent-color: var(--ribbon); }
-.range-row { display: flex; align-items: center; gap: 12px; }
-.range-row output { min-width: 3.5ch; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.range-row { display: flex; align-items: center; gap: 10px; }
+/* Typed values: the exact box beside a slider, and "Custom" under a set of choices. */
+.field input.range-num { width: 5.5em; min-height: 38px; padding: 0 8px; flex: none; font-variant-numeric: tabular-nums; }
+.custom-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.field .custom-row input { width: 8em; flex: none; }
+.field input[aria-invalid="true"] { border-color: var(--danger); }
+.unit { color: var(--muted); font-size: var(--t-sm); }
 
 .seg { display: flex; flex-wrap: wrap; gap: 6px; border: 0; padding: 0; margin: 0; }
 .seg legend { font-weight: 600; font-size: var(--t-sm); margin-bottom: 8px; padding: 0; }
@@ -526,17 +531,19 @@ p { margin: 0; }
 }
 .result .file-meta b { color: var(--ok); font-weight: 600; }
 
-/* Coming next ---------------------------------------------------------------------- */
+/* Downloader (hands links to the desktop app) ---------------------------------------- */
 .soon { max-width: 640px; padding: clamp(32px, 6vw, 72px) 0 96px; }
 .soon h1 { font-size: var(--t-xl); font-stretch: 85%; margin: 14px 0 12px; }
 .soon p { color: var(--muted); }
 .soon p + p { margin-top: 12px; }
 .soon .btn { margin-top: 24px; }
-.fake-url {
+.link-box {
   margin-top: 28px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 8px;
-  border-radius: 999px; background: var(--panel); border: 1px solid var(--line); opacity: .7;
+  border-radius: 999px; background: var(--panel); border: 1px solid var(--line);
 }
-.fake-url input { border: 0; background: transparent; padding: 0 14px; min-height: 44px; }
+.link-box input { border: 0; background: transparent; padding: 0 14px; min-height: 44px; min-width: 0; font: inherit; color: inherit; }
+.soon .link-box .btn { margin-top: 0; }
+.soon .handoff-status { margin-top: 12px; min-height: 1.5em; }
 
 /* Report a bug ---------------------------------------------------------------------- */
 .report { padding-top: clamp(16px, 3vw, 44px); padding-bottom: 88px; }
@@ -568,7 +575,8 @@ p { margin: 0; }
 .seo-copy h2 { font-size: clamp(1.3rem, 2.2vw, 1.6rem); margin: 0 0 14px; }
 .seo-copy h2 + * { margin-top: 0; }
 .seo-copy ol { margin: 0 0 40px; padding-left: 1.3em; color: var(--muted); line-height: 1.7; }
-.seo-copy li + li { margin-top: 6px; }
+.seo-copy ol li + li { margin-top: 6px; }
+.seo-copy .related { list-style: none; margin: 0 0 40px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 22px; }
 .seo-copy details { border-top: 1px solid var(--line); padding: 14px 0; }
 .seo-copy details:last-child { border-bottom: 1px solid var(--line); }
 .seo-copy summary { cursor: pointer; font-weight: 600; min-height: 24px; }
@@ -582,7 +590,6 @@ p { margin: 0; }
 
 /* View change: one short cross-fade when a tool opens (answers the click) -------- */
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .22s; }
-
 /* Responsive ----------------------------------------------------------------------- */
 @media (max-width: 1100px) {
   .ws-head { grid-template-columns: auto auto minmax(0, 1fr); }

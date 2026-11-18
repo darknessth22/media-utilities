@@ -17,6 +17,8 @@ const FORMATS = {
 };
 
 const inName = (file, i = 0) => `in${i}.${ext(file.name) || "bin"}`;
+// Clockwise degrees, 0 to 359, from the Rotate field: a listed choice or a typed angle.
+const turn = (v) => ({ none: 0, right: 90, left: 270, 180: 180 }[v] ?? ((Number(v) % 360) + 360) % 360);
 
 export const videoTools = [
   {
@@ -95,12 +97,13 @@ export const videoTools = [
         options: [["26", "Light"], ["30", "Balanced"], ["34", "Strong"]],
         hint: "Stronger means a smaller file and softer picture." },
       { key: "height", type: "seg", label: "Resolution", value: "keep",
-        options: [["keep", "Keep"], ["1080", "1080p"], ["720", "720p"], ["480", "480p"]] },
+        options: [["keep", "Keep"], ["1080", "1080p"], ["720", "720p"], ["480", "480p"]],
+        custom: { value: "540", min: 144, max: 4320, unit: "p", whole: true } },
       { key: "audio", type: "seg", label: "Sound", value: "128k",
         options: [["128k", "Keep"], ["64k", "Smaller"], ["none", "Remove"]] },
     ],
     async run({ files: [file], values, progress, status, meta }) {
-      const scale = values.height === "keep" ? [] : ["-vf", `scale=-2:'min(ih,${values.height})'`];
+      const scale = values.height === "keep" ? [] : ["-vf", `scale=-2:'trunc(min(ih,${values.height})/2)*2'`];
       const audio = values.audio === "none" ? ["-an"] : ["-c:a", "aac", "-b:a", values.audio];
       const blob = await runFFmpeg({
         inputs: [{ name: inName(file), file }],
@@ -123,9 +126,11 @@ export const videoTools = [
     action: "Make GIF",
     fields: [
       { key: "width", type: "seg", label: "Width", value: "480",
-        options: [["320", "320 px"], ["480", "480 px"], ["640", "640 px"]] },
+        options: [["320", "320 px"], ["480", "480 px"], ["640", "640 px"]],
+        custom: { value: "400", min: 64, max: 1920, unit: "px", whole: true } },
       { key: "fps", type: "seg", label: "Smoothness", value: "12",
         options: [["8", "8 fps"], ["12", "12 fps"], ["20", "20 fps"]],
+        custom: { value: "15", min: 1, max: 50, unit: "fps", whole: true },
         hint: "Wider and smoother GIFs get large fast. Keep clips under 15 seconds." },
     ],
     async run({ files: [file], values, progress, status, meta }) {
@@ -221,6 +226,118 @@ export const videoTools = [
       const blob = await runFFmpeg({ inputs, args, output: `out.${extension}`, type: video.type || "video/mp4", duration: meta.duration, onProgress: progress, onStatus: status });
       const suffix = { remove: "silent", replace: "new-audio", add: "two-tracks" }[values.mode];
       return [{ blob, name: `${baseName(video.name)}-${suffix}.${extension}` }];
+    },
+  },
+
+  // Desktop: Auto-Chunker (core/chunker.py).
+  {
+    id: "split",
+    group: "video",
+    icon: "chunk",
+    name: "Split video",
+    blurb: "Cut a long video or recording into parts of a set length or file size, without re-encoding.",
+    accept: MEDIA,
+    preview: "video",
+    action: "Split",
+    fields: [
+      { key: "by", type: "seg", label: "Split by", value: "length",
+        options: [["length", "Length"], ["size", "File size"]] },
+      { key: "length", type: "seg", label: "Each part", value: "60",
+        options: [["30", "30 s"], ["60", "1 min"], ["300", "5 min"], ["600", "10 min"]],
+        custom: { value: "45", min: 1, max: 86400, unit: "seconds" },
+        hint: "Nothing is re-encoded, so each part ends at the next keyframe and can run a few seconds over.",
+        when: (v) => v.by === "length" },
+      { key: "size", type: "seg", label: "Each part under", value: "25",
+        options: [["10", "10 MB"], ["25", "25 MB"], ["50", "50 MB"], ["100", "100 MB"]],
+        custom: { value: "8", min: 1, max: 4000, unit: "MB" },
+        hint: "Nothing is re-encoded, so the quality stays the same.",
+        when: (v) => v.by === "size" },
+    ],
+    async run({ files: [file], values, progress, status, meta }) {
+      const extension = ext(file.name) || "mp4";
+      const output = `part%03d.${extension}`;
+      const split = (seconds) => runFFmpeg({
+        inputs: [{ name: inName(file), file }],
+        args: ["-i", inName(file), "-map", "0:v:0?", "-map", "0:a?", "-c", "copy", "-f", "segment",
+          "-segment_time", String(seconds), "-reset_timestamps", "1", "-avoid_negative_ts", "make_zero", output],
+        output, type: file.type || "video/mp4", duration: meta.duration, onProgress: progress, onStatus: status,
+      });
+      let parts;
+      if (values.by === "length") parts = await split(Number(values.length));
+      else {
+        if (!meta.duration) throw new Error("This file's length couldn't be read, so it can't be split by size. Split it by length instead.");
+        // Estimate each part's length from the average bitrate, then shorten it and
+        // split again if a part still came out too big (the bitrate varies).
+        const limit = Number(values.size) * 1e6;
+        let seconds = Math.max(1, Math.floor(meta.duration * limit * 0.9 / file.size));
+        for (let attempt = 1; ; attempt++) {
+          parts = await split(seconds);
+          const biggest = Math.max(...parts.map((b) => b.size));
+          if (biggest <= limit || attempt === 3 || seconds === 1) break;
+          seconds = Math.max(1, Math.floor(seconds * limit / biggest * 0.95));
+        }
+      }
+      const digits = Math.max(2, String(parts.length).length);
+      return parts.map((blob, i) => ({ blob, name: `${baseName(file.name)}-part${String(i + 1).padStart(digits, "0")}.${extension}` }));
+    },
+  },
+
+  // Desktop: Transform Media (core/spatial.py).
+  {
+    id: "transform",
+    group: "video",
+    icon: "spatial",
+    name: "Rotate, crop, resize",
+    blurb: "Turn a sideways video upright, crop it to 9:16 or square, or make it smaller.",
+    accept: "video/*,.mkv,.mov,.avi",
+    preview: "video",
+    action: "Apply",
+    fields: [
+      { key: "rotate", type: "seg", label: "Rotate", value: "none",
+        options: [["none", "None"], ["right", "90° right"], ["left", "90° left"], ["180", "180°"]],
+        custom: { value: "15", min: -359, max: 359, unit: "degrees, clockwise" },
+        hint: "Angles other than 90, 180 and 270 tilt the picture and fill the corners with black." },
+      { key: "mirror", type: "seg", label: "Mirror", value: "no",
+        options: [["no", "No"], ["yes", "Flip left to right"]] },
+      { key: "crop", type: "seg", label: "Crop to", value: "keep",
+        options: [["keep", "Keep"], ["9:16", "9:16"], ["1:1", "1:1"], ["4:5", "4:5"], ["16:9", "16:9"]],
+        custom: { value: "3:2", ratio: true },
+        hint: "9:16 for Reels, TikTok and Shorts, 4:5 for Instagram posts, 16:9 for YouTube. The centre is kept, after rotating." },
+      { key: "size", type: "seg", label: "Size", value: "keep",
+        options: [["keep", "Keep"], ["1080", "1080p"], ["720", "720p"], ["480", "480p"]],
+        custom: { value: "540", min: 16, max: 4320, unit: "p", whole: true },
+        hint: "Measured on the shorter side, so a vertical 1080p video is 1080 by 1920. A smaller video is never enlarged." },
+    ],
+    validate(files, values) {
+      const unchanged = !turn(values.rotate) && values.mirror === "no" && values.crop === "keep" && values.size === "keep";
+      return unchanged ? "Choose at least one change: rotate, mirror, crop or size." : null;
+    },
+    async run({ files: [file], values, progress, status, meta }) {
+      const filters = [];
+      const angle = turn(values.rotate);
+      if (angle === 90) filters.push("transpose=1");
+      else if (angle === 270) filters.push("transpose=2");
+      else if (angle === 180) filters.push("hflip,vflip");
+      else if (angle) {   // any other angle: tilt, grow the frame to fit, black corners
+        const r = `${angle}*PI/180`;
+        filters.push(`rotate=${r}:ow=rotw(${r}):oh=roth(${r}):c=black`, "scale=trunc(iw/2)*2:trunc(ih/2)*2");
+      }
+      if (values.mirror === "yes") filters.push("hflip");
+      if (values.crop !== "keep") {
+        const [a, b] = values.crop.split(":");
+        filters.push(`crop='trunc(min(iw,ih*${a}/${b})/2)*2':'trunc(min(ih,iw*${b}/${a})/2)*2'`);
+      }
+      if (values.size !== "keep") {
+        const n = values.size;   // shorter side, never enlarged; -2 keeps the shape with even sizes
+        filters.push(`scale='if(gte(iw,ih),-2,trunc(min(iw,${n})/2)*2)':'if(gte(iw,ih),trunc(min(ih,${n})/2)*2,-2)'`);
+      }
+      const blob = await runFFmpeg({
+        inputs: [{ name: inName(file), file }],
+        args: ["-i", inName(file), "-vf", filters.join(","), "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+          "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", "out.mp4"],
+        output: "out.mp4", type: "video/mp4", duration: meta.duration, onProgress: progress, onStatus: status,
+      });
+      return [{ blob, name: `${baseName(file.name)}-edited.mp4` }];
     },
   },
 ];

@@ -170,7 +170,8 @@ export const pdfTools = [
     fields: [
       { key: "format", type: "seg", label: "Format", value: "png", options: [["png", "PNG"], ["jpg", "JPG"]] },
       { key: "dpi", type: "seg", label: "Quality", value: "150",
-        options: [["96", "Screen"], ["150", "Standard"], ["300", "Print"]] },
+        options: [["96", "Screen"], ["150", "Standard"], ["300", "Print"]],
+        custom: { value: "200", min: 36, max: 600, unit: "dpi", whole: true } },
     ],
     async run({ files: [file], values, progress }) {
       const pdfjs = await loadPdfJs();

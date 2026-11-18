@@ -81,10 +81,16 @@ export async function runFFmpeg({ inputs, args, output, type, duration, onProgre
     onStatus?.({ phase: "working" });
     const code = await ffmpeg.exec(args);
     if (code !== 0) throw new Error(explain(tail));
-    const data = await ffmpeg.readFile(output);
-    written.push(output);
+    // A numbered output such as "part%03d.mp4" (the segment muxer) writes several
+    // files: return all of them, in order, instead of one Blob.
+    const prefix = output.includes("%") ? output.slice(0, output.indexOf("%")) : null;
+    const names = prefix === null ? [output]
+      : (await ffmpeg.listDir("/")).map((e) => e.name).filter((n) => n.startsWith(prefix)).sort();
+    written.push(...names);
+    const blobs = [];
+    for (const name of names) blobs.push(new Blob([(await ffmpeg.readFile(name)).buffer], { type }));
     onProgress?.(1);
-    return new Blob([data.buffer], { type });
+    return prefix === null ? blobs[0] : blobs;
   } finally {
     ffmpeg.off("log", onLog);
     for (const name of written) await ffmpeg.deleteFile(name).catch(() => {});
