@@ -72,10 +72,14 @@ These run entirely in your browser, so nothing is uploaded and there is nothing 
 
 - [Compress video](https://app.videl.app/compress-video)
 - [Convert video and audio to MP4, MP3, WebM and more](https://app.videl.app/convert-video)
+- [Video to MP3](https://app.videl.app/video-to-mp3)
+- [Audio converter](https://app.videl.app/audio-converter)
 - [Trim video and audio](https://app.videl.app/trim-video)
 - [Video to GIF](https://app.videl.app/video-to-gif)
 - [Merge videos](https://app.videl.app/merge-videos)
 - [Remove or replace audio in a video](https://app.videl.app/remove-audio-from-video)
+- [Split a video into parts](https://app.videl.app/split-video)
+- [Rotate video](https://app.videl.app/rotate-video), [crop video](https://app.videl.app/crop-video) and [resize video](https://app.videl.app/resize-video)
 - [Merge PDF files](https://app.videl.app/merge-pdf)
 - [Split a PDF](https://app.videl.app/split-pdf)
 - [Rotate PDF pages](https://app.videl.app/rotate-pdf)
@@ -83,8 +87,14 @@ These run entirely in your browser, so nothing is uploaded and there is nothing 
 - [PDF to JPG or PNG](https://app.videl.app/pdf-to-jpg)
 - [Remove the background from an image](https://app.videl.app/remove-background)
 - [Convert, resize and compress images](https://app.videl.app/convert-image)
+- [Compress images](https://app.videl.app/compress-image)
+- [Resize images](https://app.videl.app/resize-image)
+- [PNG to JPG](https://app.videl.app/png-to-jpg)
+- [WebP to JPG](https://app.videl.app/webp-to-jpg)
 - [Pixel art maker](https://app.videl.app/pixel-art-maker)
 - [Color palette generator](https://app.videl.app/color-palette-generator)
+
+The web app's [Downloader](https://app.videl.app/#/tool/download) page sends a pasted link to the Videl desktop app, which downloads it on your own connection. Video sites block downloads made from a browser tab.
 
 ---
 
