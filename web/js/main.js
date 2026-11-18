@@ -123,7 +123,7 @@ function renderCopy(info) {
     h("h2", {}, "Related tools"),
     h("ul", { class: "related" }, info.related.map(([slug, name]) => h("li", {}, h("a", { href: `/${slug}` }, name)))),
     h("h2", {}, "Questions"),
-    info.faq.map(([q, a]) => h("details", {}, h("summary", {}, q), h("p", {}, a))));
+    ...info.faq.map(([q, a]) => h("details", {}, h("summary", {}, q), h("p", {}, a))));
 }
 
 // Links between Videl pages swap the page in place: fast, keeps the short fade, and
