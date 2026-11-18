@@ -1,9 +1,10 @@
-"""Local HTTP bridge for the Videl browser extension.
+"""Local HTTP bridge for the Videl browser extension and the web app.
 
 Listens on 127.0.0.1 and exposes a single POST /url endpoint. The browser
 extension content script overlays a "Download with Videl" button on every
 <video> element it sees; clicking that button posts JSON to this server,
 which emits a Qt signal so the main window can populate the Downloader tab.
+The web app's Downloader page (app.videl.app) posts the same JSON.
 
 Stdlib only — no extra dependency. HTTP (not WebSocket) is enough: the
 extension fires a single one-shot request per click, so a stateful socket
@@ -22,6 +23,13 @@ from PySide6.QtCore import QObject, Signal
 DEFAULT_PORT = 17654
 HOST = "127.0.0.1"
 ALLOWED_ORIGIN_PREFIXES = ("chrome-extension://", "moz-extension://", "edge-extension://")
+# The web app's Downloader page hands links to this app ("Open in Videl"),
+# because video sites block downloads from browser tabs and from servers.
+ALLOWED_WEB_ORIGINS = ("https://app.videl.app",)
+
+
+def _trusted(origin: str) -> bool:
+    return origin.startswith(ALLOWED_ORIGIN_PREFIXES) or origin in ALLOWED_WEB_ORIGINS
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -31,16 +39,18 @@ class _Handler(BaseHTTPRequestHandler):
         return
 
     def _cors_headers(self) -> None:
-        # Only emit ACAO for trusted extension origins. Wildcard "*" let any
+        # Only emit ACAO for trusted origins. Wildcard "*" let any
         # webpage fetch() into the loopback bridge and inject download URLs.
         # Requests without an Origin (native clients, tests) still work — the
         # browser-only CORS layer just won't be advertised to them.
         origin = self.headers.get("Origin", "")
-        if origin and any(origin.startswith(p) for p in ALLOWED_ORIGIN_PREFIXES):
+        if origin and _trusted(origin):
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
             self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            # Chrome asks this before a public site may reach 127.0.0.1.
+            self.send_header("Access-Control-Allow-Private-Network", "true")
             self.send_header("Access-Control-Max-Age", "600")
 
     def do_OPTIONS(self) -> None:
@@ -64,7 +74,7 @@ class _Handler(BaseHTTPRequestHandler):
         # Reject browser POSTs from origins we don't trust. Native clients
         # (no Origin header) are still allowed.
         origin = self.headers.get("Origin", "")
-        if origin and not any(origin.startswith(p) for p in ALLOWED_ORIGIN_PREFIXES):
+        if origin and not _trusted(origin):
             self.send_response(403)
             self.end_headers()
             return

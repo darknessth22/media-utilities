@@ -143,3 +143,34 @@ def test_start_on_busy_port_returns_false():
         assert b.start() is False
     finally:
         a.stop()
+
+
+def _post_from(port: int, origin: str) -> tuple[int, dict]:
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{port}/url",
+        data=json.dumps({"page": "https://www.tiktok.com/@a/video/1"}).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Origin": origin},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            return resp.status, dict(resp.headers)
+    except urllib.error.HTTPError as e:
+        return e.code, dict(e.headers)
+
+
+def test_web_app_origin_allowed(bridge):
+    """The web app's Downloader page hands links to the desktop app."""
+    _, port, _ = bridge
+    status, headers = _post_from(port, "https://app.videl.app")
+    assert status == 200
+    assert headers.get("Access-Control-Allow-Origin") == "https://app.videl.app"
+    assert headers.get("Access-Control-Allow-Private-Network") == "true"
+
+
+def test_other_websites_rejected(bridge):
+    _, port, _ = bridge
+    for origin in ("https://evil.example", "https://app.videl.app.evil.example", "http://app.videl.app"):
+        status, headers = _post_from(port, origin)
+        assert status == 403, origin
+        assert "Access-Control-Allow-Origin" not in headers

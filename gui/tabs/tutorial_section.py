@@ -604,6 +604,7 @@ _TUTORIAL_DATA_EN = [
             "Videl listens on 127.0.0.1:17654 — local only, never exposed to the network.",
             "The extension prefers the page URL over the raw <video> source so yt-dlp's site extractors handle YouTube/TikTok/Twitter properly.",
             "Tiny videos (avatars, ad pixels under 160×90) are skipped on purpose.",
+            "No extension needed on the Videl website: paste a link on app.videl.app's Downloader page and press Open in Videl.",
         ],
     },
     {
@@ -1445,6 +1446,7 @@ _TUTORIAL_DATA_AR = [
             "يستمع Videl على 127.0.0.1:17654 — محلي فقط، لا يُعرض على الشبكة.",
             "تفضّل الإضافة رابط الصفحة على المصدر الخام لأن مستخرجات yt-dlp تتعامل مع يوتيوب وتيك توك وتويتر بشكل أفضل بهذه الطريقة.",
             "يتم تجاهل مقاطع الفيديو الصغيرة (الصور الرمزية، إعلانات أصغر من 160×90) عمداً.",
+            "لا حاجة للإضافة في موقع Videl: الصق رابطًا في صفحة التحميل على app.videl.app واضغط Open in Videl.",
         ],
     },
     {
