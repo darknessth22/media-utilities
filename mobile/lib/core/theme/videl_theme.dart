@@ -279,7 +279,7 @@ ThemeData buildVidelTheme() {
       indicatorSize: TabBarIndicatorSize.tab,
       dividerColor: Colors.transparent,
       labelStyle: const TextStyle(fontWeight: FontWeight.w700),
-      splashBorderRadius: BorderRadius.circular(999),
+      // No splashBorderRadius here: TabBarThemeData in Flutter 3.27 (CI) lacks it.
     ),
     listTileTheme: const ListTileThemeData(iconColor: VidelColors.textSecondary),
   );

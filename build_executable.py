@@ -73,12 +73,15 @@ def download_ffmpeg_pinned(cfg):
         # Download ZIP
         urllib.request.urlretrieve(cfg['url'], zip_path)
         
-        # Download SHA256
-        urllib.request.urlretrieve(cfg['sha256_url'], sha_path)
-        
-        # Verify SHA256
-        with open(sha_path, 'r') as f:
-            expected_hash = f.read().strip().split()[0].lower()
+        # Expected SHA256: pinned in build_config.json ("sha256"), or fetched
+        # from "sha256_url". gyan.dev drops old versions from /packages, so the
+        # pinned zip comes from Gyan's GitHub mirror, which has no .sha256 file.
+        if cfg.get('sha256'):
+            expected_hash = cfg['sha256'].lower()
+        else:
+            urllib.request.urlretrieve(cfg['sha256_url'], sha_path)
+            with open(sha_path, 'r') as f:
+                expected_hash = f.read().strip().split()[0].lower()
         
         sha256_hash = hashlib.sha256()
         with open(zip_path, "rb") as f:
