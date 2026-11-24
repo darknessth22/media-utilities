@@ -156,7 +156,7 @@ class _Handle extends StatelessWidget {
 
 // ── Audio-only player card ────────────────────────────────────────────────────
 class _AudioPlayer extends StatefulWidget {
-  const _AudioPlayer({super.key, required this.path, required this.onPositionChanged});
+  const _AudioPlayer({required this.path, required this.onPositionChanged});
   final String path;
   final ValueChanged<Duration> onPositionChanged;
   @override
@@ -1920,30 +1920,5 @@ class _PalettePageState extends State<PalettePage> {
             ),
         ]),
     );
-  }
-}
-
-// ────────────────────────────────────────────────────────────────────────
-// Reusable
-
-class _NumRow extends StatelessWidget {
-  const _NumRow(
-      {required this.label, required this.value, required this.onChanged});
-  final String label;
-  final int value;
-  final ValueChanged<int> onChanged;
-  @override
-  Widget build(BuildContext context) {
-    return Row(children: [
-      SizedBox(width: 80, child: Text(label)),
-      Expanded(
-        child: TextFormField(
-          initialValue: '$value',
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(isDense: true),
-          onChanged: (v) => onChanged(int.tryParse(v) ?? value),
-        ),
-      ),
-    ]);
   }
 }

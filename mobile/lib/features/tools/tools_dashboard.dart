@@ -13,27 +13,29 @@ class _Tool {
   final Color color;
 }
 
+// Colours match the desktop app (_TOOL_COLOR) and the web app (META), so a tool
+// looks the same everywhere.
 final _tools = <_Tool>[
-  _Tool(Icons.cloud_download_rounded, 'Downloader', 'yt-dlp · video & MP3',
-      (_) => const DownloaderPage(), VidelColors.accent),
-  _Tool(Icons.content_cut_rounded, 'Trim', 'video & audio · cut start / end',
-      (_) => const TrimPage(), const Color(0xFFEAB308)),
-  _Tool(Icons.crop_rounded, 'Crop', 'rectangle crop',
-      (_) => const CropPage(), const Color(0xFFEC4899)),
-  _Tool(Icons.swap_horiz_rounded, 'Convert', 'video · audio · image',
-      (_) => const ConvertPage(), const Color(0xFF06B6D4)),
-  _Tool(Icons.merge_rounded, 'Merge', 'concat videos',
+  _Tool(Icons.cloud_download_rounded, 'Downloader', 'Videos and music from links',
+      (_) => const DownloaderPage(), const Color(0xFF3B82F6)),
+  _Tool(Icons.content_cut_rounded, 'Trim', 'Cut a clip from a video or song',
+      (_) => const TrimPage(), const Color(0xFFF97316)),
+  _Tool(Icons.crop_rounded, 'Crop', 'Keep part of the picture',
+      (_) => const CropPage(), const Color(0xFFFB923C)),
+  _Tool(Icons.swap_horiz_rounded, 'Convert', 'Video, audio or image to another format',
+      (_) => const ConvertPage(), const Color(0xFF22D3EE)),
+  _Tool(Icons.merge_rounded, 'Merge', 'Join clips into one video',
       (_) => const MergePage(), const Color(0xFFA855F7)),
-  _Tool(Icons.volume_off_rounded, 'Mute', 'strip audio',
-      (_) => const MutePage(), const Color(0xFF8B5CF6)),
-  _Tool(Icons.audio_file_rounded, 'Extract Audio', 'video → mp3 / m4a / flac',
+  _Tool(Icons.volume_off_rounded, 'Mute', 'Remove the sound from a video',
+      (_) => const MutePage(), const Color(0xFFEC4899)),
+  _Tool(Icons.audio_file_rounded, 'Extract Audio', 'Save a video\'s sound as MP3',
       (_) => const ExtractAudioPage(), const Color(0xFF22C55E)),
-  _Tool(Icons.gif_box_rounded, 'GIF', 'video → gif',
-      (_) => const GifPage(), const Color(0xFFF97316)),
-  _Tool(Icons.image_outlined, 'Frame Grab', 'video → still png',
-      (_) => const FrameGrabPage(), const Color(0xFF14B8A6)),
-  _Tool(Icons.palette_rounded, 'Hex Palette', 'k-means dominant colors',
-      (_) => const PalettePage(), const Color(0xFFEF4444)),
+  _Tool(Icons.gif_box_rounded, 'GIF', 'Turn a moment into a GIF',
+      (_) => const GifPage(), const Color(0xFFFACC15)),
+  _Tool(Icons.image_outlined, 'Frame Grab', 'Save a still from a video',
+      (_) => const FrameGrabPage(), const Color(0xFF8B5CF6)),
+  _Tool(Icons.palette_rounded, 'Colour Palette', 'The main colours of an image',
+      (_) => const PalettePage(), const Color(0xFFF43F5E)),
 ];
 
 class ToolsDashboard extends StatelessWidget {

@@ -99,6 +99,7 @@ def list_formats(url):
                     f"{f.get('width','?')}x{f.get('height','?')}"
                     if f.get("width") else "audio"),
                 "fps": f.get("fps") or 0,
+                "height": f.get("height") or 0,
                 "filesize": f.get("filesize") or f.get("filesize_approx") or 0,
                 "vcodec": f.get("vcodec", ""),
                 "acodec": f.get("acodec", ""),

@@ -286,9 +286,7 @@ class _BugReporterPageState extends State<BugReporterPage> {
                       _feedback!,
                       style: TextStyle(
                         fontSize: 12,
-                        color: _feedbackError
-                            ? const Color(0xFFF85149)
-                            : const Color(0xFF3FB950),
+                        color: _feedbackError ? VidelColors.error : VidelColors.success,
                       ),
                     ),
                     const SizedBox(height: 10),

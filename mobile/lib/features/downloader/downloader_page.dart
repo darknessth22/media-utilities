@@ -151,6 +151,19 @@ class _DownloaderPageState extends State<DownloaderPage>
   bool _isVideo(Map<String, dynamic> f) => f['vcodec'] != 'none';
   bool _hasAudio(Map<String, dynamic> f) => f['acodec'] != 'none';
 
+  // The download looks the link up again, and the format picked from the list can
+  // be gone by then: YouTube answers through a different player, Facebook renumbers
+  // its streams. Asking for only that id failed with "Requested format is not
+  // available", so fall back to the nearest stream at the same height instead.
+  // (No "+" merges: Python here has no FFmpeg, the app muxes the parts itself.)
+  String _pick(Map<String, dynamic> f, {bool audio = false}) {
+    final id = '${f['format_id']}';
+    if (audio) return '$id/ba/b';
+    final h = (f['height'] as num?)?.toInt() ?? 0;
+    final cap = h > 0 ? '[height<=$h]' : '';
+    return _hasAudio(f) ? '$id/b$cap/b' : '$id/bv*$cap/b$cap/bv*/b';
+  }
+
   List<Map<String, dynamic>> _visible() {
     final list = _formats
         .where((f) => _filter == _Filter.audio ? _isAudio(f) : _isVideo(f))
@@ -242,7 +255,7 @@ class _DownloaderPageState extends State<DownloaderPage>
 
     try {
       final url = _urlCtrl.text.trim();
-      final videoFmt = f == null ? 'bv*' : '${f['format_id']}';
+      final videoFmt = f == null ? 'bv*' : _pick(f);
       String out;
       if (f != null && _hasAudio(f)) {
         out = await PythonRunner.ytdlpDownload(
@@ -303,7 +316,7 @@ class _DownloaderPageState extends State<DownloaderPage>
 
     try {
       final url = _urlCtrl.text.trim();
-      final fmt = f == null ? 'ba' : '${f['format_id']}';
+      final fmt = f == null ? 'ba' : _pick(f, audio: true);
       setState(() => _status = 'Downloading audio...');
       String src = await PythonRunner.ytdlpDownload(
           url: url, outDir: dir, format: fmt);

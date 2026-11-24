@@ -77,11 +77,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             child: Image.asset('assets/videl_icon.png', fit: BoxFit.cover),
           ),
           const SizedBox(width: 12),
-          Text(_titleOf(_section),
-              style: const TextStyle(
-                  letterSpacing: 1.5,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 20)),
+          Text(_titleOf(_section), style: videlDisplay(size: 21)),
         ]),
         actions: [
           if (update.hasUpdate)
@@ -339,17 +335,13 @@ class _VidelDrawer extends ConsumerWidget {
                       fit: BoxFit.cover),
                 ),
                 const SizedBox(width: 14),
-                const Column(
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Videl',
+                    Text('Videl', style: videlDisplay(size: 24, weight: FontWeight.w800)),
+                    const Text('Media tools that stay on your phone',
                         style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 2)),
-                    Text('Offline media toolkit',
-                        style: TextStyle(
-                            color: VidelColors.textSecondary, fontSize: 11)),
+                            color: VidelColors.textSecondary, fontSize: 12)),
                   ],
                 ),
               ]),
@@ -497,26 +489,34 @@ class _HomePage extends StatelessWidget {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const SizedBox(height: 8),
+        Text('Media tools that stay on your phone',
+            style: videlDisplay(size: 30, weight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        const Text(
+            'Download, trim, convert and more. Everything runs on this device, so your files stay private.',
+            style: TextStyle(color: VidelColors.textSecondary, fontSize: 15, height: 1.5)),
+        const SizedBox(height: 22),
         _HeroCard(
           icon: Icons.cloud_download_rounded,
           title: 'Downloader',
-          subtitle: 'yt-dlp · video & MP3',
+          subtitle: 'Videos and music from YouTube, TikTok, Instagram and more',
           onTap: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const DownloaderPage())),
         ),
         const SizedBox(height: 14),
         const _InfoBlurb(
           icon: Icons.apps_rounded,
-          title: 'All tools live in the Tools tab',
+          title: 'More tools',
           body:
-              'Open the drawer (☰) → Tools to access Trim, Crop, Compress, Convert, Merge, GIF, Frame Grab, Hex Palette and more.',
+              'Open the menu, then Tools: Trim, Crop, Convert, Merge, Mute, Extract Audio, GIF, Frame Grab and Colour Palette.',
         ),
         const SizedBox(height: 10),
         const _InfoBlurb(
           icon: Icons.history_rounded,
           title: 'History',
           body:
-              'Every job is logged. Last 30 entries are kept; older ones are pruned automatically.',
+              'Your last 30 jobs are listed there, so you can find a file again.',
         ),
       ]),
     );
@@ -532,10 +532,10 @@ class _InfoBlurb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: VidelColors.surface,
-        borderRadius: BorderRadius.circular(14),
+        color: VidelColors.surface.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: VidelColors.border),
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -578,17 +578,18 @@ class _HeroCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            VidelColors.accent.withOpacity(0.25),
-            VidelColors.surface,
+            VidelColors.glowBlue.withValues(alpha: 0.45),
+            VidelColors.surface.withValues(alpha: 0.85),
+            VidelColors.glowViolet.withValues(alpha: 0.25),
           ],
         ),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: VidelColors.border),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.all(20),
@@ -604,7 +605,7 @@ class _HeroCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(15),
                   boxShadow: [
                     BoxShadow(
-                      color: VidelColors.accent.withOpacity(0.5),
+                      color: VidelColors.accent.withValues(alpha: 0.5),
                       blurRadius: 20,
                       offset: const Offset(0, 6),
                     ),
@@ -617,12 +618,11 @@ class _HeroCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w800)),
+                    Text(title, style: videlDisplay(size: 22, weight: FontWeight.w800)),
+                    const SizedBox(height: 2),
                     Text(subtitle,
                         style: const TextStyle(
-                            color: VidelColors.textSecondary, fontSize: 13)),
+                            color: VidelColors.textSecondary, fontSize: 13, height: 1.4)),
                   ],
                 ),
               ),

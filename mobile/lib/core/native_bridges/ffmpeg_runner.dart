@@ -87,7 +87,7 @@ class FfmpegRunner {
     final hasCover = coverPath != null && coverPath.isNotEmpty && File(coverPath).existsSync();
     final args = <String>[
       '-y', '-i', src,
-      if (hasCover) ...['-i', coverPath!],
+      if (hasCover) ...['-i', coverPath],
       '-map', '0:a',
       if (hasCover) ...['-map', '1:v', '-c:v', 'copy', '-disposition:v', 'attached_pic'],
       '-map_metadata', '-1', '-c:a', 'libmp3lame', '-b:a', '192k', '-id3v2_version', '3',
