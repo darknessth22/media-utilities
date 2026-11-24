@@ -49,7 +49,8 @@ Known exception: Compress, Merge and GIF build their FFmpeg commands inside the 
 - `MainWindow._make_section()` builds every widget from that list. The content stack, `_section_widgets`, operation-section wiring (entries with an `action_key`) and retranslation all follow it, so there's nothing to keep in sync.
 - Navigation always goes by id: `_section_index("history")`, never a literal index.
 - The home page lists only the order of its cards (`_TOOL_ORDER`). It reads each card's icon and section index from `_SECTIONS_META`, and its labels from `tool_<id>_name` / `tool_<id>_desc`.
-- A tool can be opened from the sidebar, the home grid, the Ctrl+K command palette, a keyboard shortcut, drag-and-drop (`dropEvent` sends files to the active tab through `populate_files`), or the browser extension.
+- A tool can be opened from the sidebar, the home grid, the Ctrl+K command palette, a keyboard shortcut, drag-and-drop, or the browser extension.
+- Drag-and-drop: inside a tool, `dropEvent` gives the files to that tool (`_load_into`, through `populate_batch_files` / `populate_files` / `populate_file`). On Home or the Tools page, it shows `DropSuggestions` on Home instead: the file and a button for every tool that takes it, from `core/drop_suggest.py` (each tool's accepted extensions, most useful first; several files only offer tools in `MULTI`). A click opens that tool with the files loaded (`_open_with_tool`).
 - Every tool section provides `trigger_primary_action()`, `populate_files(paths)`, `retranslate_ui()` and the signals `status_message` and `busy_changed`.
 
 

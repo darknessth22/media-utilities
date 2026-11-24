@@ -60,6 +60,8 @@ All builds are on the [Releases](https://github.com/darknessth22/media-utilities
 **Files**
 - Folder Rules (auto-sort and tidy folders), History of past jobs
 
+Drop any file on the Home screen and Videl lists the tools that can use it: video tools for a video, image tools for a photo, PDF tools for a PDF, Subtitles for an .srt file. Pick one and it opens with the file loaded.
+
 The interface is available in English and Arabic.
 
 ### Android app
