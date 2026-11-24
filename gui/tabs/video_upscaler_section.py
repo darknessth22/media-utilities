@@ -189,7 +189,7 @@ class VideoUpscalerSection(QScrollArea):
         return card
 
     def _refresh_install_state(self) -> None:
-        installed = model_manager.is_installed(self._component_id)
+        installed = model_manager.is_ready(self._component_id)
         self._install_banner.setVisible(not installed)
         self._tools_container.setVisible(installed)
         self._install_desc.setText(tr("lbl_model_upscaler_desc"))
@@ -528,9 +528,13 @@ class VideoUpscalerSection(QScrollArea):
             self._device_rb_cuda.setToolTip(
                 "CUDA variant not installed or your GPU is not supported by the bundled torch build."
             )
-        # CPU video upscaling is impractically slow — make that loud.
+        # CPU video upscaling is impractically slow — make that loud. A crashed
+        # probe (e.g. a damaged torch file) says why instead of "No GPU detected".
+        from core.upscaler import last_detect_problem
+        problem = last_detect_problem() if device == "cpu" else None
         self._warn_lbl.setText(
-            f"⚠ {tr('warn_video_upscaler_cpu')}" if device == "cpu"
+            f"⚠ {problem}" if problem
+            else f"⚠ {tr('warn_video_upscaler_cpu')}" if device == "cpu"
             else f"⚠ {tr('warn_video_upscaler_time')}"
         )
 

@@ -184,7 +184,7 @@ class UpscalerSection(QScrollArea):
         return card
 
     def _refresh_install_state(self) -> None:
-        installed = model_manager.is_installed(self._component_id)
+        installed = model_manager.is_ready(self._component_id)
         self._install_banner.setVisible(not installed)
         self._tools_container.setVisible(installed)
         # torch_runtime is auto-installed as a dependency by model_manager
@@ -508,6 +508,11 @@ class UpscalerSection(QScrollArea):
         if debug:
             self._device_lbl.setToolTip(debug)
         self._warn_lbl.setVisible(device == "cpu")
+        # A crashed probe (e.g. a damaged torch file) gets a plain reason instead of
+        # the CPU-speed note; the raw detail stays in the tooltip.
+        from core.upscaler import last_detect_problem
+        problem = last_detect_problem() if device == "cpu" else None
+        self._warn_lbl.setText(f"⚠ {problem or tr('warn_upscaler_cpu_time')}")
         self._detected_device = device
         cuda_usable = device == "cuda"
         # CUDA gating now keyed off the shared torch_runtime variant.

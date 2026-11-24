@@ -11,6 +11,8 @@ import re
 import subprocess
 import sys
 import threading
+
+from core import gpu_probe
 from pathlib import Path
 from typing import Callable
 
@@ -54,6 +56,7 @@ def _python_exe() -> str:
         return sys.executable
 
 
+_LAST_DETECT_PROBLEM: str | None = None
 _LAST_DETECT_DEBUG: str = ""
 
 
@@ -63,7 +66,8 @@ def last_detect_debug() -> str:
 
 def detect_device() -> str:
     """Probe torch.cuda via the bundled Python (same approach as vocal_isolator)."""
-    global _LAST_DETECT_DEBUG
+    global _LAST_DETECT_DEBUG, _LAST_DETECT_PROBLEM
+    _LAST_DETECT_PROBLEM = None
     py = _python_exe()
     ai = _ai_dir()
     torch_host = _torch_host_dir()
@@ -105,11 +109,17 @@ def detect_device() -> str:
         )
         out = (r.stdout or "").strip()
         _LAST_DETECT_DEBUG = (r.stderr or "").strip() or f"exit={r.returncode} stdout={out!r}"
+        _LAST_DETECT_PROBLEM = gpu_probe.problem(r.returncode, out)
         if out in ("cpu", "cuda"):
             return out
     except Exception as exc:
         _LAST_DETECT_DEBUG = f"subprocess error: {exc}"
     return "cpu"
+
+
+def last_detect_problem() -> str | None:
+    """Why the last probe crashed instead of answering, in plain words (None if it answered)."""
+    return _LAST_DETECT_PROBLEM
 
 
 # Inline child-process script. Real-ESRGAN's RealESRGANer handles tiling and

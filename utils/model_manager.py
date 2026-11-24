@@ -350,6 +350,14 @@ def pre_install_info(component_id: str, variant: Optional[str] = None) -> PreIns
     )
 
 
+def is_ready(component_id: str) -> bool:
+    """Installed AND everything it requires is installed. A tool whose shared
+    torch_runtime was removed (Settings > Storage, or deleted after a disk error)
+    is not ready: its screen must offer the install again, which installs the
+    missing runtime first (start_install)."""
+    return is_installed(component_id) and not missing_requirements(component_id)
+
+
 def missing_requirements(component_id: str, variant: Optional[str] = None) -> list[str]:
     """Return ordered list of unmet `requires` IDs that must install first."""
     comp = ai_components.get(component_id)

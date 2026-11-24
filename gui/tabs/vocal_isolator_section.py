@@ -190,7 +190,7 @@ class VocalIsolatorSection(QScrollArea):
         return card
 
     def _refresh_install_state(self) -> None:
-        installed = model_manager.is_installed(self._component_id)
+        installed = model_manager.is_ready(self._component_id)
         self._install_banner.setVisible(not installed)
         self._tools_container.setVisible(installed)
 
@@ -541,16 +541,12 @@ class VocalIsolatorSection(QScrollArea):
         if debug:
             self._device_lbl.setToolTip(debug)
         self._warn_lbl.setVisible(device == "cpu")
-        # If the user installed the CUDA variant but we still report CPU, surface
-        # the probe diagnostic inline so it's not silently swallowed.
-        if device == "cpu" and debug:
-            try:
-                from utils import model_manager as _mm
-                if _mm.read_state("vocal_isolator").variant == "cuda":
-                    self._warn_lbl.setText(f"⚠ CUDA variant installed but probe → CPU.\n{debug}")
-                    self._warn_lbl.setVisible(True)
-            except Exception:
-                pass
+        # The probe crashed instead of answering (for example a damaged torch file
+        # on a failing drive): say why in plain words; the raw detail stays in the
+        # tooltip above.
+        from core.vocal_isolator import last_detect_problem
+        problem = last_detect_problem() if device == "cpu" else None
+        self._warn_lbl.setText(f"⚠ {problem or tr('warn_vocal_cpu_time')}")
         self._detected_device = device
         # CUDA radio enabled only when the installed variant is "cuda" AND probe
         # found a usable kernel — otherwise selecting it would just crash.

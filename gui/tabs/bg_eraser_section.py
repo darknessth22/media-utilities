@@ -189,7 +189,7 @@ class BgEraserSection(QScrollArea):
         return card
 
     def _refresh_install_state(self) -> None:
-        installed = model_manager.is_installed(self._component_id)
+        installed = model_manager.is_ready(self._component_id)
         self._install_banner.setVisible(not installed)
         self._tools_container.setVisible(installed)
 
