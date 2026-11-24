@@ -645,17 +645,18 @@ _TUTORIAL_DATA_EN = [
         "emoji": "⤓",
         "title": "Drag & Drop on Home",
         "description": (
-            "Drop a media file onto the welcome banner on Home and Videl routes "
-            "it to the matching tool automatically."
+            "Drop files anywhere on Home and Videl shows every tool that can use them. "
+            "Click one and it opens with your files already loaded."
         ),
         "steps": [
-            "Open Home.",
-            "Drag a file from File Explorer onto the welcome banner.",
-            "Videl picks the right tool: video → Convert, .pdf → PDF Toolkit, .gif → GIF Creator.",
+            "Open Home (or the Tools page).",
+            "Drag one or more files from File Explorer onto the window.",
+            "Pick a tool from the list: a video shows the video tools, an image the image tools, a PDF the PDF tools, an .srt file Subtitles, and so on.",
         ],
         "tips": [
             "The banner glows when it accepts the drop.",
-            "If the file type is unknown, it falls back to Convert Media.",
+            "With several files, only tools that take several files at once are shown.",
+            "Inside a tool, a drop still goes straight to that tool.",
         ],
     },
     {
@@ -1487,17 +1488,18 @@ _TUTORIAL_DATA_AR = [
         "emoji": "⤓",
         "title": "السحب والإفلات في الرئيسية",
         "description": (
-            "أفلِت ملف وسائط على لافتة الترحيب في الصفحة الرئيسية، فيوجّهه Videl "
-            "إلى الأداة المناسبة تلقائياً."
+            "أفلِت ملفات في أي مكان من الصفحة الرئيسية ليعرض Videl كل الأدوات التي يمكنها استخدامها. "
+            "اضغط أداة لتفتح وملفاتك محمّلة فيها."
         ),
         "steps": [
-            "افتح الصفحة الرئيسية.",
-            "اسحب ملفاً من مستكشف الملفات إلى لافتة الترحيب.",
-            "يختار Videl الأداة الصحيحة: فيديو ← تحويل، .pdf ← أدوات PDF، .gif ← منشئ GIF.",
+            "افتح الصفحة الرئيسية (أو صفحة الأدوات).",
+            "اسحب ملفاً أو أكثر من مستكشف الملفات إلى النافذة.",
+            "اختر أداة من القائمة: الفيديو يعرض أدوات الفيديو، والصورة أدوات الصور، وملف PDF أدوات PDF، وملف .srt أداة الترجمة، وهكذا.",
         ],
         "tips": [
             "تتوهّج اللافتة عندما تقبل الإفلات.",
-            "إن كان نوع الملف غير معروف، يعود افتراضياً إلى تحويل الوسائط.",
+            "مع عدة ملفات، تظهر فقط الأدوات التي تقبل عدة ملفات معاً.",
+            "داخل أي أداة، يذهب الملف المُفلَت مباشرة إلى تلك الأداة.",
         ],
     },
     {

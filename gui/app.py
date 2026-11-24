@@ -19,6 +19,7 @@ Implements T007–T020:
 from __future__ import annotations
 
 import os
+import sys
 from typing import Optional
 
 import math
@@ -2162,6 +2163,25 @@ class WelcomeDialog(QDialog):
         self.accept()
 
 
+def _round_window_corners(widget) -> None:
+    """Ask Windows 11 to round a frameless window's corners.
+
+    The window is frameless (own title bar), so Windows drew it with square
+    corners. DWMWA_WINDOW_CORNER_PREFERENCE = DWMWCP_ROUND gives the native
+    rounding and thin border; Windows squares them itself when maximized or
+    snapped. Older Windows and other systems ignore it.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        pref = ctypes.c_int(2)  # DWMWCP_ROUND
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(
+            int(widget.winId()), 33, ctypes.byref(pref), ctypes.sizeof(pref))  # 33 = DWMWA_WINDOW_CORNER_PREFERENCE
+    except Exception:
+        pass
+
+
 # ── T007 / T008 / T009 / T010: Main Window ───────────────────────────────────
 
 class MainWindow(QMainWindow):
@@ -2672,7 +2692,7 @@ class MainWindow(QMainWindow):
             navigate_cb=self._navigate_from_card,
             show_tools_cb=self._go_tools,
         )
-        self._home_page.file_dropped.connect(self._on_home_file_dropped)
+        self._home_page.open_with.connect(self._open_with_tool)
         self._tools_page = ToolsPage(navigate_cb=self._navigate_from_card)
         self._content_stack.addWidget(self._home_page)
         self._content_stack.addWidget(self._tools_page)
@@ -2794,17 +2814,13 @@ class MainWindow(QMainWindow):
         )
         dlg.exec()
 
-    def _on_home_file_dropped(self, path: str, tool_id: str, section_idx: int) -> None:
-        """File dropped on the home hero — route to matching tool."""
+    def _open_with_tool(self, tool_id: str, section_idx: int, paths: list) -> None:
+        """A tool picked from Home's drop suggestions: open it with the files."""
         from core import recent_jobs as _recent_jobs
         _recent_jobs.record_open(tool_id, section_idx)
         self._navigate_from_card(section_idx)
-        # Surface the routed file in the status bar so the user gets feedback
-        # even if the destination tool can't auto-load yet.
-        try:
-            self.update_status(tr("install_progress").format(line=path[:120]))
-        except Exception:
-            pass
+        if self._load_into(self._section_widgets[section_idx], paths):
+            self.update_status(tr("status_loaded").format(count=len(paths)), False)
 
     def _set_sidebar_active(self, active_btn) -> None:
         """Mark one sidebar button active, clear the rest."""
@@ -3483,23 +3499,17 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
 
-        # Always drop into whichever tool section is currently open — each
-        # section validates/accepts its own file types via its own
-        # populate_file(s) method. No cross-tool rerouting by file extension:
-        # if the open section can't use populate_file(s) at all (e.g. History,
-        # Settings), the drop is a no-op with a status message, not a jump to
-        # a different tool.
-        widget = self._section_widgets[self._current_section]
+        # On Home or the Tools page, suggest the tools that can take the files
+        # (like the web app). Inside a tool, the drop goes to that tool, which
+        # checks the file type itself; no cross-tool rerouting by extension.
+        if self._content_stack.currentWidget() in (self._home_page, self._tools_page):
+            self._go_home()
+            self._home_page.show_suggestions(paths)
+            event.acceptProposedAction()
+            return
 
-        if len(paths) > 1 and hasattr(widget, "populate_batch_files"):
-            widget.populate_batch_files(paths)
-        elif len(paths) > 1 and hasattr(widget, "populate_files"):
-            widget.populate_files(paths)
-        elif hasattr(widget, "populate_files"):
-            widget.populate_files(paths)
-        elif hasattr(widget, "populate_file"):
-            widget.populate_file(paths[0])
-        else:
+        widget = self._section_widgets[self._current_section]
+        if not self._load_into(widget, paths):
             self.update_status(tr("status_drop_no_section"), True)
             event.ignore()
             return
@@ -3520,6 +3530,24 @@ class MainWindow(QMainWindow):
         self.update_status(
             tr("status_loaded").format(count=len(paths)), False
         )
+
+    @staticmethod
+    def _load_into(widget, paths: list) -> bool:
+        """Give files to a tool section through its populate_* method. False if it takes none."""
+        if len(paths) > 1 and hasattr(widget, "populate_batch_files"):
+            widget.populate_batch_files(paths)
+        elif hasattr(widget, "populate_files"):
+            widget.populate_files(paths)
+        elif hasattr(widget, "populate_file"):
+            widget.populate_file(paths[0])
+        else:
+            return False
+        return True
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        # Every show, since Qt may create a new native window (e.g. back from the tray).
+        _round_window_corners(self)
 
     # ── Close event ───────────────────────────────────────────────────────────
 

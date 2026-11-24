@@ -146,6 +146,15 @@ QMenu::separator { height: 1px; margin: 4px 8px; }
 /* Hero drop-zone hint */
 #HeroDropHint { font-size: 12px; font-weight: bold; letter-spacing: 0.5px; }
 
+/* Drop suggestions (Home) */
+#DropSuggest { border-width: 1px; border-style: solid; border-radius: 14px; }
+#DropSuggestFile { font-size: 14px; font-weight: bold; }
+#DropSuggestQ { font-size: 12px; }
+QPushButton#DropSuggestBtn {
+    border-width: 1px; border-style: solid; border-radius: 16px;
+    padding: 7px 14px; font-size: 12px; font-weight: bold; text-align: left;
+}
+
 /* Recent strip */
 #RecentJobCard { border-width: 1px; border-style: solid; border-radius: 10px; min-height: 50px; }
 #RecentJobTitle { font-size: 12px; font-weight: bold; }
@@ -343,6 +352,11 @@ QMenu::separator { background-color: #1B2F4C; }
 
 /* Hero drop hint, recent strip, filters, palette — dark */
 #HeroDropHint { color: rgba(96,165,250,200); }
+#DropSuggest { background-color: #0F1B35; border-color: rgba(59,130,246,140); }
+#DropSuggestFile { color: #E6EDF3; }
+#DropSuggestQ { color: #8B949E; }
+QPushButton#DropSuggestBtn { background-color: #0A1020; color: #E6EDF3; border-color: #1B2F4C; }
+QPushButton#DropSuggestBtn:hover { background-color: #162040; border-color: rgba(59,130,246,160); }
 #RecentJobCard { background-color: #0F1B35; border-color: #1B2F4C; }
 #RecentJobCard:hover { background-color: #162040; border-color: rgba(59,130,246,140); }
 #RecentJobTitle { color: #E6EDF3; }
@@ -532,6 +546,11 @@ QMenu::separator { background-color: #D0D7DE; }
 
 /* Hero drop hint, recent strip, filters, palette — light */
 #HeroDropHint { color: rgba(37,99,235,220); }
+#DropSuggest { background-color: #FFFFFF; border-color: rgba(37,99,235,140); }
+#DropSuggestFile { color: #0A1020; }
+#DropSuggestQ { color: #57606A; }
+QPushButton#DropSuggestBtn { background-color: #F6F8FA; color: #0A1020; border-color: #D0D7DE; }
+QPushButton#DropSuggestBtn:hover { background-color: #EFF6FF; border-color: rgba(37,99,235,140); }
 #RecentJobCard { background-color: #FFFFFF; border-color: #D0D7DE; }
 #RecentJobCard:hover { background-color: #EFF6FF; border-color: rgba(37,99,235,140); }
 #RecentJobTitle { color: #0A1020; }

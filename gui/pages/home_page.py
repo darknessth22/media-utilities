@@ -1,8 +1,9 @@
 """Home Dashboard and Tools Grid pages — Phase 3 UX overhaul.
 
 Notable Phase-3 additions:
-- HeroBanner accepts drag-and-drop; dropped media files are routed to a tool
-  via the ``file_dropped`` signal on HomePage.
+- Files dropped on Home (the banner or anywhere on the page) show a panel with a
+  button for every tool that takes them (``DropSuggestions``, matching in
+  ``core.drop_suggest``), like the web app; a click opens that tool with the files.
 - The old Quick Access duplicate row is replaced by a Recent strip backed by
   ``core.recent_jobs``.
 - ToolCard renders an IconTile (rounded square tinted with the tool's accent)
@@ -17,10 +18,11 @@ from typing import Callable
 from core.i18n import tr
 from core.paths import resource_path
 from core import recent_jobs
+from core.drop_suggest import suggest_tools
 
-from PySide6.QtCore import Qt, QPoint, QRectF, Signal
+from PySide6.QtCore import Qt, QPoint, QRectF, QSize, Signal
 from PySide6.QtGui import (
-    QColor, QLinearGradient, QRadialGradient,
+    QColor, QIcon, QLinearGradient, QRadialGradient,
     QPainter, QPainterPath, QPen, QBrush, QPixmap, QFont,
     QDragEnterEvent, QDropEvent,
 )
@@ -91,22 +93,6 @@ _TOOL_CATEGORY: dict[str, str] = {
     "image_editor": "image",
     "photo_restore": "image",
     "pixel_art": "image",
-}
-
-# File-extension → tool routing for the home drop-zone. Picked so the most
-# common creator workflow lands in the right tool: drop a video → Convert,
-# drop a PDF → PDF toolkit, drop an image → Convert (still a media op).
-_DROP_EXT_TO_TOOL: dict[str, str] = {
-    ".mp4": "convert", ".mov": "convert", ".mkv": "convert", ".webm": "convert",
-    ".avi": "convert", ".m4v": "convert",
-    ".mp3": "convert", ".wav": "convert", ".flac": "convert", ".m4a": "convert",
-    ".aac": "convert", ".ogg": "convert",
-    ".png": "convert", ".jpg": "convert", ".jpeg": "convert", ".webp": "convert",
-    ".gif": "gif", ".heic": "convert", ".bmp": "convert", ".tif": "convert",
-    ".pdf": "pdf_toolkit",
-    ".srt": "subtitles", ".vtt": "subtitles", ".ass": "subtitles", ".ssa": "subtitles",
-    ".docx": "document", ".doc": "document", ".pptx": "document",
-    ".xlsx": "document", ".txt": "document",
 }
 
 # Order of the tool cards (the first 7 also appear on Home). Everything else
@@ -287,11 +273,10 @@ class _GradientTitleLabel(QWidget):
 class HeroBanner(QFrame):
     """Painted welcome banner that doubles as a drop target.
 
-    Emits ``file_dropped(path, tool_id, section_idx)`` so the parent page can
-    forward it to the main window for routing.
+    Emits ``files_dropped(paths)``; HomePage then suggests the tools for them.
     """
 
-    file_dropped = Signal(str, str, int)
+    files_dropped = Signal(list)
 
     _LOGO_W = 200
     _LOGO_H = 150
@@ -352,18 +337,11 @@ class HeroBanner(QFrame):
     def dropEvent(self, event: QDropEvent) -> None:  # type: ignore[override]
         self._drag_active = False
         self.update()
-        urls = event.mimeData().urls()
-        if not urls:
+        paths = [u.toLocalFile() for u in event.mimeData().urls() if u.isLocalFile()]
+        paths = [p for p in paths if os.path.isfile(p)]
+        if not paths:
             return
-        path = urls[0].toLocalFile()
-        if not path:
-            return
-        ext = os.path.splitext(path)[1].lower()
-        tool_id = _DROP_EXT_TO_TOOL.get(ext, "convert")
-        meta = _meta_for_tool(tool_id)
-        if meta is None:
-            return
-        self.file_dropped.emit(path, tool_id, meta[4])
+        self.files_dropped.emit(paths)
         event.acceptProposedAction()
 
     def paintEvent(self, event) -> None:
@@ -626,12 +604,92 @@ def _build_tools_grid(
     return grid_widget
 
 
+# ── Drop suggestions (Home) ──────────────────────────────────────────────────
+
+class DropSuggestions(QFrame):
+    """The files just dropped on Home, and a button for every tool that takes them."""
+
+    open_with = Signal(str, int, list)   # tool id, section index, paths
+
+    _COLS = 4
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setObjectName("DropSuggest")
+        self.setVisible(False)
+        self._paths: list[str] = []
+
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(20, 16, 20, 18)
+        lay.setSpacing(10)
+        head = QHBoxLayout()
+        self._file_lbl = QLabel()
+        self._file_lbl.setObjectName("DropSuggestFile")
+        self._clear_btn = QPushButton(tr("drop_suggest_clear"))
+        self._clear_btn.setObjectName("FilterChip")
+        self._clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._clear_btn.clicked.connect(self.clear)
+        head.addWidget(self._file_lbl, 1)
+        head.addWidget(self._clear_btn)
+        lay.addLayout(head)
+        self._q_lbl = QLabel()
+        self._q_lbl.setObjectName("DropSuggestQ")
+        self._q_lbl.setWordWrap(True)
+        lay.addWidget(self._q_lbl)
+        self._grid = QGridLayout()
+        self._grid.setHorizontalSpacing(8)
+        self._grid.setVerticalSpacing(8)
+        lay.addLayout(self._grid)
+
+    def show_for(self, paths: list[str]) -> None:
+        self._paths = list(paths)
+        self._render()
+        self.setVisible(True)
+
+    def clear(self) -> None:
+        self._paths = []
+        self.setVisible(False)
+
+    def retranslate(self) -> None:
+        self._clear_btn.setText(tr("drop_suggest_clear"))
+        if self._paths:
+            self._render()
+
+    def _render(self) -> None:
+        while self._grid.count():
+            w = self._grid.takeAt(0).widget()
+            if w is not None:
+                w.setParent(None)   # now, not at the next event loop: stale buttons stayed clickable
+                w.deleteLater()
+        many = len(self._paths) > 1
+        self._file_lbl.setText(tr("drop_suggest_files").format(count=len(self._paths)) if many
+                               else os.path.basename(self._paths[0]))
+        tools = [m for m in (_meta_for_tool(t) for t in suggest_tools(self._paths)) if m]
+        if not tools:
+            self._q_lbl.setText(tr("drop_suggest_none_many" if many else "drop_suggest_none"))
+            return
+        self._q_lbl.setText(tr("drop_suggest_question_many" if many else "drop_suggest_question"))
+        for i, (tool_id, icon, name_key, _desc, idx) in enumerate(tools):
+            btn = QPushButton(tr(name_key))
+            btn.setObjectName("DropSuggestBtn")
+            btn.setIcon(QIcon(_load_icon(icon, 18, _TOOL_COLOR.get(tool_id, "#3B82F6"))))
+            btn.setIconSize(QSize(18, 18))
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda _=False, t=tool_id, j=idx: self._open(t, j))
+            self._grid.addWidget(btn, i // self._COLS, i % self._COLS)
+
+    def _open(self, tool_id: str, idx: int) -> None:
+        paths = self._paths
+        self.clear()
+        self.open_with.emit(tool_id, idx, paths)
+
+
 # ── Pages ─────────────────────────────────────────────────────────────────────
 
 class HomePage(QScrollArea):
-    """Landing screen: hero (drop target) + Recent strip + 7-tool grid."""
+    """Landing screen: hero (drop target) + drop suggestions + Recent strip + 7-tool grid."""
 
-    file_dropped = Signal(str, str, int)
+    open_with = Signal(str, int, list)   # tool id, section index, paths
 
     def __init__(
         self,
@@ -652,8 +710,13 @@ class HomePage(QScrollArea):
 
         # Hero
         self._hero = HeroBanner()
-        self._hero.file_dropped.connect(self.file_dropped)
+        self._hero.files_dropped.connect(self.show_suggestions)
         self._root.addWidget(self._hero)
+
+        # What to do with dropped files (hidden until something is dropped)
+        self._suggest = DropSuggestions()
+        self._suggest.open_with.connect(self.open_with)
+        self._root.addWidget(self._suggest)
 
         # Recent strip header
         recent_hdr = QHBoxLayout()
@@ -713,6 +776,11 @@ class HomePage(QScrollArea):
             self._recent_row.addWidget(card)
         self._recent_row.addStretch()
 
+    def show_suggestions(self, paths: list[str]) -> None:
+        """Files dropped on Home: list the tools that can take them."""
+        self._suggest.show_for(paths)
+        self.ensureWidgetVisible(self._suggest)
+
     def refresh_recent(self) -> None:
         """Public hook so MainWindow can refresh the strip after navigation."""
         self._populate_recent()
@@ -738,6 +806,7 @@ class HomePage(QScrollArea):
         self._hero._title_lbl.set_text(tr("welcome_title"))
         self._hero._sub_lbl.setText(tr("hero_subtitle"))
         self._hero._drop_hint.setText(tr("hero_drop_hint"))
+        self._suggest.retranslate()
         self._recent_lbl.setText(tr("recent_jobs_title"))
         self._recent_empty_lbl.setText(tr("recent_jobs_empty"))
         self._tools_lbl.setText(tr("home_tools_section"))
