@@ -34,7 +34,7 @@ def section(app):
 
 def test_every_card_is_on_exactly_one_page(section):
     """A card reachable from no category is a setting nobody can find."""
-    placed = [name for _cid, _key, _icon, names in SettingsSection._CATEGORIES
+    placed = [name for _cid, _key, _icon, names in section._CATEGORIES
               for name in names]
     assert sorted(placed) == sorted(section._cards), "card missing or duplicated"
     assert len(placed) == len(set(placed))
@@ -98,7 +98,7 @@ def test_every_category_has_an_icon_and_a_description(section):
     import os
     from gui.app import _ICONS_DIR
 
-    for cid, _key, icon_file, _cards in SettingsSection._CATEGORIES:
+    for cid, _key, icon_file, _cards in section._CATEGORIES:
         assert os.path.exists(os.path.join(_ICONS_DIR, icon_file)), icon_file
         assert cid in SettingsSection._CATEGORY_HINTS, cid
     for btn in section._nav_buttons:
@@ -127,4 +127,4 @@ def test_retranslate_keeps_the_rail_labelled(section):
 
     labels = [b.text() for b in section._nav_buttons]
     assert all(labels), "a blank rail button means a missing translation key"
-    assert len(labels) == len(SettingsSection._CATEGORIES)
+    assert len(labels) == len(section._CATEGORIES)

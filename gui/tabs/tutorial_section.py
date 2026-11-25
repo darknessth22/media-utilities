@@ -860,6 +860,29 @@ _TUTORIAL_DATA_EN = [
             "Untick Keep the original size to save the tiny version — one pixel per block.",
         ],
     },
+    {
+        "emoji": "🔑",
+        "title": "Videl Pro and your license",
+        "description": (
+            "Every free tool is unlimited. The Pro tools (Transcript, Vocal Isolator, the AI "
+            "Upscalers, Photo Restore, Jump-Cutter and Folder Rules) give you 3 free runs a day; "
+            "Pro removes the limits. Manage it in Settings → License."
+        ),
+        "steps": [
+            "Open Settings → License, or press Get Pro when a Pro tool stops.",
+            "Press Start 7-day trial to unlock every Pro tool for a week, once per computer.",
+            "To buy, press Buy Pro, pick Monthly or Yearly and how you will pay, and enter your name and an email or phone.",
+            "Send the amount shown to the number shown, and write the order code in the transfer note.",
+            "Type the transaction reference into Videl and press Send reference. Pro turns on by itself once the payment is confirmed.",
+            "On a second computer, press I have a license key and paste the key from the first computer's License page.",
+        ],
+        "tips": [
+            "A license works on 2 computers. Release one on the License page to move it, up to 3 times a year.",
+            "Pro needs the internet once every 14 days to stay on. Your files and settings are never touched if it pauses.",
+            "No internet at all? Send us the device code from the License page; we send back a file you import there.",
+            "Renewing early adds the new time on top of what is left.",
+        ],
+    },
 ]
 
 _TUTORIAL_DATA_AR = [
@@ -1702,6 +1725,29 @@ _TUTORIAL_DATA_AR = [
             "ألغِ «الحفاظ على الحجم الأصلي» لحفظ النسخة الصغيرة — بكسل واحد لكل كتلة.",
         ],
     },
+    {
+        "emoji": "🔑",
+        "title": "Videl Pro وترخيصك",
+        "description": (
+            "كل الأدوات المجانية بلا حدود. أدوات Pro (النسخ النصي، وعزل الصوت، والتكبير بالذكاء "
+            "الاصطناعي، واستعادة الصور، وقاطع الصمت، وقواعد المجلدات) تمنحك 3 تشغيلات مجانية يوميًا؛ "
+            "ويزيل Pro الحدود. تديره من الإعدادات ← الترخيص."
+        ),
+        "steps": [
+            "افتح الإعدادات ← الترخيص، أو اضغط احصل على Pro عندما تتوقف أداة Pro.",
+            "اضغط ابدأ تجربة 7 أيام لفتح كل أدوات Pro لمدة أسبوع، مرة واحدة لكل جهاز.",
+            "للشراء، اضغط اشترِ Pro، واختر شهري أو سنوي وطريقة الدفع، واكتب اسمك وبريدك أو هاتفك.",
+            "أرسل المبلغ الظاهر إلى الرقم الظاهر، واكتب رمز الطلب في ملاحظة التحويل.",
+            "اكتب رقم العملية في Videl واضغط أرسل الرقم. يعمل Pro تلقائيًا بعد تأكيد الدفع.",
+            "على جهاز ثانٍ، اضغط لدي مفتاح ترخيص والصق المفتاح من صفحة الترخيص على الجهاز الأول.",
+        ],
+        "tips": [
+            "يعمل الترخيص على جهازين. حرّر أحدهما من صفحة الترخيص لنقله، حتى 3 مرات في السنة.",
+            "يحتاج Pro إلى الإنترنت مرة كل 14 يومًا ليبقى مفعّلًا. لا تُمسّ ملفاتك وإعداداتك إذا توقف.",
+            "لا يوجد إنترنت إطلاقًا؟ أرسل لنا رمز الجهاز من صفحة الترخيص؛ نرسل لك ملفًا تستورده هناك.",
+            "التجديد المبكر يضيف المدة الجديدة فوق المتبقي.",
+        ],
+    },
 ]
 
 
@@ -1747,6 +1793,7 @@ _TUTORIAL_SECTION_IDS: list[str | None] = [
     None,              # 36 Find Files (global overlay, no section)
     None,              # 37 Screen Tools (global overlays, no section)
     "pixel_art",       # 38 Pixel Art
+    None,              # 39 Videl Pro and your license (Settings → License)
 ]
 
 

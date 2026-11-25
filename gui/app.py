@@ -820,6 +820,7 @@ class SettingsSection(QWidget):
         "search":    "settings_cat_search_hint",
         "shortcuts": "settings_cat_shortcuts_hint",
         "storage":   "settings_cat_storage_hint",
+        "license":   "settings_cat_license_hint",
     }
 
     def __init__(self, settings: UserSettings, theme_manager, parent=None) -> None:
@@ -847,6 +848,13 @@ class SettingsSection(QWidget):
             "storage":     StorageCard(),
         }
         self.storage_card = self._cards["storage"]
+        self.license_card = None
+        if HAS_PRO:
+            from videl_pro.license_card import LicenseCard
+
+            self.license_card = self._cards["license"] = LicenseCard()
+            self._CATEGORIES = type(self)._CATEGORIES + (
+                ("license", "settings_cat_license", "license.svg", ("license",)),)
         # Spotify stays hidden until credentials are relevant (unchanged).
         self._cards["spotify"].setVisible(False)
 
@@ -977,6 +985,12 @@ class SettingsSection(QWidget):
         """Undo a search filter. Spotify stays hidden — it always was."""
         for name, card in self._cards.items():
             card.setVisible(name != "spotify")
+
+    def select_category_id(self, cid: str) -> None:
+        for i, cat in enumerate(self._CATEGORIES):
+            if cat[0] == cid:
+                self._select_category(i)
+                return
 
     def _select_category(self, index: int) -> None:
         if not (0 <= index < len(self._CATEGORIES)):
@@ -1833,6 +1847,8 @@ class SettingsSection(QWidget):
         self._keybind_reset_btn.setText(tr("keybind_reset_all"))
 
         self.storage_card.retranslate_ui()
+        if self.license_card is not None:
+            self.license_card.retranslate_ui()
 
     def _on_update_ytdlp(self) -> None:
         from gui.worker import Worker
@@ -2314,6 +2330,14 @@ class MainWindow(QMainWindow):
         self._start_index_watcher()
         self._rule_runner = None
         self._start_rule_runner()
+        if HAS_PRO:
+            # Poll a pending order and check in (at most daily), off the GUI
+            # thread; offline or a slow server must never delay startup.
+            import threading
+
+            from videl_pro import license_client
+
+            threading.Thread(target=license_client.on_start, daemon=True, name="license-checkin").start()
         self._apply_keybinds()
         # Report a pick made while the window is hidden (the status bar cannot
         # be seen then).
@@ -2644,6 +2668,13 @@ class MainWindow(QMainWindow):
             "}"
         )
         self._help_btn.clicked.connect(self._on_help_btn_clicked)
+        self._pro_chip = QPushButton("")
+        self._pro_chip.setObjectName("ChipBtn")
+        self._pro_chip.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._pro_chip.clicked.connect(self.open_license)
+        self._pro_chip.hide()
+        header_h.addWidget(self._pro_chip, 0, Qt.AlignmentFlag.AlignVCenter)
+        header_h.addSpacing(8)
         header_h.addWidget(self._help_btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
         layout.addWidget(header_row)
@@ -2679,6 +2710,8 @@ class MainWindow(QMainWindow):
         if self._folder_rules_section is not None:
             self._folder_rules_section.rules_changed.connect(self._restart_rule_runner)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
+        if self._settings_section_widget.license_card is not None:
+            self._settings_section_widget.license_card.license_changed.connect(self.refresh_pro_chip)
         self._settings_section_widget.storage_card.storage_changed.connect(
             self._refresh_tool_install_states)
 
@@ -2779,6 +2812,7 @@ class MainWindow(QMainWindow):
         section_id = sec["id"]
         has_help = section_id != "tutorial" and get_tutorial_entry(section_id) is not None
         self._help_btn.setVisible(has_help)
+        self.refresh_pro_chip()
 
         # Show/hide primary action button
         action_label = sec.get("action_label")
@@ -2788,6 +2822,25 @@ class MainWindow(QMainWindow):
             self._action_btn_container.setVisible(True)
         else:
             self._action_btn_container.setVisible(False)
+
+    def open_license(self) -> None:
+        """Settings, License: the target of every "Get Pro" button."""
+        if self._settings_section_widget.license_card is None:
+            return
+        self._navigate_to(_section_index("settings"))
+        self._settings_section_widget.select_category_id("license")
+
+    def refresh_pro_chip(self) -> None:
+        """On a Pro tool without a license: "Pro: 2 of 3 free runs left today"."""
+        meta = _SECTIONS_META[self._current_section] if self._current_section < len(_SECTIONS_META) else {}
+        left = None
+        if meta.get("pro"):
+            from videl_pro import quota
+
+            left = quota.remaining()
+        self._pro_chip.setVisible(left is not None)
+        if left is not None:
+            self._pro_chip.setText(tr("pro_chip").format(left=left, total=quota.DAILY_JOBS))
 
     def _on_help_btn_clicked(self) -> None:
         """Open the inline help dialog for the current section."""
@@ -2884,6 +2937,8 @@ class MainWindow(QMainWindow):
         self._section_busy[section_index] = busy
         if section_index != self._current_section:
             return
+        if not busy:
+            self.refresh_pro_chip()     # a job may have used one of today's free runs
         action_label = _section(section_index).get("action_label")
         if action_label:
             self._primary_btn.setText(tr("action_cancel") if busy else action_label)
