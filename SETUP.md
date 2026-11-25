@@ -181,6 +181,10 @@ media-utilities/
 ├── assets/
 │   └── icons/                 # SVG + PNG sidebar and UI icons
 │
+├── docs/
+│   ├── FEATURE_REPORT.md      # Feature report
+│   └── images/                # README screenshots and GIFs
+│
 ├── bin/
 │   ├── ffmpeg.exe             # Bundled FFmpeg (Windows)
 │   ├── ffprobe.exe

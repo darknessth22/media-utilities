@@ -13,9 +13,9 @@ Built with PySide6 (desktop), Flutter (Android) and plain HTML and JavaScript (w
 
 ## Screenshots
 
-![Videl desktop app, home screen](<new screen gui.png>)
+![Videl desktop app, home screen](docs/images/home-screen.png)
 
-![Videl desktop app tour](<app-gui.gif>)
+![Videl desktop app tour](docs/images/app-tour.gif)
 
 ---
 
