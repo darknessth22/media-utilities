@@ -13,7 +13,9 @@ Stages:
   1. Colorize    — DDColor (ICCV 2023) via ONNX runtime (top quality); falls
                    back to OpenCV Zhang 2016 if onnxruntime missing or ONNX
                    download fails. Plus gray-world WB + HSV sat tune.
-  2. Face restore — CodeFormer (sczhou) via codeformer-pip vendored modules.
+  2. Face restore — RestoreFormer++ (Apache-2.0, arch vendored in core/vendor/),
+                   using facexlib/basicsr from the upscaler component. Replaced
+                   CodeFormer, whose S-Lab licence forbids commercial use.
 
 Upscaling is intentionally NOT here — Videl has a dedicated AI Upscaler tab
 ([gui/tabs/upscaler_section.py]). Chain the two manually: restore → upscale.
@@ -30,6 +32,7 @@ import threading
 from pathlib import Path
 from typing import Callable
 
+from core.paths import resource_path
 from utils.paths import ai_packages_dir
 
 # Toggle keys accepted by run_restore.
@@ -74,9 +77,9 @@ def _weights_dir() -> str:
 
 # Weight URLs — downloaded on first run by the child process.
 _WEIGHTS = {
-    "codeformer": (
-        "codeformer.pth",
-        "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth",
+    "restoreformer": (
+        "RestoreFormer++.ckpt",
+        "https://github.com/wzhouxiff/RestoreFormerPlusPlus/releases/download/v1.0.0/RestoreFormer%2B%2B.ckpt",
     ),
     # OpenCV Zhang 2016 colorization — Caffe model + cluster centres.
     "colorize_prototxt": (
@@ -95,7 +98,7 @@ _WEIGHTS = {
         "RealESRGAN_x4plus.pth",
         "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
     ),
-    # Face detection (used by CodeFormer's facelib via facexlib).
+    # Face detection and parsing (facexlib, used by the face stage).
     "detection_retinaface": (
         "detection_Resnet50_Final.pth",
         "https://github.com/xinntao/facexlib/releases/download/v0.1.0/detection_Resnet50_Final.pth",
@@ -148,7 +151,9 @@ p.add_argument("--heal", action="store_true")
 # scratch/crease pass; 15-20 aggressive (may flatten texture).
 p.add_argument("--heal-strength", type=int, default=10)
 p.add_argument("--device", default="cpu")
-p.add_argument("--codeformer-weight", type=float, default=0.7)
+# RestoreFormer++ has no fidelity input: share of the original face blended back (0 = fully restored).
+p.add_argument("--face-fidelity", type=float, default=0.0)
+p.add_argument("--rf-arch", default="")
 # Zhang 2016 is muted by design; boost ab saturation in HSV after re-merge.
 # 1.0 = raw network output (oil-paint look), 1.3 = punchier, 1.6 = vivid.
 p.add_argument("--colorize-saturation", type=float, default=1.15)
@@ -224,8 +229,14 @@ def _unload(*objs):
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
 
-# Read source as BGR uint8 (cv2 convention used throughout).
-img = cv2.imread(args.input, cv2.IMREAD_COLOR)
+# Read source as BGR uint8 (cv2 convention used throughout). cv2.imread and
+# cv2.imwrite fail silently on non-ASCII Windows paths (e.g. Arabic file
+# names), so bytes go through Python's own file I/O.
+try:
+    img = cv2.imdecode(np.fromfile(args.input, dtype=np.uint8), cv2.IMREAD_COLOR)
+except OSError as e:
+    sys.stderr.write(f"Failed to read image: {args.input} ({e})\n")
+    sys.exit(2)
 if img is None:
     sys.stderr.write(f"Failed to read image: {args.input}\n")
     sys.exit(2)
@@ -299,7 +310,7 @@ if args.heal:
         # eyes when scratches are nearby. Detect face bbox -> within bbox
         # detect eyes -> protect ONLY eye regions (small soft ellipses).
         # Rest of face still receives full BOPB cleanup so cheek / forehead
-        # creases get removed. Stage 2 (CodeFormer) polishes any leftover
+        # creases get removed. Stage 2 (RestoreFormer++) polishes any leftover
         # face damage.
         Hh, Ww = img.shape[:2]
         # weight = per-pixel BOPB strength (1.0 = full BOPB, lower = more original)
@@ -511,68 +522,50 @@ if args.colorize:
         traceback.print_exc()
         sys.exit(10)
 
-# ---------------- Stage 2: Face restoration (CodeFormer) ----------------
-# Bypass codeformer.app.inference_app — it expects a path string (not ndarray)
-# and writes to a hardcoded `results/` folder. We drive the CodeFormer arch
-# directly through codeformer-pip's vendored basicsr + facelib so we keep our
-# ndarray in/out contract and put the output where the caller asked.
+# ---------------- Stage 2: Face restoration (RestoreFormer++) ----------------
+# Weights are a Lightning checkpoint; the model's keys sit under "vqvae.".
 if args.restore_faces:
     emit("Restoring faces")
     try:
-        # Importing this module runs ARCH_REGISTRY.register("CodeFormer").
-        import codeformer.basicsr.archs.codeformer_arch  # noqa: F401
-        from codeformer.basicsr.utils.registry import ARCH_REGISTRY
-        try:
-            from codeformer.facelib.utils.face_restoration_helper import FaceRestoreHelper
-        except ImportError:
-            # Older codeformer-pip layouts ship facelib at top level or via facexlib.
-            from facexlib.utils.face_restoration_helper import FaceRestoreHelper
+        import importlib.util
+        from facexlib.utils.face_restoration_helper import FaceRestoreHelper
+        from basicsr.utils import img2tensor, tensor2img
 
-        cf_weights = _download(
-            "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth",
-            os.path.join(weights_dir, "codeformer.pth"),
+        spec = importlib.util.spec_from_file_location("restoreformer_arch", args.rf_arch)
+        rf_arch = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rf_arch)
+        rf_weights = _download(
+            "https://github.com/wzhouxiff/RestoreFormerPlusPlus/releases/download/v1.0.0/RestoreFormer%2B%2B.ckpt",
+            os.path.join(weights_dir, "RestoreFormer++.ckpt"),
         )
-        net = ARCH_REGISTRY.get("CodeFormer")(
-            dim_embd=512, codebook_size=1024, n_head=8, n_layers=9,
-            connect_list=["32", "64", "128", "256"],
-        ).to(device)
+        net = rf_arch.VQVAEGANMultiHeadTransformer(head_size=4, ex_multi_scale_num=1)
         # torch >= 2.4 defaults weights_only=True which rejects pickled ckpts.
-        ck = torch.load(cf_weights, map_location=device, weights_only=False)
-        net.load_state_dict(ck["params_ema"] if "params_ema" in ck else ck)
-        net.eval()
-        # NOTE: do NOT call net.half() — codeformer-pip's vendored vqgan_arch
-        # does `min_encodings.float() @ self.embedding.weight` in the codebook
-        # lookup, which raises "mat1 and mat2 dtype mismatch" when the embedding
-        # is fp16 but min_encodings is fp32. CodeFormer is small (~360 MB) so
-        # full-precision on CUDA is still <1s/face.
-        cf_half = False
+        ck = torch.load(rf_weights, map_location="cpu", weights_only=False)
+        net.load_state_dict(
+            {k[len("vqvae."):]: v for k, v in ck["state_dict"].items() if k.startswith("vqvae.")},
+            strict=True,
+        )
+        net = net.eval().to(device)
 
         helper = FaceRestoreHelper(
             upscale_factor=1, face_size=512, crop_ratio=(1, 1),
             det_model="retinaface_resnet50", save_ext="png",
-            use_parse=True, device=device,
+            use_parse=True, device=device, model_rootpath=weights_dir,
         )
         helper.read_image(img)
         helper.get_face_landmarks_5(only_center_face=False, resize=640, eye_dist_threshold=5)
         helper.align_warp_face()
 
+        keep = min(max(args.face_fidelity, 0.0), 1.0)
         for cropped in helper.cropped_faces:
-            t = torch.from_numpy(cropped.astype("float32") / 255.).permute(2, 0, 1).unsqueeze(0)
-            t = (t - 0.5) / 0.5
-            t = t.to(device)
-            if cf_half:
-                t = t.half()
+            t = img2tensor(cropped / 255., bgr2rgb=True, float32=True)
+            t = ((t - 0.5) / 0.5).unsqueeze(0).to(device)
             with torch.no_grad():
-                result = net(t, w=args.codeformer_weight, adain=True)
-            # codeformer-pip's forward returns (out, logits, lq_feat) — `out`
-            # itself is 4D (B, C, H, W). Older versions returned a 3D tensor
-            # directly. Handle both shapes.
-            out = result[0] if isinstance(result, (tuple, list)) else result
-            if out.dim() == 4:
-                out = out[0]
-            out = (out.clamp(-1, 1).float() + 1) / 2
-            out = (out.permute(1, 2, 0).cpu().numpy() * 255).round().astype("uint8")
-            helper.add_restored_face(out)
+                out = net(t)[0]
+            face = tensor2img(out.squeeze(0), rgb2bgr=True, min_max=(-1, 1)).astype("uint8")
+            if keep > 0:
+                face = cv2.addWeighted(cropped, keep, face, 1 - keep, 0)
+            helper.add_restored_face(face)
 
         helper.get_inverse_affine(None)
         img = helper.paste_faces_to_input_image(upsample_img=img)
@@ -581,8 +574,23 @@ if args.restore_faces:
         traceback.print_exc()
         sys.exit(11)
 
-ok = cv2.imwrite(args.output, img)
-sys.exit(0 if ok else 4)
+ok, buf = cv2.imencode(os.path.splitext(args.output)[1] or ".png", img)
+if not ok:
+    sys.stderr.write(f"Could not encode the result as {os.path.splitext(args.output)[1]}\n")
+    sys.exit(4)
+try:
+    with open(args.output, "wb") as f:
+        f.write(buf.tobytes())
+except OSError as e:
+    # Typically Windows Controlled folder access blocking our bundled python.exe
+    # from writing into Pictures/Documents; it surfaces as EBADF or ENOENT.
+    sys.stderr.write(
+        f"Could not save {args.output} ({e.strerror or e}). If Windows Security's "
+        f"Controlled folder access is on, allow Videl under Ransomware protection "
+        f"or save to another folder. If the file is open elsewhere, close it.\n"
+    )
+    sys.exit(4)
+sys.exit(0)
 """
 
 
@@ -592,7 +600,7 @@ def run_restore(
     options: dict[str, bool],
     *,
     device: str | None = None,
-    codeformer_weight: float = 0.7,
+    face_fidelity: float = 0.0,
     colorize_saturation: float = 1.15,
     colorize_wb: float = 0.85,
     colorize_size: int = 512,
@@ -632,7 +640,8 @@ def run_restore(
         "--input", input_path,
         "--output", output_path,
         "--device", device,
-        "--codeformer-weight", str(codeformer_weight),
+        "--face-fidelity", str(face_fidelity),
+        "--rf-arch", resource_path("core", "vendor", "restoreformer_arch.py"),
         "--colorize-saturation", str(colorize_saturation),
         "--colorize-wb", str(colorize_wb),
         "--colorize-size", str(colorize_size),

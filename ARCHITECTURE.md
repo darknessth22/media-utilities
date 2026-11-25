@@ -91,7 +91,7 @@ Components (size on CPU / CUDA, what each needs first, which tools use it):
 - **`bg_eraser`**: 200 MB. Used by BG Eraser (rembg on ONNX, plus BiRefNet, SAM and LaMa models).
 - **`vocal_isolator`**: 50 MB, needs `torch_runtime`. Used by Vocal Isolator (HTDemucs).
 - **`upscaler`**: 180 MB, needs `torch_runtime`. Used by the Image and Video Upscalers (Real-ESRGAN).
-- **`photo_restore`**: 350 MB, needs `torch_runtime` and `upscaler`. Used by Photo Restore (BOPB heal, DDColor, CodeFormer).
+- **`photo_restore`**: 350 MB, needs `torch_runtime` and `upscaler`. Used by Photo Restore (BOPB heal, DDColor, RestoreFormer++ faces; the RestoreFormer++ arch is vendored in `core/vendor/` and loaded by path in the child process).
 - **`ocr_rapid`** (120 MB) and **`ocr_easy`** (300 MB, needs `torch_runtime`): used by PDF OCR and the Text Extractor.
 
 How the torch-based tools run (upscaler, vocal isolator, photo restore): torch never loads into the GUI process. The core module starts a child script on the bundled Python, with `sys.path` ordered component, then dependency, then `torch_runtime`. The child reports `STAGE n/total label` on stderr, and the parent turns that into progress. Models are loaded one at a time and freed between stages, so 8 GB GPUs cope.

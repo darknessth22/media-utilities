@@ -145,6 +145,7 @@ except ImportError:
     sys.modules["torchvision.transforms.functional_tensor"] = _shim
 
 import cv2
+import numpy as np
 import torch
 from basicsr.archs.rrdbnet_arch import RRDBNet
 from realesrgan import RealESRGANer
@@ -158,7 +159,11 @@ p.add_argument("--device", default="cpu")
 p.add_argument("--weights", required=True)
 args = p.parse_args(sys.argv[3:])
 
-img = cv2.imread(args.input, cv2.IMREAD_UNCHANGED)
+# cv2.imread/imwrite fail silently on non-ASCII Windows paths; use Python file I/O.
+try:
+    img = cv2.imdecode(np.fromfile(args.input, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+except OSError:
+    img = None
 if img is None:
     sys.stderr.write(f"Failed to read image: {args.input}\n")
     sys.exit(2)
@@ -201,8 +206,21 @@ except Exception as e:
     traceback.print_exc()
     sys.exit(3)
 
-ok = cv2.imwrite(args.output, out)
-sys.exit(0 if ok else 4)
+ok, buf = cv2.imencode(os.path.splitext(args.output)[1] or ".png", out)
+if not ok:
+    sys.stderr.write("Could not encode the result\n")
+    sys.exit(4)
+try:
+    with open(args.output, "wb") as f:
+        f.write(buf.tobytes())
+except OSError as e:
+    sys.stderr.write(
+        f"Could not save {args.output} ({e.strerror or e}). If Windows Security's "
+        f"Controlled folder access is on, allow Videl under Ransomware protection "
+        f"or save to another folder. If the file is open elsewhere, close it.\n"
+    )
+    sys.exit(4)
+sys.exit(0)
 """
 
 

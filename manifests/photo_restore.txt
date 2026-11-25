@@ -5,14 +5,9 @@
 #   1. Colorize    — OpenCV deep colorization (Zhang 2016, Caffe via cv2.dnn).
 #                    NO pip dep — only weights auto-download. (DDColor / DeOldify
 #                    are not viable: DDColor not on PyPI, DeOldify needs fastai<2.)
-#   2. Face restore — codeformer-pip (sczhou/CodeFormer wrapper).
+#   2. Face restore — RestoreFormer++; its arch is vendored in core/vendor/ and
+#                     facexlib/basicsr come from the `upscaler` component.
 #   3. Upscale     — Real-ESRGAN reused from the `upscaler` component.
-codeformer-pip==0.0.4
-einops==0.8.0
-# codeformer-pip vendors its own basicsr that imports lpips at module load.
-# We install with --no-deps so we have to list its runtime deps explicitly.
-lpips==0.1.4
-gdown==5.2.0
 # DDColor (ICCV 2023) for top-quality colorize — runs as ONNX. CPU package
 # works on both CPU and CUDA variants (CUDA torch handles face restore; ORT
 # handles colorize); skips the cu12/onnxruntime-gpu version-matching dance.

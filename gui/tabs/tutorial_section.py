@@ -750,7 +750,7 @@ _TUTORIAL_DATA_EN = [
         "title": "AI Photo Restore",
         "description": (
             "Two-stage restoration for old / damaged photos: colorize black & white, "
-            "then rebuild faces with CodeFormer. Strict per-stage VRAM cleanup. "
+            "then rebuild faces with RestoreFormer++. Strict per-stage VRAM cleanup. "
             "For resolution upscaling, send the result through the AI Upscaler tab."
         ),
         "steps": [
@@ -758,14 +758,14 @@ _TUTORIAL_DATA_EN = [
             "Browse a damaged or black-and-white photo.",
             "Tick the stages you want — Colorize, Restore Faces. Either or both.",
             "If colorize is on, dial the saturation slider (Zhang 2016 is muted by default — 130–150% looks natural, 180%+ vivid).",
-            "Drag the CodeFormer fidelity slider — low = sharper but face may drift, high = closer to original. 60–75 % is a good default.",
+            "Leave Keep original face at 0 % for a full restore; raise it to blend the original face back in if the result looks too different.",
             "Hit Restore Photo. Send the output to the AI Upscaler tab if you want a higher-resolution version.",
         ],
         "tips": [
             "Stages run Colorize → Faces; models are loaded, run, then unloaded between stages so an 8 GB GPU survives.",
             "Colorize uses OpenCV's cv2.dnn Caffe model (Zhang 2016) — no extra pip dep, ~123 MB weights auto-download on first run. DDColor and DeOldify aren't shipped (DDColor isn't on PyPI; DeOldify needs fastai<2).",
             "The saturation slider is purely cosmetic — it scales HSV S in the output. The underlying ab field is the same; this just makes muted greens/skin look like real photo colour.",
-            "Face restore uses CodeFormer with RetinaFace detection — works on multiple faces per image.",
+            "Face restore uses RestoreFormer++ with RetinaFace detection — works on multiple faces per image.",
             "Upscale is intentionally NOT here — the dedicated AI Upscaler tab handles it (Real-ESRGAN x2/x4 with tiling).",
             "CPU mode works but is minutes per stage. NVIDIA GPU with the CUDA variant is strongly recommended.",
         ],
@@ -1593,7 +1593,7 @@ _TUTORIAL_DATA_AR = [
         "title": "ترميم الصور بالذكاء الاصطناعي",
         "description": (
             "ترميم من مرحلتين للصور القديمة/التالفة: تلوين الأبيض والأسود، "
-            "ثم إعادة بناء الوجوه بـ CodeFormer. تفريغ صارم لذاكرة الـ VRAM بين المرحلتين. "
+            "ثم إعادة بناء الوجوه بـ RestoreFormer++. تفريغ صارم لذاكرة الـ VRAM بين المرحلتين. "
             "لتكبير الدقة، مرّر النتيجة عبر تبويب 'مكبّر الذكاء الاصطناعي'."
         ),
         "steps": [
@@ -1601,14 +1601,14 @@ _TUTORIAL_DATA_AR = [
             "استعرض صورة تالفة أو بالأبيض والأسود.",
             "ضع علامة على المراحل المطلوبة — تلوين، إصلاح الوجوه. أو كلاهما.",
             "إذا فعّلت التلوين، اضبط شريط الإشباع (Zhang 2016 باهت افتراضيًا — 130–150٪ طبيعي، 180٪+ زاهٍ).",
-            "اسحب شريط دقة CodeFormer — منخفض = أوضح لكن قد يبتعد الوجه، عالي = أقرب للأصل. 60–75٪ افتراضي جيد.",
+            "اترك شريط الحفاظ على الوجه الأصلي على 0٪ لترميم كامل؛ ارفعه لمزج الوجه الأصلي إذا بدت النتيجة مختلفة كثيرًا.",
             "انقر 'ترميم الصورة'. مرّر النتيجة عبر تبويب 'مكبّر الذكاء الاصطناعي' إذا أردت دقة أعلى.",
         ],
         "tips": [
             "تعمل المراحل بالترتيب تلوين → وجوه؛ تُحمَّل النماذج وتُشغَّل ثم تُفرَّغ بين كل مرحلة لتنجو بطاقة 8 GB.",
             "يستخدم التلوين نموذج cv2.dnn Caffe من OpenCV (Zhang 2016) — بدون حزم pip إضافية، أوزان ~123 ميجابايت تُنزَّل تلقائيًا عند أول تشغيل.",
             "شريط الإشباع تجميلي بحت — يضرب قناة S في HSV. حقل ab الأصلي لا يتغير، لكن الألوان الباهتة (مثل البشرة والخضرة) تبدو أكثر طبيعية.",
-            "يستخدم إصلاح الوجوه CodeFormer مع كشف RetinaFace — يعمل مع عدة وجوه في الصورة.",
+            "يستخدم إصلاح الوجوه RestoreFormer++ مع كشف RetinaFace — يعمل مع عدة وجوه في الصورة.",
             "التكبير مقصود ألا يكون هنا — تبويب 'مكبّر الذكاء الاصطناعي' المخصّص يتولّاه (Real-ESRGAN x2/x4 مع التقطيع).",
             "وضع المعالج يعمل لكنه يستغرق دقائق لكل مرحلة. يُنصح بشدّة بكرت NVIDIA مع نسخة CUDA.",
         ],

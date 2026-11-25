@@ -1,7 +1,7 @@
 """AI Photo Restore — chained Colorize → Face Restore → Upscale pipeline.
 
 Same install-banner / Worker pattern as upscaler_section. The actual heavy
-lifting (torch, CodeFormer, DDColor, Real-ESRGAN) lives in core/restore.py's
+lifting (torch, RestoreFormer++, DDColor, Real-ESRGAN) lives in core/restore.py's
 child subprocess so this tab keeps the GUI snappy.
 """
 from __future__ import annotations
@@ -403,7 +403,7 @@ class PhotoRestoreSection(QScrollArea):
         layout.addLayout(row)
         return card
 
-    # ── Stages card (3 toggles + CodeFormer fidelity) ─────────────────────────
+    # ── Stages card (3 toggles + face fidelity) ─────────────────────────
 
     def _build_stages_card(self) -> QFrame:
         card = _card()
@@ -501,14 +501,14 @@ class PhotoRestoreSection(QScrollArea):
         self._cb_colorize.toggled.connect(_toggle_sat)
         _toggle_sat()
 
-        # CodeFormer fidelity slider — 0 = max identity, 1 = max quality.
-        self._fidelity_lbl = QLabel(tr("photo_restore_fidelity").format(value=70))
+        # Face fidelity: share of the original face blended over RestoreFormer++'s result.
+        self._fidelity_lbl = QLabel(tr("photo_restore_fidelity").format(value=0))
         self._fidelity_lbl.setObjectName("TextMuted")
         self._fidelity_lbl.setStyleSheet("font-size: 11px; margin-top: 4px;")
         layout.addWidget(self._fidelity_lbl)
         self._fidelity_slider = QSlider(Qt.Orientation.Horizontal)
         self._fidelity_slider.setRange(0, 100)
-        self._fidelity_slider.setValue(70)
+        self._fidelity_slider.setValue(0)
         self._fidelity_slider.valueChanged.connect(
             lambda v: self._fidelity_lbl.setText(tr("photo_restore_fidelity").format(value=v))
         )
@@ -745,7 +745,9 @@ class PhotoRestoreSection(QScrollArea):
         if not output_path:
             stem, ext = os.path.splitext(input_path)
             ext = ext or ".png"
-            output_path = f"{stem}_restored{ext}"
+            # Never overwrite an earlier result.
+            from core.folder_rules import free_name
+            output_path = free_name(f"{stem}_restored{ext}")
 
         self._result_card.setVisible(False)
         self._set_busy(True, tr("dyn_photo_restore_processing"))
@@ -777,7 +779,7 @@ class PhotoRestoreSection(QScrollArea):
             output_path,
             options,
             device=device_override,
-            codeformer_weight=fidelity,
+            face_fidelity=fidelity,
             colorize_saturation=saturation,
             colorize_style=style,
             colorize_size=size,

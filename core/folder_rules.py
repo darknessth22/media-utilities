@@ -224,7 +224,7 @@ def preview(rules: list[Rule]) -> list[Action]:
                 continue
             dest = ""
             if rule.action in ("move", "copy"):
-                dest = _free_name(os.path.join(rule.destination,
+                dest = free_name(os.path.join(rule.destination,
                                                os.path.basename(path)))
             planned.append(Action(rule.name, rule.action, path, dest))
     return planned
@@ -232,7 +232,7 @@ def preview(rules: list[Rule]) -> list[Action]:
 
 # ── Doing it ──────────────────────────────────────────────────────────────────
 
-def _free_name(target: str) -> str:
+def free_name(target: str) -> str:
     """A path that does not exist yet — never silently overwrite."""
     if not os.path.exists(target):
         return target
@@ -332,12 +332,12 @@ def apply(rules: list[Rule], *, log: bool = True) -> list[Action]:
             if planned.action == "move":
                 os.makedirs(os.path.dirname(planned.destination), exist_ok=True)
                 # Re-resolve: an earlier action this pass may have taken the name.
-                target = _free_name(planned.destination)
+                target = free_name(planned.destination)
                 shutil.move(planned.source, target)
                 planned = Action(planned.rule, "move", planned.source, target)
             elif planned.action == "copy":
                 os.makedirs(os.path.dirname(planned.destination), exist_ok=True)
-                target = _free_name(planned.destination)
+                target = free_name(planned.destination)
                 shutil.copy2(planned.source, target)
                 planned = Action(planned.rule, "copy", planned.source, target)
             elif planned.action == "delete":
@@ -409,7 +409,7 @@ def undo_last(count: int = 1) -> list[str]:
         try:
             if action == "move" and dst and src and os.path.exists(dst):
                 os.makedirs(os.path.dirname(src), exist_ok=True)
-                shutil.move(dst, _free_name(src))
+                shutil.move(dst, free_name(src))
                 undone.append(src)
             elif action == "copy" and dst and os.path.exists(dst):
                 os.remove(dst)      # removing the copy we made, not the original

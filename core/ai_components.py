@@ -85,7 +85,7 @@ _REGISTRY: dict[str, AIComponent] = {
     "photo_restore": AIComponent(
         id="photo_restore",
         label_key="tool_photo_restore_name",
-        importable_name="codeformer",
+        importable_name="zeroscratches",
         manifest_cpu=os.path.join(_MANIFESTS_DIR, "photo_restore.txt"),
         manifest_cuda=os.path.join(_MANIFESTS_DIR, "photo_restore.cuda.txt"),
         approx_size_mb_cpu=350,

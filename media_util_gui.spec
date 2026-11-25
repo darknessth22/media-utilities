@@ -51,6 +51,10 @@ if os.path.isdir('assets'):
 
 if os.path.isdir('locales'):
     datas.append(('locales', 'locales'))
+if os.path.isfile('THIRD_PARTY_NOTICES.md'):
+    datas.append(('THIRD_PARTY_NOTICES.md', '.'))
+# RestoreFormer++ arch, loaded by path in Photo Restore's child process.
+datas.append(('core/vendor', 'core/vendor'))
 
 # Browser extension — shipped alongside the installed app so users can
 # load it unpacked into their browser (Chrome/Edge: Load unpacked).
