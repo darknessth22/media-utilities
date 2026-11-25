@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (                      # noqa: E402
 from core import i18n                                # noqa: E402
 from core.settings import SettingsManager            # noqa: E402
 from gui.app import SettingsSection                  # noqa: E402
-from gui.tabs.folder_rules_section import FolderRulesSection   # noqa: E402
+from gui.app import FolderRulesSection               # noqa: E402  None without Pro
 from gui.theme import ThemeManager                   # noqa: E402
 
 # Text that is correctly identical in both languages: key names, drive letters,
@@ -71,6 +71,8 @@ def arabic(app):
 
 
 def test_folder_rules_translates(app, arabic):
+    if FolderRulesSection is None:
+        pytest.skip("Folder Rules is Pro")
     section = FolderRulesSection(SettingsManager.load())
     section.retranslate_ui()
 
@@ -96,5 +98,5 @@ def test_keybinds_card_translates(app, arabic):
 
 def test_every_section_with_translatable_text_has_retranslate_ui():
     """A section built once and never re-read keeps its launch language."""
-    assert hasattr(FolderRulesSection, "retranslate_ui")
+    assert FolderRulesSection is None or hasattr(FolderRulesSection, "retranslate_ui")
     assert hasattr(SettingsSection, "retranslate_ui")

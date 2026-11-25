@@ -24,6 +24,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # Pro tools live in the private videl-pro repo. Official builds must
+      # include them, so this step fails the release if the token is missing.
+      - name: Checkout Pro module
+        uses: actions/checkout@v6
+        with:
+          repository: darknessth22/videl-pro
+          token: ${{ secrets.VIDEL_PRO_TOKEN }}
+          path: videl_pro
+
       - name: Read app version
         id: version
         shell: pwsh
@@ -181,6 +190,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      # Pro tools live in the private videl-pro repo. Official builds must
+      # include them, so this step fails the release if the token is missing.
+      - name: Checkout Pro module
+        uses: actions/checkout@v6
+        with:
+          repository: darknessth22/videl-pro
+          token: ${{ secrets.VIDEL_PRO_TOKEN }}
+          path: videl_pro
 
       - name: Set up Python
         uses: actions/setup-python@v6

@@ -44,7 +44,7 @@ The user preference behind several of these: **enrich the feature that was named
 - AI components install with `--no-deps`, so **every** transitive dependency must be listed in the manifest (e.g. `codeformer-pip` also needs `lpips` and `gdown`).
 - torch lives in `ai_packages/torch_runtime/`. Child scripts must put it on `sys.path` after the component's own directory.
 - The gyan.dev FFmpeg zip pinned in `build_config.json` periodically returns 404 (they keep a rolling window). Update all four fields from the `.sha256` sidecar. Don't switch to the floating URL.
-- `core/restore.py` ships its child script as a string. A test `ast.parse`s it, because syntax errors there pass every import check.
+- `videl_pro/restore.py` ships its child script as a string. A test `ast.parse`s it, because syntax errors there pass every import check.
 - `markdown` (PyPI) is only installed transitively. Fine for tests (`importorskip`), never for runtime code.
 
 ## Qt / GUI
@@ -104,6 +104,7 @@ The user preference behind several of these: **enrich the feature that was named
 - python-pptx: `slide_width` is EMU (`/12700` gives points). Shape proxies are fresh objects, so compare `shape_id`, never `is`.
 - Design decks (aspect ≥ 1.4 + full-bleed background) are rendered page-for-slide with text redacted and re-laid as editable boxes, one per **line**. Use `apply_redactions(graphics=0)` and remove outlined glyphs individually, because `graphics=2` eats vector art. Cap renders at the source images' native resolution and use JPEG.
 - Arabic text from a PDF comes reversed and in presentation forms: NFKC, then reverse, then set `rtl=1`. Pin overlay text to Calibri.
+- **Open core (decision 2026-11-25).** The Pro tools live in the private `videl_pro/` package, which is its own repo checked out inside this one and git-ignored. Public code reaches it only behind `core.edition.HAS_PRO`; a Pro section in `_SECTIONS_META` carries `"pro": True`. Settings and Tutorial have `cls: None` by design, so never filter sections on `cls`. Test both editions: `python -m pytest tests videl_pro/tests -q`, then the same `tests` run with `videl_pro/` moved aside. Code that was public under MIT before the move stays MIT in the git history; only changes made after it are private.
 - **Videl never imports `fitz`.** PyMuPDF is AGPL and must stay in the `videl-pdf` helper so it does not reach the private Pro code (decision 2026-11-25). New PDF features go into `core/pdf_toolkit.py` or `core/document.py`, get an entry in `CALLS` in `pdf_helper.py`, and are called through `core/pdf_bridge.py`. JSON turns tuples into lists, so the bridge re-tuples results.
 - PyMuPDF `insert_textbox()` writes nothing when the text does not fit and only returns a negative number. The searchable-PDF text layer used it with fontsize = 0.8 x box height, which never fits, so OCR'd PDFs had no text until 5.1. The layer now uses `insert_text` on the box baseline. It is Helvetica, so Arabic and CJK words in it are not searchable yet.
 - Before calling something "unremovable / baked in", **render it and look at it** at high zoom. Twice it turned out to be our own leftovers or a drop shadow.

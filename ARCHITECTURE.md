@@ -24,6 +24,7 @@ Related documents: [WORKFLOW.md](WORKFLOW.md) covers how changes ship, and [LEAR
 - **`gui/`**: Qt widgets only. One file per tool in `gui/tabs/<tool>_section.py`, shared widgets in `gui/widgets/`, pages in `gui/pages/`.
 - **`core/`**: business logic with no Qt imports. Plain functions that take paths and settings and return results. The exceptions are Qt-bound services: `tray`, `index_watcher` and `rule_runner`.
 - **`utils/`**: plumbing. FFmpeg location, user-data paths, logging, AI package installs, yt-dlp and Deno provisioning, the process registry, temp-file cleanup.
+- **`videl_pro/`** (private, not in this repo): the Pro tools, open core style. Transcript, Vocal Isolator, AI Upscaler, AI Video Upscaler, Photo Restore, Jump-Cutter and Folder Rules live here, each as `<tool>.py` plus `<tool>_section.py`, with their tests in `videl_pro/tests/`. It is its own git repo (`videl-pro`), checked out into this folder and git-ignored. `core/edition.py` sets `HAS_PRO` when it is present; `gui/app.py` marks those sections `"pro": True` and drops them when it is not, so the public repo builds a free-only Videl. Release builds check it out with the `VIDEL_PRO_TOKEN` secret. Public code must never import `videl_pro` except behind `HAS_PRO`.
 - **`locales/`**: `en.json` and `ar.json` hold every visible string, looked up with `tr("key")`.
 - **`manifests/`**: pinned pip lists for each on-demand AI component (`<component>.txt` and `<component>.cuda.txt`).
 - **`tools/bug_relay/`**: the Cloudflare Worker that receives bug reports (section 6).
@@ -92,7 +93,7 @@ Components (size on CPU / CUDA, what each needs first, which tools use it):
 - **`bg_eraser`**: 200 MB. Used by BG Eraser (rembg on ONNX, plus BiRefNet, SAM and LaMa models).
 - **`vocal_isolator`**: 50 MB, needs `torch_runtime`. Used by Vocal Isolator (HTDemucs).
 - **`upscaler`**: 180 MB, needs `torch_runtime`. Used by the Image and Video Upscalers (Real-ESRGAN).
-- **`photo_restore`**: 350 MB, needs `torch_runtime` and `upscaler`. Used by Photo Restore (BOPB heal, DDColor, RestoreFormer++ faces; the RestoreFormer++ arch is vendored in `core/vendor/` and loaded by path in the child process).
+- **`photo_restore`**: 350 MB, needs `torch_runtime` and `upscaler`. Used by Photo Restore (BOPB heal, DDColor, RestoreFormer++ faces; the RestoreFormer++ arch is vendored in `videl_pro/vendor/` and loaded by path in the child process).
 - **`ocr_rapid`** (120 MB) and **`ocr_easy`** (300 MB, needs `torch_runtime`): used by PDF OCR and the Text Extractor.
 
 How the torch-based tools run (upscaler, vocal isolator, photo restore): torch never loads into the GUI process. The core module starts a child script on the bundled Python, with `sys.path` ordered component, then dependency, then `torch_runtime`. The child reports `STAGE n/total label` on stderr, and the parent turns that into progress. Models are loaded one at a time and freed between stages, so 8 GB GPUs cope.
@@ -108,7 +109,7 @@ Settings > Storage (`core/storage.py`) lists everything that has been downloaded
 - **Global hotkeys** (`core/hotkey.py`, `core/keybinds.py`): Windows `RegisterHotKey`, so shortcuts work while the window is minimised. All 20 shortcuts are declared in one registry and can be rebound in Settings.
 - **Browser bridge** (`core/extension_bridge.py`): an HTTP server on 127.0.0.1:17654. `POST /url` fills in the Downloader and brings the window to the front. Browsers may call it only from the extension origins and `https://app.videl.app` (`ALLOWED_WEB_ORIGINS`), the web app's Downloader page.
 - **File search** (`core/file_search.py`, `file_index.py`, `index_watcher.py`): queries the Windows Search index, plus Videl's own SQLite index of the other drives, which a folder watcher keeps up to date.
-- **Folder rules** (`core/folder_rules.py`, `rule_runner.py`): if-this-then-that rules for folders. Off by default; deletes go to the Recycle Bin; actions are logged and can be undone.
+- **Folder rules** (`videl_pro/folder_rules.py`, `rule_runner.py`; Pro): if-this-then-that rules for folders. Off by default; deletes go to the Recycle Bin; actions are logged and can be undone.
 - **Screen tools** (`core/window_tools.py`, `core/screen_ocr.py`, `gui/widgets/screen_zoom.py`, `gui/widgets/region_selector.py`): Always On Top, Text Extractor, Zoom & Draw, and the screen colour picker.
 - **Wallpaper scheduler** (`core/wallpaper_scheduler.py`): applies saved multi-monitor wallpaper setups on a schedule.
 - **Updater** (`core/updater.py`): see section 8.

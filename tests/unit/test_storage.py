@@ -11,7 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from core import storage, transcript
+from core import storage
+from core.edition import HAS_PRO
 from utils import model_manager
 
 
@@ -50,10 +51,14 @@ def test_lists_components_models_and_leftovers(root):
     found = _by_id(storage.items())
 
     for expected in ("ai:torch_runtime", "ai:upscaler", "ai:photo_restore",
-                     "ai:bg_eraser", "whisper_model:base", "pip_cache"):
+                     "ai:bg_eraser", "pip_cache"):
         assert expected in found, expected
     assert found["ai:torch_runtime"].size >= 1000
-    assert found["whisper_model:base"].size == 500
+    # Whisper rows come from Transcript, which only official (Pro) builds have.
+    if HAS_PRO:
+        assert found["whisper_model:base"].size == 500
+    else:
+        assert "whisper_model:base" not in found
 
 
 def test_shared_runtime_says_who_needs_it(root):
@@ -75,6 +80,7 @@ def test_used_by_lists_only_installed_tools_and_never_itself(root):
     assert "tool_bg_eraser_name" not in found["ai:bg_eraser"].used_by
 
 
+@pytest.mark.skipif(not HAS_PRO, reason="Transcript is Pro")
 def test_whisper_rows_do_not_repeat_an_estimated_size(root):
     model = _by_id(storage.items())["whisper_model:base"]
     assert "MB" not in model.label and model.label.startswith("Whisper base")

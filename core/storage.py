@@ -134,7 +134,8 @@ def items(measure: bool = True) -> list[StorageItem]:
     *measure* walks each item for its size — seconds on a big install, so the
     UI does it off the GUI thread.
     """
-    from core import ai_components, transcript
+    from core import ai_components
+    from core.edition import HAS_PRO
     from utils import model_manager
 
     out: list[StorageItem] = []
@@ -173,25 +174,28 @@ def items(measure: bool = True) -> list[StorageItem]:
             note_key="storage_note_redownload",
         ))
 
-    # Whisper: each model file, and each installed engine.
-    for spec in transcript.MODELS:
-        path = os.path.join(transcript.models_dir(), spec.filename)
-        if os.path.isfile(path):
-            out.append(StorageItem(
-                id=f"whisper_model:{spec.id}", kind=KIND_TRANSCRIPT,
-                name_key="", label=_whisper_name(spec.label), path=path,
-                used_by=["section_transcript"],
-                note_key="storage_note_redownload",
-            ))
-    for backend in transcript.BACKENDS:
-        path = transcript.backend_dir(backend.id)
-        if os.path.isdir(path) and os.listdir(path):
-            out.append(StorageItem(
-                id=f"whisper_backend:{backend.id}", kind=KIND_TRANSCRIPT,
-                name_key=f"storage_whisper_engine_{backend.id}", path=path,
-                used_by=["section_transcript"],
-                note_key="storage_note_reinstall",
-            ))
+    # Whisper: each model file, and each installed engine (Transcript is Pro).
+    if HAS_PRO:
+        from videl_pro import transcript
+
+        for spec in transcript.MODELS:
+            path = os.path.join(transcript.models_dir(), spec.filename)
+            if os.path.isfile(path):
+                out.append(StorageItem(
+                    id=f"whisper_model:{spec.id}", kind=KIND_TRANSCRIPT,
+                    name_key="", label=_whisper_name(spec.label), path=path,
+                    used_by=["section_transcript"],
+                    note_key="storage_note_redownload",
+                ))
+        for backend in transcript.BACKENDS:
+            path = transcript.backend_dir(backend.id)
+            if os.path.isdir(path) and os.listdir(path):
+                out.append(StorageItem(
+                    id=f"whisper_backend:{backend.id}", kind=KIND_TRANSCRIPT,
+                    name_key=f"storage_whisper_engine_{backend.id}", path=path,
+                    used_by=["section_transcript"],
+                    note_key="storage_note_reinstall",
+                ))
 
     # Leftovers: safe to delete outright, nothing re-downloads.
     for item_id, key, parts in (

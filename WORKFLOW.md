@@ -55,8 +55,10 @@ A change is done when every item that applies is true:
 ## 4. Test
 
 ```bash
-python -m pytest tests -q
+python -m pytest tests videl_pro/tests -q
 ```
+
+- Pro changes: also run `python -m pytest tests -q` with `videl_pro/` moved aside, so the public, free-only build still starts and passes.
 
 - Run it on `tests/`. A bare `pytest` also collects the bundled `runtime/python/` and errors out.
 - Expected skips: the live-browser tests (they need `LIVE_TEST=1`), the offscreen window tests, and the global-hotkey test while Videl is running.
@@ -106,7 +108,8 @@ git push origin vX.Y.Z
   - **Windows job**: PyInstaller and Inno Setup produce `Videl_Setup.exe`, plus the delta-update manifest and blobs, a size check comparing a clean venv against an AI-polluted one, an Ed25519 signature, and the GitHub Release.
   - **Linux job**: runs in parallel with no dependency on the Windows job. Builds a signed AppImage into the same release.
 - **`android.yml`**: runs on `v*` and `android-*` tags and manually. Builds the Flutter APK from `mobile/`.
-- **Secrets**: `VIDEL_PRIV_KEY_PEM` (signing). The public key is in `core/_signing.py`. No mail-service key is used in builds any more.
+- **Pro module**: both build jobs check out the private `darknessth22/videl-pro` repo into `videl_pro/` with the `VIDEL_PRO_TOKEN` secret (a fine-grained token with read-only Contents access to that one repo). Without it the release fails on purpose, so no official build ships without the Pro tools. `ci.yml` tests the public, free-only build.
+- **Secrets**: `VIDEL_PRIV_KEY_PEM` (signing), `VIDEL_PRO_TOKEN` (Pro checkout). The public key is in `core/_signing.py`. No mail-service key is used in builds any more.
 
 
 ## 8. Bug relay (Cloudflare Worker)

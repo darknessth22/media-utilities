@@ -61,19 +61,25 @@ from gui.tabs.frame_grabber_section import FrameGrabberSection
 from core.hotkey import GlobalHotkey
 from gui.tabs.palette_section import PaletteSection
 from gui.tabs.bg_eraser_section import BgEraserSection
-from gui.tabs.vocal_isolator_section import VocalIsolatorSection
-from gui.tabs.upscaler_section import UpscalerSection
-from gui.tabs.video_upscaler_section import VideoUpscalerSection
 from gui.tabs.pdf_toolkit_section import PdfToolkitSection
-from gui.tabs.jumpcut_section import JumpcutSection
 from gui.tabs.subtitles_section import SubtitlesSection
-from gui.tabs.transcript_section import TranscriptSection
 from gui.tabs.image_editor_section import ImageEditorSection
-from gui.tabs.photo_restore_section import PhotoRestoreSection
-from gui.tabs.folder_rules_section import FolderRulesSection
 from gui.tabs.pixel_art_section import PixelArtSection
 from gui.widgets.storage_card import StorageCard
 from gui.tabs.bug_reporter import BugReporterSection
+from core.edition import HAS_PRO
+if HAS_PRO:
+    from videl_pro.vocal_isolator_section import VocalIsolatorSection
+    from videl_pro.upscaler_section import UpscalerSection
+    from videl_pro.video_upscaler_section import VideoUpscalerSection
+    from videl_pro.jumpcut_section import JumpcutSection
+    from videl_pro.transcript_section import TranscriptSection
+    from videl_pro.photo_restore_section import PhotoRestoreSection
+    from videl_pro.folder_rules_section import FolderRulesSection
+else:  # public build: the Pro tools are simply not there
+    VocalIsolatorSection = UpscalerSection = VideoUpscalerSection = None
+    JumpcutSection = TranscriptSection = PhotoRestoreSection = None
+    FolderRulesSection = None
 from gui.pages.home_page import HomePage, ToolsPage
 
 # ── Animated toggle switch ───────────────────────────────────────────────────
@@ -286,6 +292,7 @@ _SECTIONS_META = [
     {
         "id": "vocal_isolator",
         "cls": VocalIsolatorSection,
+        "pro": True,
         "label_key": "section_vocal_isolator",
         "icon": "vocal_isolator.svg",
         "tab_keys": ["tab_vocal_isolator"],
@@ -294,6 +301,7 @@ _SECTIONS_META = [
     {
         "id": "upscaler",
         "cls": UpscalerSection,
+        "pro": True,
         "label_key": "section_upscaler",
         "icon": "upscaler.svg",
         "tab_keys": ["tab_upscaler"],
@@ -302,6 +310,7 @@ _SECTIONS_META = [
     {
         "id": "video_upscaler",
         "cls": VideoUpscalerSection,
+        "pro": True,
         "label_key": "section_video_upscaler",
         "icon": "video_upscaler.svg",
         "tab_keys": ["tab_video_upscaler"],
@@ -318,6 +327,7 @@ _SECTIONS_META = [
     {
         "id": "jumpcut",
         "cls": JumpcutSection,
+        "pro": True,
         "label_key": "section_jumpcut",
         "icon": "jumpcut.svg",
         "tab_keys": ["tab_jumpcut"],
@@ -334,6 +344,7 @@ _SECTIONS_META = [
     {
         "id": "transcript",
         "cls": TranscriptSection,
+        "pro": True,
         "label_key": "section_transcript",
         "icon": "transcript.svg",
         "tab_keys": ["tab_transcript"],
@@ -353,6 +364,7 @@ _SECTIONS_META = [
     {
         "id": "photo_restore",
         "cls": PhotoRestoreSection,
+        "pro": True,
         "label_key": "section_photo_restore",
         "icon": "photo_restore.svg",
         "tab_keys": ["tab_photo_restore"],
@@ -369,6 +381,7 @@ _SECTIONS_META = [
     {
         "id": "folder_rules",
         "cls": FolderRulesSection,
+        "pro": True,
         "label_key": "section_folder_rules",
         "icon": "scrub.svg",
         "tab_keys": ["tab_folder_rules"],
@@ -407,6 +420,9 @@ _SECTIONS_META = [
         "action_key": None,
     },
 ]
+# Pro tools exist only when the private videl_pro package is present.
+_PRO_SECTION_IDS = {m["id"] for m in _SECTIONS_META if m.get("pro")}
+_SECTIONS_META = [m for m in _SECTIONS_META if HAS_PRO or not m.get("pro")]
 
 
 # Global (OS-level) hotkey for the screen colour picker. Deliberately NOT
@@ -2656,11 +2672,12 @@ class MainWindow(QMainWindow):
         s = self._sections
         self._download_section = s["download"]
         self._palette_section = s["palette"]
-        self._folder_rules_section = s["folder_rules"]
+        self._folder_rules_section = s.get("folder_rules")
         self._history_section = s["history"]
         self._settings_section_widget = s["settings"]
 
-        self._folder_rules_section.rules_changed.connect(self._restart_rule_runner)
+        if self._folder_rules_section is not None:
+            self._folder_rules_section.rules_changed.connect(self._restart_rule_runner)
         self._settings_section_widget.settings_changed.connect(self._on_settings_changed)
         self._settings_section_widget.storage_card.storage_changed.connect(
             self._refresh_tool_install_states)
@@ -2891,10 +2908,14 @@ class MainWindow(QMainWindow):
             "always_on_top": self._toggle_always_on_top,
             "extract_text": self._extract_screen_text,
             "find_files": self._open_file_finder,
-            "open_folder_rules": lambda: self._navigate_to(_section_index("folder_rules")),
             "zoom_screen": self._open_screen_zoom,
         }
+        if HAS_PRO:
+            handlers["open_folder_rules"] = lambda: self._navigate_to(_section_index("folder_rules"))
+        present = {m["id"] for m in _SECTIONS_META}
         for action_id, section_id in SECTION_JUMP_TARGETS.items():
+            if section_id not in present:
+                continue
             # sid=section_id binds now; a bare closure would capture the last.
             handlers[action_id] = (
                 lambda _=None, sid=section_id: self._navigate_to(_section_index(sid)))
@@ -2967,10 +2988,10 @@ class MainWindow(QMainWindow):
 
     def _start_rule_runner(self) -> None:
         """Apply folder rules in the background, if the user enabled them."""
-        if not getattr(self.settings, "folder_rules_enabled", False):
+        if not HAS_PRO or not getattr(self.settings, "folder_rules_enabled", False):
             return
         try:
-            from core.rule_runner import RuleRunner
+            from videl_pro.rule_runner import RuleRunner
 
             if self._rule_runner is None:
                 self._rule_runner = RuleRunner(self.settings, self)

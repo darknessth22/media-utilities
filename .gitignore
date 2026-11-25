@@ -1,3 +1,6 @@
+# Private Pro module (its own repo, videl-pro). Official builds check it out here.
+videl_pro/
+
 # Python cache files
 __pycache__/
 *.pyc

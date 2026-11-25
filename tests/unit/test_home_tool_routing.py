@@ -10,7 +10,7 @@ import pytest
 
 pytest.importorskip("PySide6.QtWidgets")
 
-from gui.app import _SECTIONS_META             # noqa: E402
+from gui.app import _PRO_SECTION_IDS, _SECTIONS_META   # noqa: E402
 from gui.pages.home_page import _TOOL_ORDER, _all_tools     # noqa: E402
 
 
@@ -23,7 +23,8 @@ def test_every_tool_card_points_at_its_own_section():
 
 
 def test_every_tool_id_exists_as_a_section():
-    ids = {m["id"] for m in _SECTIONS_META}
+    # Pro sections are missing from the public build; their cards are skipped.
+    ids = {m["id"] for m in _SECTIONS_META} | _PRO_SECTION_IDS
     for tool_id in _TOOL_ORDER:
         assert tool_id in ids, f"tool card {tool_id!r} has no section"
 

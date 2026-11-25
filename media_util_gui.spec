@@ -54,8 +54,11 @@ if os.path.isdir('locales'):
     datas.append(('locales', 'locales'))
 if os.path.isfile('THIRD_PARTY_NOTICES.md'):
     datas.append(('THIRD_PARTY_NOTICES.md', '.'))
-# RestoreFormer++ arch, loaded by path in Photo Restore's child process.
-datas.append(('core/vendor', 'core/vendor'))
+# Pro tools (private videl_pro package, official builds only). PyInstaller
+# follows its imports from gui/app.py; only the RestoreFormer++ arch, loaded
+# by path in Photo Restore's child process, needs listing.
+if os.path.isdir('videl_pro/vendor'):
+    datas.append(('videl_pro/vendor', 'videl_pro/vendor'))
 
 # Browser extension — shipped alongside the installed app so users can
 # load it unpacked into their browser (Chrome/Edge: Load unpacked).

@@ -155,6 +155,8 @@ pip install -r requirements.txt
 python main.py
 ```
 
+A build from this repo has every free tool. The Pro tools (Transcript, Vocal Isolator, AI Upscaler, AI Video Upscaler, Photo Restore, Jump-Cutter and Folder Rules) are only in the official downloads.
+
 ---
 
 ## Hardware Acceleration
