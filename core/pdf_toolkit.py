@@ -232,3 +232,67 @@ def get_pdf_page_count(path: str) -> int:
             return len(doc)
     except Exception:
         return -1
+
+
+# ── OCR support (the PyMuPDF half; core/ocr.py runs the OCR engines) ─────────
+
+def render_pages_png(input_path: str, out_dir: str, dpi: int = 300) -> list[dict]:
+    """Render every page to <out_dir>/page_<n>.png.
+
+    Returns one dict per page: png path, page size in points, image size in pixels.
+    """
+    import fitz
+
+    pages = []
+    with fitz.open(input_path) as doc:
+        mat = fitz.Matrix(dpi / 72, dpi / 72)
+        for i, page in enumerate(doc):
+            pix = page.get_pixmap(matrix=mat, alpha=False)
+            png = os.path.join(out_dir, f"page_{i + 1:05d}.png")
+            pix.save(png)
+            pages.append({
+                "png": png,
+                "w_pt": page.rect.width, "h_pt": page.rect.height,
+                "w_px": pix.width, "h_px": pix.height,
+            })
+    return pages
+
+
+def write_searchable_pdf(pages: list[dict], output_path: str) -> str:
+    """Build a PDF of page images with an invisible OCR text layer.
+
+    pages: render_pages_png's dicts plus "boxes": [[[x, y] * 4, text], ...] in pixels.
+    """
+    import fitz
+
+    out = fitz.open()
+    try:
+        for p in pages:
+            w_pt, h_pt = p["w_pt"], p["h_pt"]
+            new_page = out.new_page(width=w_pt, height=h_pt)
+            new_page.insert_image(new_page.rect, filename=p["png"])
+            sx, sy = w_pt / p["w_px"], h_pt / p["h_px"]
+            for box, text in p.get("boxes", []):
+                if not text:
+                    continue
+                xs = [pt[0] for pt in box]
+                ys = [pt[1] for pt in box]
+                x0, x1 = min(xs) * sx, max(xs) * sx
+                y0, y1 = min(ys) * sy, max(ys) * sy
+                rect = fitz.Rect(x0, y0, x1, y1)
+                if rect.is_empty or rect.width <= 0 or rect.height <= 0:
+                    continue
+                # insert_textbox() silently writes nothing when the text does not
+                # fit (it returns a negative number), which left every page
+                # without a text layer. Place the words on the box's baseline
+                # instead, sized to fit its width and height.
+                # ponytail: Helvetica text layer, so Arabic/CJK words are not
+                # searchable; needs an embedded Unicode font plus logical-order text.
+                width_at_1pt = fitz.get_text_length(text, fontsize=1) or 1.0
+                fontsize = max(1.0, min(rect.height * 0.8, rect.width / width_at_1pt))
+                new_page.insert_text((x0, y1 - rect.height * 0.2), text,
+                                     fontsize=fontsize, render_mode=3)  # invisible text
+        out.save(output_path, garbage=4, deflate=True, clean=True)
+    finally:
+        out.close()
+    return output_path

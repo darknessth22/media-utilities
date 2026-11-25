@@ -162,71 +162,33 @@ def ocr_pdf(
 
     Returns (success, output_path_or_error_message).
     """
+    import tempfile
+
+    from core import pdf_bridge
+
     try:
-        import fitz  # PyMuPDF
-
-        doc = fitz.open(input_path)
-        total = len(doc)
-
-        if searchable:
-            out = fitz.open()
-        text_pages: list[str] = []
-
-        for i, page in enumerate(doc):
-            if progress_cb:
-                progress_cb(i + 1, total)
-
-            mat = fitz.Matrix(dpi / 72, dpi / 72)
-            pix = page.get_pixmap(matrix=mat, alpha=False)
-            png_bytes = pix.tobytes("png")
-
-            results = _ocr_image_bytes(engine, png_bytes, lang, use_gpu)
+        with tempfile.TemporaryDirectory(prefix="videl_ocr_") as tmp:
+            pages = pdf_bridge.call("render_pages_png", input_path, tmp, dpi)
+            total = len(pages)
+            text_pages: list[str] = []
+            for i, page in enumerate(pages):
+                if progress_cb:
+                    progress_cb(i + 1, total)
+                with open(page["png"], "rb") as f:
+                    results = _ocr_image_bytes(engine, f.read(), lang, use_gpu)
+                if searchable:
+                    page["boxes"] = [
+                        [[[float(x), float(y)] for x, y in box], text]
+                        for box, text, _score in results if text
+                    ]
+                else:
+                    text_pages.append("\n".join(t for _, t, _ in results if t))
 
             if searchable:
-                w_pt = page.rect.width
-                h_pt = page.rect.height
-                new_page = out.new_page(width=w_pt, height=h_pt)
-                new_page.insert_image(new_page.rect, pixmap=pix)
-
-                sx = w_pt / pix.width
-                sy = h_pt / pix.height
-
-                for box, text, _score in results:
-                    if not text:
-                        continue
-                    xs = [pt[0] for pt in box]
-                    ys = [pt[1] for pt in box]
-                    x0, x1 = min(xs) * sx, max(xs) * sx
-                    y0, y1 = min(ys) * sy, max(ys) * sy
-                    rect = fitz.Rect(x0, y0, x1, y1)
-                    if rect.is_empty or rect.width <= 0 or rect.height <= 0:
-                        continue
-                    fontsize = max(1.0, rect.height * 0.8)
-                    try:
-                        new_page.insert_textbox(
-                            rect, text,
-                            fontsize=fontsize,
-                            render_mode=3,  # invisible text
-                            align=0,
-                        )
-                    except Exception:
-                        # Fallback: place a small invisible glyph at top-left.
-                        new_page.insert_text(
-                            (x0, y0 + fontsize),
-                            text, fontsize=fontsize, render_mode=3,
-                        )
+                pdf_bridge.call("write_searchable_pdf", pages, output_path)
             else:
-                page_text = "\n".join(t for _, t, _ in results if t)
-                text_pages.append(page_text)
-
-        if searchable:
-            out.save(output_path, garbage=4, deflate=True, clean=True)
-            out.close()
-        else:
-            with open(output_path, "w", encoding="utf-8") as f:
-                f.write("\n\f\n".join(text_pages))
-
-        doc.close()
+                with open(output_path, "w", encoding="utf-8") as f:
+                    f.write("\n\f\n".join(text_pages))
         return True, output_path
 
     except Exception as e:  # noqa: BLE001

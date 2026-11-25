@@ -7,7 +7,7 @@ Videl is built on the open-source software and AI models below. Each keeps its o
 - FFmpeg: GPL-3.0 (Windows build by gyan.dev, Linux build by BtbN). Run as a separate program. Source: https://ffmpeg.org, build sources: https://github.com/GyanD/codexffmpeg and https://github.com/BtbN/FFmpeg-Builds
 - Qt for Python (PySide6): LGPL-3.0. https://www.qt.io/qt-for-python
 - yt-dlp: Unlicense. https://github.com/yt-dlp/yt-dlp
-- PyMuPDF (fitz): AGPL-3.0 or commercial. https://github.com/pymupdf/PyMuPDF
+- PyMuPDF (fitz): AGPL-3.0. Used only by the separate videl-pdf helper program, which is distributed under AGPL-3.0; its full source is pdf_helper.py, core/document.py and core/pdf_toolkit.py at https://github.com/darknessth22/media-utilities. https://github.com/pymupdf/PyMuPDF
 - Pillow: MIT-CMU. https://python-pillow.org
 - cryptography: Apache-2.0 or BSD-3-Clause. https://github.com/pyca/cryptography
 

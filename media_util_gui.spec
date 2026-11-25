@@ -19,7 +19,8 @@ datas += collect_data_files('yt_dlp_ejs')
 _pip_datas, _pip_binaries, _pip_hidden = collect_all('pip')
 datas += _pip_datas
 datas += collect_data_files('pillow_heif')
-datas += collect_data_files('fitz')
+# PyMuPDF (fitz) is NOT in Videl: it is AGPL and lives only in the separate
+# videl-pdf helper built at the bottom of this file (pdf_helper.py).
 
 # rembg and demucs are NOT bundled — installed on-demand by the user via in-app button.
 
@@ -127,7 +128,6 @@ hiddenimports += [
 ]
 
 hiddenimports += [
-    'fitz',
     'pypdf',
     'docx',
     'docx.shared',
@@ -244,6 +244,8 @@ a = Analysis(
         'triton', 'cupy',
         # AI runtime deps — installed on-demand into %LOCALAPPDATA%\Videl\ai_packages.
         'torch', 'rembg', 'demucs', 'numba', 'onnxruntime', 'scipy', 'sklearn',
+        # AGPL: only the videl-pdf helper may contain PyMuPDF.
+        'fitz', 'pymupdf',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -276,11 +278,59 @@ exe = EXE(
     icon='icon.ico' if os.path.exists('icon.ico') else None,
 )
 
+# ── videl-pdf: the PDF helper ────────────────────────────────────────────────
+# Every PyMuPDF call runs in this separate program (see pdf_helper.py and
+# core/pdf_bridge.py), so PyMuPDF's AGPL never reaches Videl's own code.
+# console=True keeps stdin/stdout working; Videl starts it with no window.
+pdf_hidden = [
+    'fitz', 'pymupdf', 'docx', 'docx.shared', 'docx.enum', 'docx.enum.text',
+    'pptx', 'pptx.util', 'openpyxl', 'openpyxl.cell._writer',
+    'openpyxl.worksheet._writer', 'docx2pdf', 'statistics', 'unicodedata',
+]
+if IS_WIN:
+    pdf_hidden += ['win32com', 'win32com.client', 'pywintypes', 'win32api', 'winreg']
+
+h = Analysis(
+    ['pdf_helper.py'],
+    pathex=[],
+    binaries=[],
+    datas=collect_data_files('fitz'),
+    hiddenimports=pdf_hidden,
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[
+        'tkinter', '_tkinter', 'PySide6', 'shiboken6', 'torch', 'torchvision',
+        'cv2', 'numpy.distutils', 'matplotlib', 'pandas', 'scipy',
+        'yt_dlp', 'playwright', 'pip',
+    ],
+    cipher=block_cipher,
+    noarchive=False,
+)
+hpyz = PYZ(h.pure, h.zipped_data, cipher=block_cipher)
+hexe = EXE(
+    hpyz,
+    h.scripts,
+    [],
+    exclude_binaries=True,
+    name='videl-pdf',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    console=True,
+    icon='icon.ico' if os.path.exists('icon.ico') else None,
+)
+
 coll = COLLECT(
     exe,
     a.binaries,
     a.zipfiles,
     a.datas,
+    hexe,
+    h.binaries,
+    h.zipfiles,
+    h.datas,
     strip=False,
     upx=False,
     name='Videl',

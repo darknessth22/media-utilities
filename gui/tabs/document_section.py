@@ -31,7 +31,8 @@ import re
 
 from core.i18n import tr
 from gui.widgets.markdown_editor import CodeEditor, MarkdownHighlighter
-from core.document import convert_document
+# Runs in the videl-pdf helper: Videl itself never imports PyMuPDF (AGPL).
+from core.pdf_bridge import convert_document
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
 from gui.worker import Worker

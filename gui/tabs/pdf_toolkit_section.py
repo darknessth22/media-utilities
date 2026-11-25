@@ -236,7 +236,7 @@ class _CompressPane(QWidget):
         self.status_message.emit(tr("status_pdf_compressing"), False)
 
         def _do():
-            from core.pdf_toolkit import compress_pdf
+            from core.pdf_bridge import compress_pdf
             ok, result = compress_pdf(src, out_path, image_dpi=dpi)
             return {"success": ok, "path": result if ok else None, "error": result if not ok else None}
 
@@ -406,7 +406,7 @@ class _MergePane(QWidget):
         self.status_message.emit(tr("status_pdf_merging"), False)
 
         def _do():
-            from core.pdf_toolkit import merge_pdfs
+            from core.pdf_bridge import merge_pdfs
             ok, result = merge_pdfs(paths, out_path)
             return {"success": ok, "path": result if ok else None, "error": result if not ok else None}
 
@@ -635,7 +635,7 @@ class _SplitPane(QWidget):
         self.status_message.emit(tr("status_pdf_splitting"), False)
 
         def _do():
-            from core.pdf_toolkit import split_pdf
+            from core.pdf_bridge import split_pdf
             ok, out_paths, err = split_pdf(src, out_dir, page_ranges)
             return {"success": ok, "paths": out_paths, "count": len(out_paths), "error": err}
 
@@ -841,7 +841,7 @@ class _ExtractPane(QWidget):
         self.status_message.emit(tr("status_pdf_extracting"), False)
 
         def _do():
-            from core.pdf_toolkit import extract_images_from_pdf
+            from core.pdf_bridge import extract_images_from_pdf
             ok, out_paths, err = extract_images_from_pdf(
                 src, out_dir,
                 export_pages_as_jpeg=(mode == "pages"),

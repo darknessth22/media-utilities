@@ -10,7 +10,8 @@ main.py  ->  MainWindow (gui/app.py)
 
 gui/tabs/<tool>_section.py  --Worker (QThread)-->  core/<tool>.py
                                                      |-- FFmpeg / FFprobe (bundled)
-                                                     |-- Pillow, PyMuPDF, yt-dlp (in-process)
+                                                     |-- Pillow, yt-dlp (in-process)
+                                                     |-- videl-pdf helper (PyMuPDF, via core/pdf_bridge.py)
                                                      |-- child process on bundled Python + AI packages
 ```
 
@@ -138,6 +139,7 @@ Each section id is followed by the `core/` module that does its work.
 **Documents**
 - `document`: `document`. Converts between PDF, DOCX, PPTX and Markdown; PDF to PPTX keeps text editable.
 - `pdf_toolkit`: `pdf_toolkit` and `ocr`
+- **PDF work runs in a separate program, `videl-pdf`** (`pdf_helper.py`, built as a second exe by `media_util_gui.spec`). PyMuPDF is AGPL, so Videl itself never imports it: the GUI calls `core/pdf_bridge.py`, which sends one JSON request to the helper and reads one JSON reply. `core/document.py` and `core/pdf_toolkit.py` only ever run inside the helper. PDF OCR is split: the helper renders pages and builds the searchable PDF, while Videl runs the OCR engines. `tests/unit/test_pdf_bridge.py` fails if anything in the app loads `fitz`.
 
 **Image**
 - `palette`: `palette_extractor`

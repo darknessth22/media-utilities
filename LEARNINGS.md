@@ -104,6 +104,8 @@ The user preference behind several of these: **enrich the feature that was named
 - python-pptx: `slide_width` is EMU (`/12700` gives points). Shape proxies are fresh objects, so compare `shape_id`, never `is`.
 - Design decks (aspect ≥ 1.4 + full-bleed background) are rendered page-for-slide with text redacted and re-laid as editable boxes, one per **line**. Use `apply_redactions(graphics=0)` and remove outlined glyphs individually, because `graphics=2` eats vector art. Cap renders at the source images' native resolution and use JPEG.
 - Arabic text from a PDF comes reversed and in presentation forms: NFKC, then reverse, then set `rtl=1`. Pin overlay text to Calibri.
+- **Videl never imports `fitz`.** PyMuPDF is AGPL and must stay in the `videl-pdf` helper so it does not reach the private Pro code (decision 2026-11-25). New PDF features go into `core/pdf_toolkit.py` or `core/document.py`, get an entry in `CALLS` in `pdf_helper.py`, and are called through `core/pdf_bridge.py`. JSON turns tuples into lists, so the bridge re-tuples results.
+- PyMuPDF `insert_textbox()` writes nothing when the text does not fit and only returns a negative number. The searchable-PDF text layer used it with fontsize = 0.8 x box height, which never fits, so OCR'd PDFs had no text until 5.1. The layer now uses `insert_text` on the box baseline. It is Helvetica, so Arabic and CJK words in it are not searchable yet.
 - Before calling something "unremovable / baked in", **render it and look at it** at high zoom. Twice it turned out to be our own leftovers or a drop shadow.
 
 ## Web app
