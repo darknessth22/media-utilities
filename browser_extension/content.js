@@ -119,29 +119,54 @@ if (host.includes("facebook.com")) {
     }
   }
 
-  function syncPositions() {
-    for (const rec of tracked.values()) {
-      const r = rec.video.getBoundingClientRect();
-      const visible =
-        rec.video.isConnected &&
-        r.width >= 160 &&
-        r.height >= 90 &&
-        r.bottom > 0 &&
-        r.top < innerHeight &&
-        r.right > 0 &&
-        r.left < innerWidth;
+  function onScreen(rec) {
+    const v = rec.video;
+    if (!v.isConnected) return null;
+    const r = v.getBoundingClientRect();
+    if (r.width < 160 || r.height < 90 || r.bottom <= 0 || r.top >= innerHeight ||
+        r.right <= 0 || r.left >= innerWidth) return null;
+    // Hidden or transparent players (preloaded next/previous clips).
+    if (v.checkVisibility && !v.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return null;
+    return r;
+  }
 
-      if (!visible) {
-        if (rec.visible) {
-          rec.wrapper.style.display = "none";
-          rec.visible = false;
-        }
+  // Share of the smaller rect that the two rects have in common.
+  function overlap(a, b) {
+    const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+    const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+    if (w <= 0 || h <= 0) return 0;
+    return (w * h) / Math.min(a.width * a.height, b.width * b.height);
+  }
+
+  function hide(rec) {
+    if (rec.visible) {
+      rec.wrapper.style.display = "none";
+      rec.visible = false;
+    }
+  }
+
+  function syncPositions() {
+    // Reels and shorts players keep several <video>s stacked in one place
+    // (the clip you watch plus preloaded neighbours). One button per spot:
+    // a playing video wins, then the larger one.
+    const shown = [];
+    const candidates = [];
+    for (const rec of tracked.values()) {
+      const r = onScreen(rec);
+      if (r) candidates.push({ rec, r, playing: !rec.video.paused });
+      else hide(rec);
+    }
+    candidates.sort((a, b) => (b.playing - a.playing) || (b.r.width * b.r.height - a.r.width * a.r.height));
+    for (const c of candidates) {
+      if (shown.some((s) => overlap(s.r, c.r) > 0.5)) {
+        hide(c.rec);
         continue;
       }
-
+      shown.push(c);
+      const rec = c.rec;
       // top-right corner of video, in viewport coords.
-      const top = Math.round(r.top + 10);
-      const left = Math.round(r.right - 10); // right edge anchor
+      const top = Math.round(c.r.top + 10);
+      const left = Math.round(c.r.right - 10); // right edge anchor
       if (top !== rec.lastTop || left !== rec.lastLeft) {
         rec.wrapper.style.top = top + "px";
         rec.wrapper.style.left = left + "px";

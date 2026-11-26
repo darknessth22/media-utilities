@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Download with Videl",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Adds a one-click 'Download with Videl' button over every video on the web. Sends the URL to the local Videl desktop app.",
   "permissions": ["activeTab", "scripting"],
   "host_permissions": [
