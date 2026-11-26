@@ -1454,7 +1454,7 @@
   "lic_key_hint": "Keep this key private. Enter it on your second computer to use Pro there too.",
   "lic_copy": "Copy",
   "lic_copied": "Copied.",
-  "lic_devices": "Devices ({n} of {max})",
+  "lic_devices": "Devices ({n} of {max} computers)",
   "lic_device_seen": "last seen {date}",
   "lic_this_device": "this computer",
   "lic_release": "Release",
@@ -1514,5 +1514,6 @@
   "menu_whats_new": "What's new",
   "titlebar_whats_new": "What's new",
   "whats_new_older_show": "Show older versions ({count})",
-  "whats_new_older_hide": "Hide older versions"
+  "whats_new_older_hide": "Hide older versions",
+  "lic_device_phone": "phone"
 }

@@ -1454,7 +1454,7 @@
   "lic_key_hint": "احتفظ بهذا المفتاح لنفسك. أدخله على جهازك الثاني لاستخدام Pro عليه أيضًا.",
   "lic_copy": "نسخ",
   "lic_copied": "تم النسخ.",
-  "lic_devices": "الأجهزة ({n} من {max})",
+  "lic_devices": "الأجهزة ({n} من {max} أجهزة كمبيوتر)",
   "lic_device_seen": "آخر ظهور {date}",
   "lic_this_device": "هذا الجهاز",
   "lic_release": "تحرير",
@@ -1514,5 +1514,6 @@
   "menu_whats_new": "الجديد",
   "titlebar_whats_new": "الجديد",
   "whats_new_older_show": "عرض الإصدارات الأقدم ({count})",
-  "whats_new_older_hide": "إخفاء الإصدارات الأقدم"
+  "whats_new_older_hide": "إخفاء الإصدارات الأقدم",
+  "lic_device_phone": "هاتف"
 }
