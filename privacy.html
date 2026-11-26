@@ -8,7 +8,7 @@
 <link rel="canonical" href="https://videl.app/privacy">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Privacy | Videl</title>
-<meta name="description" content="What Videl sends over the internet and when: your files stay on your device, there are no accounts or analytics, and bug reports only include what you choose to send.">
+<meta name="description" content="What Videl sends over the internet and when: your files stay on your device, there are no accounts or analytics, bug reports only include what you choose to send, and Videl Pro only sends what its license needs.">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192.png">
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
@@ -49,13 +49,14 @@
   <a href="/" aria-label="Videl home"><img src="/assets/videl_logo.png" alt="Videl"></a>
   <nav aria-label="Main">
     <a href="/">Download</a>
+    <a href="/pro">Pro</a>
     <a href="https://app.videl.app/">Web app</a>
   </nav>
 </header>
 
 <main>
   <h1>Privacy</h1>
-  <p class="updated">Last updated 18 November 2026</p>
+  <p class="updated">Last updated 26 November 2026</p>
   <p class="lede">Videl is built so your files stay on your device. This page explains exactly what leaves it, and when.</p>
 
   <h2>Your files</h2>
@@ -72,8 +73,35 @@
     <li><strong>Install optional AI components</strong>, only when you choose to, from GitHub, PyPI (Python packages) and Hugging Face (AI models).</li>
     <li><strong>Download media</strong> from the links you give the downloader, directly from those sites. For a Spotify link, the app reads Spotify's public page for the track names and finds the songs on YouTube.</li>
     <li><strong>Send a bug report</strong>, when you press Send (see below).</li>
+    <li><strong>Handle a Videl Pro license</strong>, in the desktop app, only when you use its License page or have a license (see below).</li>
   </ul>
   <p>Like any download, these services see your IP address, and their own privacy policies apply. The Videl browser extension, and the web app's Downloader page when you press Open in Videl, only talk to the Videl app on your own computer.</p>
+
+  <h2 id="pro">Videl Pro licenses</h2>
+  <p>The free tools never contact our license server. The desktop app talks to it, at license.videl.app on Cloudflare, only when you press Start 7-day trial, Buy Pro (which also fetches the current prices) or I have a license key on its License page, and once you have a <a href="/pro">Videl Pro</a> license or trial.</p>
+  <h3>What the app sends</h3>
+  <ul>
+    <li><strong>A device ID</strong> with every license request. It is an 8-character code made from a one-way scramble (a hash) of your computer's system ID. It can't be turned back into that ID, and it ties your license to this computer.</li>
+    <li><strong>The app version</strong>, with every request.</li>
+    <li><strong>When you buy</strong>: the plan, the payment method, and the name and email or phone number you enter. Later, the transaction reference you type in.</li>
+    <li><strong>At check-in</strong>, at most once a day while you're online: your license key and device ID.</li>
+  </ul>
+  <p>The app never sends anything about your files or which tools you use. The count of free daily runs stays on your computer.</p>
+  <h3>What the server stores</h3>
+  <ul>
+    <li>Your license: its key, plan, end date, and the name and contact you entered.</li>
+    <li>Your orders: the order code, plan, amount, payment method, name, contact, transaction reference and status.</li>
+    <li>The device IDs using your license, with when each first and last checked in.</li>
+    <li>The device IDs that have had a free trial, so each computer gets one trial.</li>
+    <li>A log of what we did on your license, such as approving a payment or moving a device.</li>
+  </ul>
+  <p>Your IP address is used only to limit how many requests can be sent per minute. It isn't stored. When you send a transaction reference, we get an email at the support inbox with the order code, plan, payment method and reference, so we can check the payment in our own wallet or bank app.</p>
+  <h3>Payments</h3>
+  <p>You pay through InstaPay or your mobile wallet, never inside Videl. Their own privacy policies apply, and we see what any payment shows us: the amount, the reference, and the sender's name or number.</p>
+  <h3>On your computer</h3>
+  <p>The license file holds your license key, plan, name, device ID and dates. Your contact details are never put in it.</p>
+  <h3>How long records are kept</h3>
+  <p>We keep license and order records while your license is in use, and afterwards as a record of payment. To have your name and contact details removed, email <a href="mailto:videl.support@gmail.com">videl.support@gmail.com</a> with your license key or order code.</p>
 
   <h2>The websites</h2>
   <ul>
@@ -103,7 +131,7 @@
 </main>
 
 <footer>
-  © <span id="year">2026</span> Videl · <a href="/">Download</a> · <a href="https://app.videl.app/">Web app</a> · <a href="https://app.videl.app/#/report">Report a bug</a>
+  © <span id="year">2026</span> Videl · <a href="/">Download</a> · <a href="/pro">Pro</a> · <a href="https://app.videl.app/">Web app</a> · <a href="https://app.videl.app/#/report">Report a bug</a>
   <script>document.getElementById("year").textContent = new Date().getFullYear();</script>
 </footer>
 </body>

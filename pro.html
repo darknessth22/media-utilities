@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script>
+  if (location.hostname.endsWith("github.io")) location.replace("https://videl.app/pro");
+</script>
+<link rel="canonical" href="https://videl.app/pro">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Videl Pro | Videl</title>
+<meta name="description" content="Videl Pro removes the daily limits on the AI tools and unlocks Folder Rules. 100 EGP a month or 1,000 EGP a year, with a 7-day free trial. Every other Videl tool stays free.">
+<meta property="og:title" content="Videl Pro">
+<meta property="og:description" content="The AI tools without daily limits, plus Folder Rules. 100 EGP a month or 1,000 EGP a year. 7-day free trial.">
+<meta property="og:url" content="https://videl.app/pro">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192.png">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#05070f; --text:#f1f5f9; --body:#cbd5e1; --muted:#94a3b8; --blue:#0D6EFD; --link:#9DBBFF; --border:#1e2d45; --panel:#0b1222; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--body); font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 17px; line-height: 1.7; overflow-x: hidden; }
+  body::before { content: ""; position: fixed; inset: -30% auto auto -25%; width: 70vw; height: 70vw; border-radius: 50%;
+                 background: radial-gradient(circle, rgba(29,78,216,.28), transparent 65%); pointer-events: none; z-index: -1; }
+  header, main, footer { max-width: 760px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+  @media (min-width: 640px) { header, main, footer { padding-left: 32px; padding-right: 32px; } }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 22px; padding-bottom: 22px; }
+  header img { height: 32px; display: block; }
+  header nav { display: flex; gap: 20px; font-size: 15px; }
+  a { color: var(--link); }
+  header nav a { color: var(--muted); text-decoration: none; }
+  header nav a:hover, header nav a[aria-current] { color: var(--text); }
+  a:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; border-radius: 4px; }
+  main { padding-top: 32px; padding-bottom: 64px; }
+  h1 { color: var(--text); font-size: clamp(2.2rem, 6vw, 3.2rem); font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+  .lede { margin-top: 20px; font-size: 19px; color: var(--text); max-width: 62ch; }
+  h2 { margin-top: 56px; color: var(--text); font-size: 1.35rem; font-weight: 700; letter-spacing: -.01em; }
+  h3 { margin-top: 24px; color: var(--text); font-size: 1.05rem; font-weight: 600; }
+  p, ul, ol { margin-top: 12px; max-width: 66ch; }
+  ul, ol { padding-left: 1.2em; }
+  li + li { margin-top: 8px; }
+  strong { color: var(--text); font-weight: 600; }
+  footer { border-top: 1px solid var(--border); padding-top: 24px; padding-bottom: 40px; color: var(--muted); font-size: 14px; }
+
+  .plans { display: grid; gap: 16px; margin-top: 36px; }
+  @media (min-width: 640px) { .plans { grid-template-columns: 1fr 1fr; } }
+  .plan { position: relative; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 24px; }
+  .plan.best { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue) inset; }
+  .plan h2 { margin-top: 0; font-size: 1.1rem; }
+  .price { margin-top: 14px; color: var(--text); line-height: 1; }
+  .price b { font-size: 3rem; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .price span { margin-left: 6px; color: var(--muted); font-size: 1rem; }
+  .plan p { margin-top: 14px; font-size: 15px; }
+  .tag { position: absolute; top: -12px; right: 20px; background: var(--blue); color: #fff; font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 999px; }
+  .note { margin-top: 16px; color: var(--muted); font-size: 15px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 22px;
+         border-radius: 999px; font-size: 16px; font-weight: 600; text-decoration: none; line-height: 1;
+         transition: background-color .15s, border-color .15s, box-shadow .15s; }
+  .btn-primary { background: var(--blue); color: #fff; box-shadow: 0 4px 16px rgba(13,110,253,.35); }
+  .btn-primary:hover { background: #2563eb; box-shadow: 0 6px 22px rgba(13,110,253,.55); }
+  .btn-ghost { color: var(--text); border: 1px solid var(--border); background: rgba(255,255,255,.02); }
+  .btn-ghost:hover { border-color: var(--link); }
+  .btn:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; }
+  .btn svg { flex: none; }
+  .plan .btn { width: 100%; margin-top: 20px; }
+  @media (max-width: 520px) { .actions .btn { width: 100%; } }
+  @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+</style>
+</head>
+<body>
+<header>
+  <a href="/" aria-label="Videl home"><img src="/assets/videl_logo.png" alt="Videl"></a>
+  <nav aria-label="Main">
+    <a href="/">Download</a>
+    <a href="/pro" aria-current="page">Pro</a>
+    <a href="https://app.videl.app/">Web app</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Videl Pro</h1>
+  <p class="lede">The AI tools without daily limits, and Folder Rules. Everything else in Videl stays free, with no watermarks and no ads.</p>
+  <div class="actions">
+    <a class="btn btn-primary" href="https://github.com/darknessth22/media-utilities/releases/latest/download/Videl_Setup.exe">Download for Windows</a>
+    <a class="btn btn-ghost" href="https://github.com/darknessth22/media-utilities/releases/latest/download/Videl-x86_64.AppImage">Download for Linux</a>
+  </div>
+  <p class="note">Pro is in the desktop app: open Settings, then License.</p>
+
+  <div class="plans">
+    <section class="plan" aria-labelledby="monthly">
+      <h2 id="monthly">Monthly</h2>
+      <div class="price"><b>100</b><span>EGP a month</span></div>
+      <p>Good for one project, like a batch of transcripts or one music video.</p>
+      <a class="btn btn-ghost" href="#buy">Choose Monthly</a>
+    </section>
+    <section class="plan best" aria-labelledby="yearly">
+      <span class="tag">2 months free</span>
+      <h2 id="yearly">Yearly</h2>
+      <div class="price"><b>1,000</b><span>EGP a year</span></div>
+      <p>The price of 10 months. For anyone who edits every week.</p>
+      <a class="btn btn-primary" href="#buy">Choose Yearly</a>
+    </section>
+  </div>
+  <p class="note">Both plans include every Pro tool on 2 of your computers. Not sure yet? Start the 7-day free trial from the License page.</p>
+
+  <h2>What Pro unlocks</h2>
+  <ul>
+    <li><strong>Transcript</strong>: files of any length, and the large Whisper models for the best accuracy.</li>
+    <li><strong>AI Upscaler</strong>: 4x as well as 2x.</li>
+    <li><strong>AI Video Upscaler</strong>: whole videos, not just the first 30 seconds.</li>
+    <li><strong>Vocal Isolator, Photo Restore and Jump-Cutter</strong>: as many runs as you like.</li>
+    <li><strong>Folder Rules</strong>: watch a folder and process new files automatically.</li>
+  </ul>
+
+  <h2>What stays free</h2>
+  <ul>
+    <li>Every other tool in the desktop app: convert, trim, compress, GIF, merge, PDF tools, image tools, background eraser, subtitles, the downloader and more.</li>
+    <li>The web app, the browser extension and the Android app.</li>
+    <li>3 runs a day across the Pro tools, so you can use them before you buy. Transcript handles up to 10 minutes per file, AI Upscaler does 2x, and AI Video Upscaler up to 30 seconds.</li>
+  </ul>
+
+  <h2 id="buy">How to buy</h2>
+  <ol>
+    <li>In the Videl desktop app, open Settings, then License, and choose Buy Pro.</li>
+    <li>Pick a plan and pay by InstaPay or mobile wallet. Put the order code the app shows you in the transfer note.</li>
+    <li>Enter your transaction reference in the app. Pro turns on by itself once we confirm the payment, within 12 hours between 10:00 and 22:00 Cairo time.</li>
+  </ol>
+  <div class="actions">
+    <a class="btn btn-primary" href="https://github.com/darknessth22/media-utilities/releases/latest/download/Videl_Setup.exe">Download for Windows</a>
+    <a class="btn btn-ghost" href="https://wa.me/201553641192">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z"/></svg>
+      Ask on WhatsApp
+    </a>
+  </div>
+  <p class="note">Questions, or a computer that is never online? Message us on WhatsApp at <a href="https://wa.me/201553641192">01553641192</a>.</p>
+
+  <h2>The rules</h2>
+  <h3>Trial</h3>
+  <p>7 days of full Pro, once per computer. No payment details needed.</p>
+  <h3>Devices</h3>
+  <p>A license works on 2 computers. To add the second, choose "I have a license key" on its License page and enter your key. You can move a license to a new computer up to 3 times a year.</p>
+  <h3>Staying online</h3>
+  <p>Pro works offline. The app needs to check in with our license server once every 14 days to stay active; it does this by itself whenever you are online. If you can't go online, ask us on WhatsApp for a license file you can import instead.</p>
+  <h3>Renewing</h3>
+  <p>Renew from the License page at any time. The new period starts when the old one ends, so renewing early loses no days.</p>
+  <h3>When it ends</h3>
+  <p>Pro keeps working for 3 days after the end date. After that the Pro tools go back to the free daily runs. You never lose files or settings.</p>
+  <h3>Refunds</h3>
+  <p>If Pro doesn't work on your computer, you get a full refund within 7 days of paying. Please try the free daily runs first. A refund ends the license.</p>
+  <h3>Privacy</h3>
+  <p>Your files never leave your computer. See <a href="/privacy#pro">what the license server stores</a>.</p>
+</main>
+
+<footer>
+  © <span id="year">2026</span> Videl · <a href="/">Download</a> · <a href="/pro">Pro</a> · <a href="/privacy">Privacy</a> · <a href="https://app.videl.app/">Web app</a>
+  <script>document.getElementById("year").textContent = new Date().getFullYear();</script>
+</footer>
+</body>
+</html>
