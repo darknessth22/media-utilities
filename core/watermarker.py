@@ -279,7 +279,11 @@ def watermark_batch(
     """Watermark multiple files. mode='logo' or 'text'. kwargs → watermark_logo/text.
 
     progress_cb(done: int, total: int) called after each file.
+    More than one file is a batch: Pro, or one of the free daily runs.
     """
+    from core.edition import pro_gate
+
+    pro_gate("batch", files=len(file_paths))
     fn = watermark_logo if mode == "logo" else watermark_text
     results: dict[str, bool] = {}
     total = len(file_paths)

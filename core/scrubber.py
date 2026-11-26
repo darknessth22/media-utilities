@@ -75,7 +75,11 @@ def scrub_batch(
     """Scrub metadata from multiple files. Returns {path: success}.
 
     progress_cb(done: int, total: int) called after each file.
+    More than one file is a batch: Pro, or one of the free daily runs.
     """
+    from core.edition import pro_gate
+
+    pro_gate("batch", files=len(file_paths))
     results: dict[str, bool] = {}
     total = len(file_paths)
     for i, path in enumerate(file_paths):

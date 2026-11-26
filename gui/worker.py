@@ -45,3 +45,15 @@ class Worker(QThread):
     def check_cancelled(self) -> bool:
         """Can be passed to long running logic to check for cancellation."""
         return self.is_cancelled
+
+
+def pro_error_handled(widget, err_tuple: tuple) -> bool:
+    """For a free tool's Worker error: True when a Pro gate stopped the job and the
+    "Get Pro" prompt was shown, so the section skips its own "Error: ..." line."""
+    from core.edition import HAS_PRO
+
+    if not HAS_PRO:
+        return False
+    from videl_pro.pro_ui import handle_pro_error
+
+    return handle_pro_error(widget, err_tuple)

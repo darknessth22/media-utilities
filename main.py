@@ -152,21 +152,25 @@ def main() -> None:
     theme_manager.set_rtl(i18n.is_rtl)
     theme_manager.set_mode(settings.theme_mode)
 
-    # Show splash; create main window only when user clicks "Get Started".
-    splash = SplashScreen()
-    splash.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
-    screen = app.primaryScreen().availableGeometry()
-    sw = min(1100, screen.width())
-    sh = min(700, screen.height())
-    splash.setGeometry(
-        screen.x() + (screen.width() - sw) // 2,
-        screen.y() + (screen.height() - sh) // 2,
-        sw, sh,
-    )
-    splash.show()
+    # The splash greets a first run only (no version seen yet); after that the
+    # main window opens straight away. MainWindow records the version.
+    splash = None
+    if not settings.seen_version:
+        splash = SplashScreen()
+        splash.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
+        screen = app.primaryScreen().availableGeometry()
+        sw = min(1100, screen.width())
+        sh = min(700, screen.height())
+        splash.setGeometry(
+            screen.x() + (screen.width() - sw) // 2,
+            screen.y() + (screen.height() - sh) // 2,
+            sw, sh,
+        )
+        splash.show()
 
     def _on_ready():
-        splash.close()
+        if splash is not None:
+            splash.close()
         win = MainWindow(settings, theme_manager)
         win.show()
         # Surface corrupt-config recovery from SettingsManager.load(), if any.
@@ -209,7 +213,10 @@ def main() -> None:
 
         threading.Thread(target=_engine_maintenance, daemon=True).start()
 
-    splash.ready_to_start.connect(_on_ready)
+    if splash is not None:
+        splash.ready_to_start.connect(_on_ready)
+    else:
+        _on_ready()
 
     # Allow Ctrl+C (SIGINT) to quit the Qt event loop cleanly.
     # Qt's C++ loop doesn't return to Python regularly, so we use a short

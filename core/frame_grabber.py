@@ -34,6 +34,10 @@ def grab_frame(
     if fmt not in ("png", "tiff", "tif"):
         fmt = "png"
     ext = ".tiff" if fmt in ("tiff", "tif") else ".png"
+    if ext == ".tiff":
+        from core.edition import pro_gate
+
+        pro_gate("tiff16")      # 16-bit TIFF is Pro; PNG stays free
 
     base = os.path.splitext(os.path.basename(video_path))[0]
     ts_tag = timestamp.replace(":", "").replace(".", "")

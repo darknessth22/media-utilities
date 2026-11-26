@@ -42,7 +42,10 @@ class UserSettings:
     # in silently. Each rule carries its own `enabled` flag as well.
     folder_rules_enabled: bool = False
     folder_rules: list = field(default_factory=list)
-    version: int = 13
+    # The app version last opened. Empty on a first run (the splash shows);
+    # older than VERSION after an update (What's new shows once).
+    seen_version: str = ""
+    version: int = 14
 
 
 class SettingsManager:
@@ -170,6 +173,11 @@ class SettingsManager:
                 merged_data.setdefault("folder_rules_enabled", False)
                 merged_data.setdefault("folder_rules", [])
                 merged_data["version"] = 13
+            if merged_data.get("version", 1) < 14:
+                # A config from before 5.3.0 means Videl ran here already:
+                # skip the splash, and show What's new for this update.
+                merged_data["seen_version"] = merged_data.get("seen_version") or "pre-5.3"
+                merged_data["version"] = 14
 
             return UserSettings(**merged_data)
         except json.JSONDecodeError as exc:

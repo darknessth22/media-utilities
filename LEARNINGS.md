@@ -24,6 +24,9 @@ Related documents: [ARCHITECTURE.md](ARCHITECTURE.md) covers how Videl works, an
 - **Browser bridge accepts unauthenticated loopback POSTs.** A token was added once and reverted by the user, because the extension expects plain POST. Don't re-add one without asking.
 - **Settings folder on Windows/macOS stays `media-utilities`** (`core/settings.py`). Renaming it breaks existing installs. Linux uses `Videl`.
 
+- **Free tools' Pro gates sit in their core batch function, and in public code.** The free tools are MIT, so `core.edition.pro_gate()` calls `videl_pro.quota` only when it is present; a build from the public source has no gate, which is the honest open-source result. One file is never counted; a batch of up to 10 is one of the 3 daily runs. There is no batch Background Eraser to gate. User decision 2026-11-26.
+- **A revoke reaches a device only at its next check-in.** Until 5.3.0 the app checked in only at startup and at most daily, so a revoked license kept working in an app left open. Now it re-runs the check-in hourly with a 6-hour throttle. An offline device still keeps Pro until `chk` plus 7 days of grace; that is the cost of working offline.
+
 ## Removed or rejected — don't rebuild from old notes
 
 - 2D-to-3D Deconstructor
@@ -148,6 +151,8 @@ The user preference behind several of these: **enrich the feature that was named
 - ONNX Runtime prints "Removing initializer" warnings for this model. Silence them with session option `logSeverityLevel: 3`; `env.logLevel` alone doesn't cover session creation.
 
 ## Platform & integrations
+
+- **Extension: one button per spot, not per `<video>`.** Reels and shorts players (Facebook, Instagram, TikTok) keep the previous and next clips as extra `<video>`s stacked under the one playing, so a button per element showed up to four on one clip. `content.js` now skips hidden or transparent videos (`checkVisibility`) and, of videos overlapping by more than half, shows only one: the playing one, else the largest.
 
 - Windows Search over ADO (`Search.CollatorDSO`) has no parameter binding (escape terms inline) and no `COUNT(*)`. It covers only indexed drives, usually just C:.
 - Deleted folders still being watched sit in a "delete pending" state: `isdir()` returns True while listing them fails. IndexWatcher probes with `scandir`.

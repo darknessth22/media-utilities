@@ -44,6 +44,15 @@ MODELS: dict[str, tuple[str, int]] = {
     "anime": ("isnet-anime", 168),
 }
 DEFAULT_MODEL = "balanced"
+# The full-size BiRefNet models are Pro; the others stay free.
+PRO_MODELS = ("best", "portrait")
+
+
+def _gate_model(model: str | None) -> None:
+    if model in PRO_MODELS:
+        from core.edition import pro_gate
+
+        pro_gate("bg_model")
 
 # Selection shapes an erase request can carry.
 SHAPE_BRUSH = "brush"
@@ -184,6 +193,7 @@ def remove_background(
     err = _validate_source(input_path)
     if err:
         return _fail(err)
+    _gate_model(model)
 
     if output_path is None:
         output_path = _default_output(input_path, "nobg")
@@ -526,6 +536,7 @@ def detect_object_mask(
     if not points:
         return {"success": False, "contours": [], "coverage": 0.0,
                 "error": "Nothing to detect."}
+    _gate_model(model)
     if not sam_available():
         return {"success": False, "contours": [], "coverage": 0.0,
                 "error": "Smart-select model is not installed yet."}

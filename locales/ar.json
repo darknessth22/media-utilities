@@ -1498,5 +1498,21 @@
   "lic_err_bad_input": "تحقّق من الاسم ووسيلة التواصل ورقم العملية: أحدها ناقص أو طويل جدًا.",
   "lic_err_order_not_pending": "هذا الطلب مغلق بالفعل.",
   "lic_err_no_such_order": "لم يُعثر على هذا الطلب. ألغه وابدأ طلبًا جديدًا.",
-  "lic_err_lifetime_license": "هذا الترخيص دائم، فلا يحتاج إلى تجديد أبدًا."
+  "lic_err_lifetime_license": "هذا الترخيص دائم، فلا يحتاج إلى تجديد أبدًا.",
+  "pro_chip_batch": "الدفعات: تبقّى {left} من {total} تشغيلات Pro مجانية اليوم",
+  "pro_needed_big_batch": "الدفعة المجانية تصل إلى {count} ملفات. قسّم الملفات إلى دفعات أصغر، أو احصل على Pro لأي عدد.",
+  "pro_needed_tiff16": "إطارات TIFF بعمق 16 بت جزء من Videl Pro. اختر PNG، أو احصل على Pro.",
+  "pro_needed_bg_model": "نموذجا الخلفية «الأفضل» و«بورتريه» جزء من Videl Pro. اختر «المتوازن»، أو احصل على Pro.",
+  "whats_new_title": "الجديد في فيدل {version}",
+  "whats_new_ok": "فهمت",
+  "settings_cat_whats_new": "الجديد",
+  "settings_cat_whats_new_hint": "كل إصدارات فيدل وما أضافه كل منها، من الأحدث إلى الأقدم.",
+  "whats_new_version": "الإصدار {version}",
+  "whats_new_current": "(هذا الإصدار)",
+  "whats_new_empty": "تعذّر تحميل ملاحظات الإصدارات.",
+  "whats_new_see_all": "عرض المزيد",
+  "menu_whats_new": "الجديد",
+  "titlebar_whats_new": "الجديد",
+  "whats_new_older_show": "عرض الإصدارات الأقدم ({count})",
+  "whats_new_older_hide": "إخفاء الإصدارات الأقدم"
 }

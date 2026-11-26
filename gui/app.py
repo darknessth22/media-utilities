@@ -178,6 +178,7 @@ _SECTIONS_META = [
     {
         "id": "convert",
         "cls": ConvertSection,
+        "batch": True,     # many files at once: Pro, or a free daily run
         "label_key": "section_convert",
         "icon": "convert.svg",
         "tab_keys": ["tab_convert", "tab_batch_convert"],
@@ -242,6 +243,7 @@ _SECTIONS_META = [
     {
         "id": "scrub",
         "cls": ScrubSection,
+        "batch": True,     # many files at once: Pro, or a free daily run
         "label_key": "section_scrub",
         "icon": "scrub.svg",
         "tab_keys": ["tab_metadata_scrubber"],
@@ -258,6 +260,7 @@ _SECTIONS_META = [
     {
         "id": "watermark",
         "cls": WatermarkSection,
+        "batch": True,     # many files at once: Pro, or a free daily run
         "label_key": "section_watermark",
         "icon": "watermark.svg",
         "tab_keys": ["tab_batch_watermark"],
@@ -353,6 +356,7 @@ _SECTIONS_META = [
     {
         "id": "image_editor",
         "cls": ImageEditorSection,
+        "batch": True,     # many files at once: Pro, or a free daily run
         "label_key": "section_image_editor",
         "icon": "image_editor.svg",
         "tab_keys": [
@@ -541,6 +545,16 @@ class TitleBar(QWidget):
         self._btn_shortcuts.clicked.connect(self._on_shortcuts_btn)
         layout.addWidget(self._btn_shortcuts)
 
+        # What's new: the current release's notes, with See more for the rest
+        self._btn_news = self._ctrl_btn("✦", tr("titlebar_whats_new"))
+        news_px = _load_svg_icon("whats_new.svg", 18, "#8B949E")
+        if not news_px.isNull():
+            from PySide6.QtGui import QIcon
+            self._btn_news.setText("")
+            self._btn_news.setIcon(QIcon(news_px))
+        self._btn_news.clicked.connect(lambda: self.window()._show_whats_new())
+        layout.addWidget(self._btn_news)
+
         # Notification bell with badge overlay
         self._btn_bell = self._ctrl_btn("🔔", tr("titlebar_notifications"))
         self._bell_badge = QLabel("", self._btn_bell)
@@ -600,6 +614,8 @@ class TitleBar(QWidget):
         menu.addSeparator()
         settings_act = menu.addAction(tr("menu_settings"))
         settings_act.triggered.connect(lambda: win._navigate_to(_section_index("settings")))
+        news_act = menu.addAction(tr("menu_whats_new"))
+        news_act.triggered.connect(win.open_whats_new)
 
         devconsole_act = menu.addAction(tr("menu_developer_console"))
         devconsole_act.triggered.connect(win._open_developer_console)
@@ -821,6 +837,7 @@ class SettingsSection(QWidget):
         "shortcuts": "settings_cat_shortcuts_hint",
         "storage":   "settings_cat_storage_hint",
         "license":   "settings_cat_license_hint",
+        "whats_new": "settings_cat_whats_new_hint",
     }
 
     def __init__(self, settings: UserSettings, theme_manager, parent=None) -> None:
@@ -855,6 +872,11 @@ class SettingsSection(QWidget):
             self.license_card = self._cards["license"] = LicenseCard()
             self._CATEGORIES = type(self)._CATEGORIES + (
                 ("license", "settings_cat_license", "license.svg", ("license",)),)
+        from gui.widgets.whats_new_card import WhatsNewCard
+
+        self._cards["whats_new"] = WhatsNewCard()
+        self._CATEGORIES = self._CATEGORIES + (
+            ("whats_new", "settings_cat_whats_new", "history.svg", ("whats_new",)),)
         # Spotify stays hidden until credentials are relevant (unchanged).
         self._cards["spotify"].setVisible(False)
 
@@ -1004,6 +1026,9 @@ class SettingsSection(QWidget):
             self._search.blockSignals(False)
             self._show_all_cards()
         self._stack.setCurrentIndex(index)
+        page = self._stack.widget(index)
+        if isinstance(page, QScrollArea):
+            page.verticalScrollBar().setValue(0)     # a page opens at its top
         cid, label_key = self._CATEGORIES[index][0], self._CATEGORIES[index][1]
         self._page_title.setText(tr(label_key))
         self._page_subtitle.setText(tr(self._CATEGORY_HINTS[cid]))
@@ -1847,6 +1872,7 @@ class SettingsSection(QWidget):
         self._keybind_reset_btn.setText(tr("keybind_reset_all"))
 
         self.storage_card.retranslate_ui()
+        self._cards["whats_new"].retranslate_ui()
         if self.license_card is not None:
             self.license_card.retranslate_ui()
 
@@ -2079,11 +2105,16 @@ class SettingsSection(QWidget):
 # ── Welcome dialog (first launch) ────────────────────────────────────────────
 
 class WelcomeDialog(QDialog):
-    """Shown once on first launch — directs the user to the How to Use section."""
+    """Shown once on first launch — directs the user to the How to Use section.
+
+    Also the What's new card after an update: title, body, no hint, and its
+    own button texts (go opens Settings, What's new).
+    """
 
     go_to_tutorial = Signal()
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, title: str | None = None, body: str | None = None,
+                 hint: bool = True, go: str | None = None, dismiss_text: str | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("WelcomeDialog")
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
@@ -2120,7 +2151,7 @@ class WelcomeDialog(QDialog):
         if not px.isNull():
             logo.setPixmap(px)
         hdr.addWidget(logo)
-        title = QLabel(tr("welcome_title"))
+        title = QLabel(title or tr("welcome_title"))
         title.setStyleSheet("font-size: 16px; font-weight: bold; color: #E6EDF3;")
         hdr.addWidget(title)
         hdr.addStretch()
@@ -2134,12 +2165,13 @@ class WelcomeDialog(QDialog):
         v.addWidget(sep)
 
         # Body text
-        body = QLabel(tr("welcome_body"))
+        body = QLabel(body or tr("welcome_body"))
         body.setWordWrap(True)
         body.setStyleSheet("color: #8B949E; font-size: 13px; line-height: 1.5;")
         v.addWidget(body)
 
         # Hint row showing the glowing icon
+        show_hint = hint
         hint = QHBoxLayout()
         hint.setSpacing(8)
         hint_icon = QLabel()
@@ -2152,14 +2184,18 @@ class WelcomeDialog(QDialog):
         hint_lbl.setStyleSheet("color: #F59E0B; font-size: 12px;")
         hint.addWidget(hint_lbl)
         hint.addStretch()
-        v.addLayout(hint)
+        if show_hint:
+            v.addLayout(hint)
+        else:
+            hint_icon.hide()
+            hint_lbl.hide()
 
         # Button row
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
         btn_row.addStretch()
 
-        dismiss_btn = QPushButton(tr("welcome_dismiss"))
+        dismiss_btn = QPushButton(dismiss_text or tr("welcome_dismiss"))
         dismiss_btn.setObjectName("SecondaryBtn")
         dismiss_btn.setFixedHeight(36)
         dismiss_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -2180,7 +2216,7 @@ class WelcomeDialog(QDialog):
         dismiss_btn.clicked.connect(self.reject)
         btn_row.addWidget(dismiss_btn)
 
-        go_btn = QPushButton(tr("welcome_go"))
+        go_btn = QPushButton(go or tr("welcome_go"))
         go_btn.setObjectName("PrimaryActionBtn")
         go_btn.setFixedHeight(36)
         go_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -2331,13 +2367,21 @@ class MainWindow(QMainWindow):
         self._rule_runner = None
         self._start_rule_runner()
         if HAS_PRO:
-            # Poll a pending order and check in (at most daily), off the GUI
+            # Poll a pending order and check in (at most every 6 hours), off the GUI
             # thread; offline or a slow server must never delay startup.
             import threading
 
             from videl_pro import license_client
 
-            threading.Thread(target=license_client.on_start, daemon=True, name="license-checkin").start()
+            def _checkin() -> None:
+                threading.Thread(target=license_client.on_start, daemon=True, name="license-checkin").start()
+
+            _checkin()
+            # Also while the app stays open, so a revoke or renewal is not
+            # held back until the next start. refresh() throttles itself.
+            self._license_timer = QTimer(self)
+            self._license_timer.timeout.connect(_checkin)
+            self._license_timer.start(3600 * 1000)
         self._apply_keybinds()
         # Report a pick made while the window is hidden (the status bar cannot
         # be seen then).
@@ -2364,6 +2408,15 @@ class MainWindow(QMainWindow):
         # Show welcome dialog on first launch
         if not self.settings.tutorial_seen:
             QTimer.singleShot(400, self._show_welcome)
+        # After an update, once: what this version added. A fresh install has
+        # no version seen yet and gets the welcome instead.
+        if self.settings.seen_version != APP_VERSION:
+            from core import changelog
+
+            if self.settings.seen_version and changelog.for_version(APP_VERSION):
+                QTimer.singleShot(400, self._show_whats_new)
+            self.settings.seen_version = APP_VERSION
+            SettingsManager.save(self.settings)
 
     # ── Sidebar ───────────────────────────────────────────────────────────────
 
@@ -2558,6 +2611,7 @@ class MainWindow(QMainWindow):
         self.title_bar._btn_queue.setToolTip(tr("titlebar_queue"))
         self.title_bar._btn_shortcuts.setToolTip(tr("titlebar_shortcuts"))
         self.title_bar._btn_bell.setToolTip(tr("titlebar_notifications"))
+        self.title_bar._btn_news.setToolTip(tr("titlebar_whats_new"))
         self.title_bar._btn_min.setToolTip(tr("titlebar_minimize"))
         self.title_bar._btn_max.setToolTip(tr("titlebar_maximize"))
         self.title_bar._btn_close.setToolTip(tr("titlebar_close"))
@@ -2831,16 +2885,18 @@ class MainWindow(QMainWindow):
         self._settings_section_widget.select_category_id("license")
 
     def refresh_pro_chip(self) -> None:
-        """On a Pro tool without a license: "Pro: 2 of 3 free runs left today"."""
+        """Without a license: "Pro: 2 of 3 free runs left today" on a Pro tool, and
+        the batch version of it on a free tool with a batch mode."""
         meta = _SECTIONS_META[self._current_section] if self._current_section < len(_SECTIONS_META) else {}
         left = None
-        if meta.get("pro"):
+        if meta.get("pro") or (meta.get("batch") and HAS_PRO):
             from videl_pro import quota
 
             left = quota.remaining()
         self._pro_chip.setVisible(left is not None)
         if left is not None:
-            self._pro_chip.setText(tr("pro_chip").format(left=left, total=quota.DAILY_JOBS))
+            key = "pro_chip" if meta.get("pro") else "pro_chip_batch"
+            self._pro_chip.setText(tr(key).format(left=left, total=quota.DAILY_JOBS))
 
     def _on_help_btn_clicked(self) -> None:
         """Open the inline help dialog for the current section."""
@@ -2899,6 +2955,29 @@ class MainWindow(QMainWindow):
             btn.set_active(btn is active_btn)
         # Keep tutorial glow regardless of active state
         self._help_nav_btn.start_glow()
+
+    def open_whats_new(self) -> None:
+        """Settings, What's new: every version and what it added."""
+        self._navigate_to(_section_index("settings"))
+        self._settings_section_widget.select_category_id("whats_new")
+
+    def _show_whats_new(self) -> None:
+        from core import changelog
+
+        entry = changelog.for_version(APP_VERSION) or (changelog.load() or [{}])[0]
+        lines = changelog.notes(entry, I18n.instance().current_language)
+        version = entry.get("version", APP_VERSION)
+        dlg = WelcomeDialog(self, title=tr("whats_new_title").format(version=version),
+                            body="\n\n".join(f"•  {line}" for line in lines), hint=False,
+                            go=tr("whats_new_see_all"), dismiss_text=tr("whats_new_ok"))
+        dlg.go_to_tutorial.connect(self.open_whats_new)
+        dlg.adjustSize()
+        geo = self.geometry()
+        dlg.move(
+            geo.x() + (geo.width() - dlg.width()) // 2,
+            geo.y() + (geo.height() - dlg.height()) // 2,
+        )
+        dlg.exec()
 
     def _show_welcome(self) -> None:
         dlg = WelcomeDialog(self)

@@ -41,8 +41,8 @@ Known exception: Compress, Merge and GIF build their FFmpeg commands inside the 
 3. `model_manager.reconcile_on_launch()` repairs interrupted AI installs, then puts `ai_packages/` on `sys.path`.
 4. Activate the user-updated yt-dlp and the Deno runtime (the YouTube JS challenge solver). This must happen before anything imports `yt_dlp`.
 5. Take the single-instance mutex `Local\VidelAppMutex` (dev runs use a separate name).
-6. Load settings, set the language and RTL direction, apply the theme, show the splash screen.
-7. "Get Started" creates `MainWindow`, then starts these in the background: the FFmpeg dependency check, the update check, and Deno provisioning plus a stale-yt-dlp refresh.
+6. Load settings, set the language and RTL direction, apply the theme. On a first run only (`settings.seen_version` empty) show the splash screen.
+7. "Get Started", or straight away after the first run, creates `MainWindow`. It records `seen_version` and, after an update, shows that version's notes once. The notes for every release live in `assets/changelog.json` (`core/changelog.py`), listed in Settings, What's new (`gui/widgets/whats_new_card.py`), also reachable from the title-bar menu. Then it starts these in the background: the FFmpeg dependency check, the update check, and Deno provisioning plus a stale-yt-dlp refresh.
 
 
 ## 3. Main window
@@ -112,7 +112,8 @@ Settings > Storage (`core/storage.py`) lists everything that has been downloaded
 - **License and the free allowance** (Pro, official builds only):
   - `videl_pro/license.py` checks the license file fully offline: an Ed25519 JWT verified against `PUBLIC_KEYS` by `kid`, bound to `device.device_id()` (8 characters from MachineGuid or /etc/machine-id), with 3 days of grace on paid-until, 7 on check-in-by, and a clock-rollback check. Files live in the config folder: `license.jwt`, `license_state.json`, `quota.json`.
   - `videl_pro/quota.py` is the gate: each Pro tool's core function calls `quota.start_job()` once, before it starts. Without a license that allows 3 runs a day and the per-tool limits, and raises `ProRequired` otherwise; `pro_ui.handle_pro_error` turns it into a "Get Pro" prompt.
-  - `videl_pro/license_client.py` talks to the license server (`https://license.videl.app`, the private `videl-license` Worker). A background thread at startup polls a pending order and checks in at most once a day.
+  - Free tools reach the same gate through `core.edition.pro_gate()`, a no-op in builds without `videl_pro`: a batch of more than one file in `scrub_batch`, `watermark_batch`, `image_editor.process_batch` and the image batch convert (one run, up to 10 files), and the Pro-only 16-bit TIFF (`grab_frame`) and large background models (`bg_eraser.PRO_MODELS`). Their sections pass Worker errors to `gui.worker.pro_error_handled`. Sections marked `"batch": True` show the free-runs chip.
+  - `videl_pro/license_client.py` talks to the license server (`https://license.videl.app`, the private `videl-license` Worker). A background thread at startup, and again every hour while the app is open, polls a pending order and checks in at most every 6 hours, so a revoke or renewal lands within hours.
   - `videl_pro/license_card.py` is Settings, License: trial, buying by manual payment, the license key for a second device, devices with Release, and the offline device code and file import. The header chip on a Pro tool (`MainWindow.refresh_pro_chip`) shows the free runs left and opens it.
 - **Folder rules** (`videl_pro/folder_rules.py`, `rule_runner.py`; Pro): if-this-then-that rules for folders. Off by default; deletes go to the Recycle Bin; actions are logged and can be undone.
 - **Screen tools** (`core/window_tools.py`, `core/screen_ocr.py`, `gui/widgets/screen_zoom.py`, `gui/widgets/region_selector.py`): Always On Top, Text Extractor, Zoom & Draw, and the screen colour picker.

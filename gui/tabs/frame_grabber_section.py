@@ -34,7 +34,8 @@ from core.i18n import tr
 from core.frame_grabber import grab_frame, VIDEO_EXTS
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
-from gui.worker import Worker
+from gui.worker import Worker, pro_error_handled
+from core.edition import pro_mark
 
 
 def _card() -> QFrame:
@@ -238,7 +239,7 @@ class FrameGrabberSection(QScrollArea):
 
         self._fmt_group = QButtonGroup(self)
         self._radio_png = QRadioButton(tr("fmt_fg_png"))
-        self._radio_tiff = QRadioButton(tr("fmt_fg_tiff"))
+        self._radio_tiff = QRadioButton(pro_mark(tr("fmt_fg_tiff")))
         self._radio_png.setChecked(True)
         self._fmt_group.addButton(self._radio_png, 0)
         self._fmt_group.addButton(self._radio_tiff, 1)
@@ -323,7 +324,7 @@ class FrameGrabberSection(QScrollArea):
         self._timestamp_input.setPlaceholderText(tr("ph_fg_timestamp"))
         self._hdr_fmt.setText(tr("hdr_output_format"))
         self._radio_png.setText(tr("fmt_fg_png"))
-        self._radio_tiff.setText(tr("fmt_fg_tiff"))
+        self._radio_tiff.setText(pro_mark(tr("fmt_fg_tiff")))
         self._fg_fmt_note.setText(tr("note_fg_tiff_precision"))
         self._hdr_out.setText(tr("hdr_output_folder"))
         self._out_input.setPlaceholderText(tr("ph_same_dir_src"))
@@ -486,5 +487,7 @@ class FrameGrabberSection(QScrollArea):
     def _on_error(self, err_tuple: tuple) -> None:
         self._set_busy(False)
         self._worker = None
+        if pro_error_handled(self, err_tuple):
+            return
         _, msg, _ = err_tuple
         self.status_message.emit(f"Error: {msg}", True)

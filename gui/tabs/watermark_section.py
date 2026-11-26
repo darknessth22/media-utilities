@@ -28,7 +28,7 @@ from core.i18n import tr
 from core.watermarker import watermark_batch, _VIDEO_EXTS, _IMAGE_EXTS, _ALL_EXTS, PRESET_OPTIONS
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
-from gui.worker import Worker
+from gui.worker import Worker, pro_error_handled
 from utils.ffmpeg import detect_hw_encoders
 
 
@@ -657,5 +657,7 @@ class WatermarkSection(QScrollArea):
     def _on_error(self, err_tuple: tuple) -> None:
         self._set_busy(False)
         self._worker = None
+        if pro_error_handled(self, err_tuple):
+            return
         _, msg, _ = err_tuple
         self.status_message.emit(f"Error: {msg}", True)

@@ -36,7 +36,7 @@ from core.i18n import tr
 from core.converter import convert_images
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
-from gui.worker import Worker
+from gui.worker import Worker, pro_error_handled
 from utils.ffmpeg import ffmpeg_path
 from utils.naming import apply_name_template
 
@@ -421,6 +421,8 @@ class _SingleConvertView(QWidget):
     def _on_error(self, err_tuple: tuple) -> None:
         self._set_busy(False)
         self._worker = None
+        if pro_error_handled(self, err_tuple):
+            return
         _, msg, _ = err_tuple
         self.status_message.emit(f"Error: {msg}", True)
 
@@ -620,6 +622,9 @@ class _BatchConvertView(QWidget):
         self.status_message.emit(f"Converting {count} image(s)…", False)
 
         def do_batch():
+            from core.edition import pro_gate
+
+            pro_gate("batch", files=count)
             if fmt.upper() == "ICO":
                 results = [_convert_to_ico(p, out_dir) for p in paths]
                 failed = [r for r in results if not r.get("success")]
@@ -672,6 +677,8 @@ class _BatchConvertView(QWidget):
     def _on_error(self, err_tuple: tuple) -> None:
         self._set_busy(False)
         self._worker = None
+        if pro_error_handled(self, err_tuple):
+            return
         _, msg, _ = err_tuple
         self.status_message.emit(f"Error: {msg}", True)
 

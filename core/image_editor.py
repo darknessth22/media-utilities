@@ -1148,6 +1148,10 @@ def process_batch(
     progress_cb: Optional[Callable[[int, int], None]] = None,
     cancel_cb: Optional[Callable[[], bool]] = None,
 ) -> dict[str, bool]:
+    """Edit every image in *paths*. More than one is a batch: Pro, or one free daily run."""
+    from core.edition import pro_gate
+
+    pro_gate("batch", files=len(paths))
     results: dict[str, bool] = {}
     total = len(paths)
     for i, p in enumerate(paths, 1):

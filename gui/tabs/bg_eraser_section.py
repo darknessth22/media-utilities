@@ -17,10 +17,18 @@ from core.history.models import HistoryItem
 from gui.widgets.draw_canvas import (
     DrawCanvas, TOOL_BRUSH, TOOL_ELLIPSE, TOOL_LASSO, TOOL_RECT,
 )
-from gui.worker import Worker
+from gui.worker import Worker, pro_error_handled
+from core.edition import pro_mark
 from utils import model_manager
 from utils.install_errors import classify as classify_install_error
 from utils.model_manager import InsufficientDiskError
+
+
+def _model_label(key: str) -> str:
+    from core.bg_eraser import PRO_MODELS
+
+    label = tr(f"bg_model_{key}")
+    return pro_mark(label) if key in PRO_MODELS else label
 
 
 def _card() -> QFrame:
@@ -528,7 +536,7 @@ class BgEraserSection(QScrollArea):
         self._model_combo.setObjectName("PillInput")
         # Label keys follow the MODELS ordering so the dropdown stays in sync.
         for key in MODELS:
-            self._model_combo.addItem(tr(f"bg_model_{key}"), key)
+            self._model_combo.addItem(_model_label(key), key)
         self._model_combo.setCurrentIndex(list(MODELS).index(DEFAULT_MODEL))
         layout.addWidget(self._model_combo)
 
@@ -829,6 +837,8 @@ class BgEraserSection(QScrollArea):
     def _on_detect_error(self, err_tuple: tuple) -> None:
         self._detect_worker = None
         self._canvas.set_pending_smart(False)
+        if pro_error_handled(self, err_tuple):
+            return
         _, msg, _ = err_tuple
         self.status_message.emit(f"{tr('err_bg_no_object')} ({msg})", True)
 
@@ -978,7 +988,7 @@ class BgEraserSection(QScrollArea):
         self._hdr_model.setText(tr("hdr_bg_model"))
         from core.bg_eraser import MODELS
         for i, key in enumerate(MODELS):
-            self._model_combo.setItemText(i, tr(f"bg_model_{key}"))
+            self._model_combo.setItemText(i, _model_label(key))
         self._model_hint.setText(tr("hint_bg_model"))
         self._matting_check.setText(tr("chk_bg_alpha_matting"))
 
@@ -1204,5 +1214,7 @@ class BgEraserSection(QScrollArea):
     def _on_error(self, err_tuple: tuple) -> None:
         self._set_busy(False)
         self._worker = None
+        if pro_error_handled(self, err_tuple):
+            return
         _, msg, _ = err_tuple
         self.status_message.emit(f"Error: {msg}", True)

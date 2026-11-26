@@ -427,6 +427,7 @@ _TUTORIAL_DATA_EN = [
             "Right-click the tray icon to restore or quit from the taskbar.",
             "The ⋯ menu in the title bar switches themes without opening Settings.",
             "Hardware acceleration only helps video — images and audio always run on CPU.",
+            "What's new, in Settings or the ⋯ menu, lists every Videl version and what it added.",
         ],
     },
     {
@@ -864,9 +865,9 @@ _TUTORIAL_DATA_EN = [
         "emoji": "🔑",
         "title": "Videl Pro and your license",
         "description": (
-            "Every free tool is unlimited. The Pro tools (Transcript, Vocal Isolator, the AI "
-            "Upscalers, Photo Restore, Jump-Cutter and Folder Rules) give you 3 free runs a day; "
-            "Pro removes the limits. Manage it in Settings → License."
+            "Every free tool is unlimited one file at a time. The Pro tools (Transcript, Vocal "
+            "Isolator, the AI Upscalers, Photo Restore and Jump-Cutter) and batches of many files "
+            "share 3 free runs a day; Pro removes the limits. Manage it in Settings → License."
         ),
         "steps": [
             "Open Settings → License, or press Get Pro when a Pro tool stops.",
@@ -881,6 +882,8 @@ _TUTORIAL_DATA_EN = [
             "Pro needs the internet once every 14 days to stay on. Your files and settings are never touched if it pauses.",
             "No internet at all? Send us the device code from the License page; we send back a file you import there.",
             "Renewing early adds the new time on top of what is left.",
+            "A free batch in Convert, Image Editor, Batch Watermark or Metadata Scrubber takes up to 10 files and counts as one run. The chip at the top shows the runs left today.",
+            "Folder Rules, 16-bit TIFF frames and the Best and Portrait background models are Pro only.",
         ],
     },
 ]
@@ -1296,6 +1299,7 @@ _TUTORIAL_DATA_AR = [
             "انقر بزر الفأرة الأيمن على أيقونة شريط المهام للاستعادة أو الإغلاق.",
             "قائمة ⋯ في شريط العنوان تبدّل السمات دون فتح الإعدادات.",
             "تسريع العتاد للفيديو فقط — الصور والصوت دائماً على المعالج.",
+            "صفحة «الجديد» في الإعدادات أو في قائمة ⋯ تعرض كل إصدارات فيدل وما أضافه كل منها.",
         ],
     },
     {
@@ -1729,9 +1733,9 @@ _TUTORIAL_DATA_AR = [
         "emoji": "🔑",
         "title": "Videl Pro وترخيصك",
         "description": (
-            "كل الأدوات المجانية بلا حدود. أدوات Pro (النسخ النصي، وعزل الصوت، والتكبير بالذكاء "
-            "الاصطناعي، واستعادة الصور، وقاطع الصمت، وقواعد المجلدات) تمنحك 3 تشغيلات مجانية يوميًا؛ "
-            "ويزيل Pro الحدود. تديره من الإعدادات ← الترخيص."
+            "كل الأدوات المجانية بلا حدود لملف واحد في كل مرة. أدوات Pro (النسخ النصي، وعزل الصوت، "
+            "والتكبير بالذكاء الاصطناعي، واستعادة الصور، وقاطع الصمت) ودفعات الملفات الكثيرة تتشارك "
+            "3 تشغيلات مجانية يوميًا؛ ويزيل Pro الحدود. تديره من الإعدادات ← الترخيص."
         ),
         "steps": [
             "افتح الإعدادات ← الترخيص، أو اضغط احصل على Pro عندما تتوقف أداة Pro.",
@@ -1746,6 +1750,8 @@ _TUTORIAL_DATA_AR = [
             "يحتاج Pro إلى الإنترنت مرة كل 14 يومًا ليبقى مفعّلًا. لا تُمسّ ملفاتك وإعداداتك إذا توقف.",
             "لا يوجد إنترنت إطلاقًا؟ أرسل لنا رمز الجهاز من صفحة الترخيص؛ نرسل لك ملفًا تستورده هناك.",
             "التجديد المبكر يضيف المدة الجديدة فوق المتبقي.",
+            "الدفعة المجانية في تحويل الوسائط أو محرر الصور أو العلامة المائية الجماعية أو إزالة البيانات الوصفية تصل إلى 10 ملفات وتُحسب تشغيلًا واحدًا. تعرض الشارة في الأعلى التشغيلات المتبقية اليوم.",
+            "قواعد المجلدات وإطارات TIFF بعمق 16 بت ونموذجا الخلفية «الأفضل» و«بورتريه» متاحة في Pro فقط.",
         ],
     },
 ]

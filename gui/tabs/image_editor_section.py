@@ -79,7 +79,7 @@ from core.image_editor import (
 )
 from core.history.manager import get_history_manager
 from core.history.models import HistoryItem
-from gui.worker import Worker
+from gui.worker import Worker, pro_error_handled
 
 
 def _card() -> QFrame:
@@ -3746,6 +3746,8 @@ class ImageEditorSection(QScrollArea):
     def _on_error(self, err_tuple: tuple) -> None:
         self._set_busy(False)
         self._worker = None
+        if pro_error_handled(self, err_tuple):
+            return
         _, msg, _ = err_tuple
         self.status_message.emit(f"Error: {msg}", True)
 

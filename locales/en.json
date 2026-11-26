@@ -1498,5 +1498,21 @@
   "lic_err_bad_input": "Check your name, contact and reference: one is missing or too long.",
   "lic_err_order_not_pending": "This order is already closed.",
   "lic_err_no_such_order": "This order was not found. Cancel it and start a new one.",
-  "lic_err_lifetime_license": "This license is permanent, so it never needs renewing."
+  "lic_err_lifetime_license": "This license is permanent, so it never needs renewing.",
+  "pro_chip_batch": "Batches: {left} of {total} free Pro runs left today",
+  "pro_needed_big_batch": "A free batch goes up to {count} files. Split the files into smaller batches, or get Pro for any number.",
+  "pro_needed_tiff16": "16-bit TIFF frames are part of Videl Pro. Choose PNG, or get Pro.",
+  "pro_needed_bg_model": "The Best and Portrait background models are part of Videl Pro. Choose Balanced, or get Pro.",
+  "whats_new_title": "What's new in Videl {version}",
+  "whats_new_ok": "Got it",
+  "settings_cat_whats_new": "What's new",
+  "settings_cat_whats_new_hint": "Every Videl version and what it added, newest first.",
+  "whats_new_version": "Version {version}",
+  "whats_new_current": "(this version)",
+  "whats_new_empty": "The release notes could not be loaded.",
+  "whats_new_see_all": "See more",
+  "menu_whats_new": "What's new",
+  "titlebar_whats_new": "What's new",
+  "whats_new_older_show": "Show older versions ({count})",
+  "whats_new_older_hide": "Hide older versions"
 }
