@@ -12,7 +12,7 @@ const _apiUrl =
 const _apkAssetName = 'videl-android-arm64-v8a.apk';
 
 // Current build version — must stay in sync with pubspec.yaml version field.
-const kAppVersion = '5.0.11';
+const kAppVersion = '5.3.0';
 
 const _prefSkipKey = 'update_skip_version';
 

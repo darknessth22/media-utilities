@@ -7,12 +7,14 @@ import 'core/native_bridges/python_runner.dart';
 import 'core/update_checker.dart';
 import 'features/downloader/downloader_page.dart';
 import 'features/onboarding/onboarding_page.dart';
+import 'features/whats_new/whats_new.dart';
 import 'shared/widgets/home_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Loads the license and checks in in the background; never blocks startup.
   Pro.init(appVersion: kAppVersion);
+  await recordFreshInstall();
   runApp(const ProviderScope(child: VidelApp()));
 }
 

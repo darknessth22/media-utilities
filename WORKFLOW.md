@@ -83,7 +83,7 @@ python -m pytest tests videl_pro/tests -q
 
 A new version must sort higher than every existing tag, or the in-app updater won't offer it.
 
-**What's new.** Add the new version at the top of `assets/changelog.json` (`version`, `date`, and the same bullets in `en` and `ar`): what users will notice, in plain words. Settings, What's new lists every entry; after an update the app also shows the current version's entry once (`settings.seen_version` differs from `VERSION`). `tests/unit/test_changelog.py` fails until `VERSION` has an entry. A fresh install never gets the popup; it gets the splash and the welcome instead.
+**What's new.** Add the new version at the top of `assets/changelog.json` (`version`, `date`, and the same bullets in `en` and `ar`): what users will notice, in plain words. Settings, What's new lists every entry; after an update the app also shows the current version's entry once (`settings.seen_version` differs from `VERSION`). `tests/unit/test_changelog.py` fails until `VERSION` has an entry. A fresh install never gets the popup; it gets the splash and the welcome instead. When the Android app changes, also add its version at the top of `mobile/assets/changelog.json` (`version`, `date`, `en`) with what changed on the phone; `mobile/test/changelog_test.dart` fails until `kAppVersion` has an entry. What's new is the only place either app shows its version.
 
 **Commands**
 

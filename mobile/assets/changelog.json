@@ -1,0 +1,93 @@
+[
+  {
+    "version": "5.3.0",
+    "date": "2026-11-27",
+    "en": [
+      "New What's new: tap the sparkles at the top to see what this version added, with See more for every earlier version. After an update it shows once by itself.",
+      "Videl Pro now works on your phone: the same license as the desktop app unlocks batches of many files at once. Without it you get 5 free batch runs a day, up to 10 files each. One file at a time stays free with no limit.",
+      "Convert, Mute and Extract Audio take several files at once and do them one after another.",
+      "New Compress tool: make videos smaller in three quality steps.",
+      "New Watermark tool: put your text on a video.",
+      "New Metadata Scrubber: remove the location, device and other hidden details from a file before you share it."
+    ]
+  },
+  {
+    "version": "5.0.11",
+    "date": "2026-11-24",
+    "en": [
+      "A new look that matches the Videl web app.",
+      "When the quality you picked is no longer offered, the download falls back to the closest one instead of failing."
+    ]
+  },
+  {
+    "version": "5.0.9",
+    "date": "2026-11-17",
+    "en": [
+      "Download Spotify links.",
+      "X (Twitter) downloads work again.",
+      "Bug reports can include a screenshot."
+    ]
+  },
+  {
+    "version": "5.0.8",
+    "date": "2026-11-16",
+    "en": [
+      "Bug reports go through Videl's own server, so they arrive more reliably."
+    ]
+  },
+  {
+    "version": "4.2.13",
+    "date": "2026-06-22",
+    "en": [
+      "Updates download and install from inside the app."
+    ]
+  },
+  {
+    "version": "4.2.12",
+    "date": "2026-06-22",
+    "en": [
+      "New Report a Bug page in the menu."
+    ]
+  },
+  {
+    "version": "4.2.11",
+    "date": "2026-06-18",
+    "en": [
+      "Trimming a download is more reliable, and error messages can be copied to send to us."
+    ]
+  },
+  {
+    "version": "4.2.10",
+    "date": "2026-06-17",
+    "en": [
+      "Trimming a download fetches only the part you chose, so it is much faster.",
+      "The video preview plays straight from the link."
+    ]
+  },
+  {
+    "version": "4.2.7",
+    "date": "2026-06-17",
+    "en": [
+      "Download only part of a video by choosing a time range.",
+      "Preview a video before you download it.",
+      "Save downloads as MP3.",
+      "New Extract Audio tool: save the sound of a video as MP3, M4A, AAC, FLAC, WAV or OGG.",
+      "Convert takes audio and image files too.",
+      "Videl tells you when an update is available."
+    ]
+  },
+  {
+    "version": "4.2.2",
+    "date": "2026-06-09",
+    "en": [
+      "Trim works on audio too, with handles to drag the start and the end."
+    ]
+  },
+  {
+    "version": "4.2.0",
+    "date": "2026-05-28",
+    "en": [
+      "The first Videl for Android: download videos and audio from links, and Trim, Crop, Convert, Merge, Mute, GIF, Frame Grab and Hex Palette, all on your phone."
+    ]
+  }
+]

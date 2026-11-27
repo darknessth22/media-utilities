@@ -8,6 +8,7 @@ import '../../features/bug_reporter/bug_reporter_page.dart';
 import '../../features/downloader/downloader_page.dart';
 import '../../features/history/history_page.dart';
 import '../../features/tools/tools_dashboard.dart';
+import '../../features/whats_new/whats_new.dart';
 
 export '../../core/update_checker.dart' show updateProvider;
 
@@ -21,6 +22,15 @@ class HomeShell extends ConsumerStatefulWidget {
 
 class _HomeShellState extends ConsumerState<HomeShell> {
   _Section _section = _Section.home;
+
+  @override
+  void initState() {
+    super.initState();
+    // After an update, this version's notes once (whats_new.dart).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) maybeShowWhatsNew(context);
+    });
+  }
 
   String _titleOf(_Section s) {
     switch (s) {
@@ -81,11 +91,15 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           Text(_titleOf(_section), style: videlDisplay(size: 21)),
         ]),
         actions: [
+          IconButton(
+            tooltip: "What's new",
+            icon: const Icon(Icons.auto_awesome_rounded),
+            onPressed: () => showWhatsNew(context),
+          ),
           if (update.hasUpdate)
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: _UpdateBadge(
-                version: update.info!.latestVersion,
                 onTap: () => _showUpdateSheet(context, update.info!),
               ),
             ),
@@ -103,8 +117,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 // ── Update badge in AppBar ─────────────────────────────────────────────────
 
 class _UpdateBadge extends StatelessWidget {
-  const _UpdateBadge({required this.version, required this.onTap});
-  final String version;
+  const _UpdateBadge({required this.onTap});
   final VoidCallback onTap;
 
   @override
@@ -118,12 +131,12 @@ class _UpdateBadge extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: VidelColors.accent.withOpacity(0.5)),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.system_update_rounded,
+        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.system_update_rounded,
               size: 13, color: VidelColors.accent),
-          const SizedBox(width: 5),
-          Text('v$version',
-              style: const TextStyle(
+          SizedBox(width: 5),
+          Text('Update',
+              style: TextStyle(
                   fontSize: 11,
                   color: VidelColors.accent,
                   fontWeight: FontWeight.w700)),
@@ -180,14 +193,14 @@ class _UpdateSheet extends ConsumerWidget {
                   size: 24, color: Colors.white),
             ),
             const SizedBox(width: 14),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Update available',
-                  style: TextStyle(
-                      fontSize: 17, fontWeight: FontWeight.w700)),
-              Text('v$kAppVersion  →  v${info.latestVersion}',
-                  style: const TextStyle(
-                      fontSize: 12, color: VidelColors.textSecondary)),
-            ]),
+            const Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Update available',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                Text("After the update, What's new shows what it adds.",
+                    style: TextStyle(fontSize: 12, color: VidelColors.textSecondary)),
+              ]),
+            ),
           ]),
           const SizedBox(height: 16),
 
@@ -279,7 +292,7 @@ class _UpdateSheet extends ConsumerWidget {
                   ? 'Downloading…'
                   : error != null
                       ? 'Retry download'
-                      : 'Download & Install v${info.latestVersion}',
+                      : 'Download & Install',
             ),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -379,6 +392,16 @@ class _VidelDrawer extends ConsumerWidget {
                 },
               ),
             _NavItem(
+              icon: Icons.auto_awesome_rounded,
+              label: "What's new",
+              active: false,
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const WhatsNewPage()));
+              },
+            ),
+            _NavItem(
               icon: Icons.bug_report_rounded,
               label: 'Report a Bug',
               active: false,
@@ -394,7 +417,7 @@ class _VidelDrawer extends ConsumerWidget {
             if (update.hasUpdate)
               _NavItem(
                 icon: Icons.system_update_rounded,
-                label: 'Update v${update.info!.latestVersion}',
+                label: 'Update available',
                 active: false,
                 accent: true,
                 onTap: () {
@@ -410,15 +433,6 @@ class _VidelDrawer extends ConsumerWidget {
                   );
                 },
               ),
-            const Spacer(),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'v$kAppVersion',
-                style: const TextStyle(
-                    color: VidelColors.textMuted, fontSize: 11),
-              ),
-            ),
           ],
         ),
       ),

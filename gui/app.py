@@ -516,12 +516,7 @@ class TitleBar(QWidget):
         self._title.setObjectName("TitleLabel")
         layout.addWidget(self._title)
 
-        self._version_label = QLabel(f"v{APP_VERSION}")
-        self._version_label.setObjectName("TitleVersion")
-        self._version_label.setStyleSheet(
-            "color:#8B949E; font-size:11px; padding:0 0 0 8px;"
-        )
-        layout.addWidget(self._version_label)
+        # No version in the title bar: What's new is the one place it shows.
         layout.addStretch()
 
         # Download queue icon with badge
