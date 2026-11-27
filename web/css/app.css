@@ -640,3 +640,21 @@ p { margin: 0; }
   .glow, .home-mark .mark, .home-mark::before { animation: none; }
   .tile:hover { transform: none; }
 }
+
+/* Account and Videl Pro (account.js) ------------------------------------------------ */
+.acct { display: grid; gap: 16px; max-width: 720px; }
+.acct-form { display: grid; gap: 14px; }
+.acct-form[hidden] { display: none; }
+.acct-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.acct-error { color: var(--danger); font-size: var(--t-sm); min-height: 1.2em; }
+.acct code { font-family: ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
+.batch-note { margin: 10px 0 0; color: var(--muted); font-size: var(--t-sm); }
+.acct-sheet {
+  width: min(440px, calc(100vw - 32px)); padding: 24px; border: 1px solid var(--line);
+  border-radius: var(--r-panel); background: var(--panel-solid); color: var(--paper);
+}
+.acct-sheet::backdrop { background: rgba(5, 7, 15, .7); }
+.acct-sheet h2 { font-size: var(--t-md); margin: 0 0 6px; }
+.acct-sheet .hint { color: var(--muted); font-size: var(--t-sm); margin-bottom: 14px; }
+.acct-sheet .field input { width: 100%; }
+.acct-close { position: absolute; top: 10px; right: 10px; }

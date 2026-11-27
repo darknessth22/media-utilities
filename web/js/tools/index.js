@@ -50,6 +50,11 @@ const META = {
   "bg-eraser": { color: "#10B981", takes: "Photos (JPG, PNG, WebP)", gives: "Transparent PNG, or a new background" },
 };
 
+// One-file tools that take a batch: each file is run on its own (workspace.js).
+// Trim and GIF need a range per file, so they stay one file at a time; Image
+// convert and the background remover already take many files for free.
+const BATCH = new Set(["convert", "compress", "transform", "pixel-art", "pdf-rotate", "pdf-to-images"]);
+
 export const TOOLS = [...videoTools, ...pdfTools, ...imageTools, bgEraserTool, ...downloadTools]
-  .map((t) => ({ ...t, ...META[t.id] }));
+  .map((t) => ({ ...t, ...META[t.id], batch: BATCH.has(t.id) }));
 export const toolById = (id) => TOOLS.find((t) => t.id === id);

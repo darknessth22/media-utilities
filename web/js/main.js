@@ -2,11 +2,14 @@ import { h, icon, mark as logoMark, bindDrop, accepts, reducedMotion } from "./u
 import { GROUPS, TOOLS, toolById } from "./tools/index.js";
 import { renderWorkspace } from "./workspace.js";
 import { renderReport } from "./report.js";
+import { renderAccount } from "./account.js";
 import { PAGES, PAGE_OF } from "./pages.js";
 
 const toolHref = (id) => (PAGE_OF[id] ? `/${PAGE_OF[id]}` : `/#/tool/${id}`);
 
 const main = document.getElementById("main");
+// "Pro" in the top bar: added here, not in the 26 generated tool pages.
+document.querySelector(".bar-nav .bar-report")?.before(h("a", { href: "/#/account", "data-nav": "account" }, "Pro"));
 let cleanup = null;
 let pendingFiles = [];
 let firstPaint = true;
@@ -94,12 +97,14 @@ function route() {
   else if (tool) { countUse(tool.id); cleanup = renderWorkspace(main, tool, pendingFiles.splice(0)); page = "tools"; }
   else if (kind === "tools") { renderTools(); page = "tools"; }
   else if (kind === "report") { renderReport(main); page = "report"; }
+  else if (kind === "account") { renderAccount(main); page = "account"; }
   else renderHome();
   for (const a of document.querySelectorAll("[data-nav]")) {
     if (a.dataset.nav === page) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
   document.title = info ? info.title : tool ? `${tool.name} — Videl` : page === "tools" ? "All tools — Videl"
-    : page === "report" ? "Report a bug — Videl" : "Videl — free video, PDF and image tools in your browser";
+    : page === "report" ? "Report a bug — Videl" : page === "account" ? "Videl Pro — Videl"
+    : "Videl — free video, PDF and image tools in your browser";
   for (const a of document.querySelectorAll(".foot-tools a")) {
     if (info && a.getAttribute("href") === location.pathname) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }

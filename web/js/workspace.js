@@ -1,6 +1,7 @@
 // The shared tool workspace: files, preview, settings, run, results.
 import { h, icon, mark as logoMark, dropArea, bindDrop, accepts, fmtBytes, fmtTime, saveBlob, announce } from "./ui.js";
 import { cancelFFmpeg, zipBlobs } from "./engines.js";
+import { allowBatch, batchNote } from "./account.js";
 import { loadBitmap } from "./tools/image.js";
 import { segment } from "./engines.js";
 import { noteProblem } from "./report.js";
@@ -42,21 +43,26 @@ export function renderWorkspace(main, tool, initialFiles = []) {
   const customOn = new Set(tool.fields.filter((f) => f.custom && !f.options.some(([v]) => v === values[f.key])).map((f) => f.key));
   const badCustom = new Set();   // keys whose typed value is out of range
   const state = { files: [], probes: [], start: 0, end: 0, busy: false, results: [] };
+  // A batch tool runs once per file. More than one file is Videl Pro, or one of
+  // the free daily batches with a free account (account.js, allowBatch).
+  const many = !!(tool.multiple || tool.batch);
+  const batchLine = tool.batch ? h("p", { class: "hint batch-note" }) : null;
+  const refreshBatchLine = () => batchLine && batchNote().then((t) => { batchLine.textContent = t; });
 
   // Layout ------------------------------------------------------------------
   const fileList = h("ul", { class: "files", "aria-label": "Files" });
   const previewBox = h("div");
   const drop = dropArea({
     accept: tool.accept,
-    multiple: !!tool.multiple,
-    title: tool.multiple ? "Drop files here" : "Drop a file here",
+    multiple: many,
+    title: many ? "Drop files here" : "Drop a file here",
     note: "Stays on this device.",
     onFiles: addFiles,
   });
   const form = h("div", { class: "form" });
   const mark = logoMark();
   const statusTitle = h("strong", {}, "Add a file to start");
-  const statusNote = h("span", {}, tool.multiple ? `You can add several files.` : "");
+  const statusNote = h("span", {}, many ? `You can add several files.` : "");
   const status = h("div", { class: "status", role: "status" }, statusTitle, statusNote);
   const actionBtn = h("button", { class: "btn btn-primary", type: "button", disabled: true, onclick: onAction }, tool.action);
   const results = h("ul", { class: "results", "aria-label": "Results" });
@@ -76,13 +82,14 @@ export function renderWorkspace(main, tool, initialFiles = []) {
         h("p", { class: "ws-io" }, h("span", {}, h("em", {}, "Takes "), tool.takes), h("span", {}, h("em", {}, "Gives "), tool.gives))),
       steps),
     h("div", { class: "ws-grid" },
-      h("section", { class: "panel", "aria-label": "Files" }, drop, fileList, previewBox),
+      h("section", { class: "panel", "aria-label": "Files" }, drop, batchLine, fileList, previewBox),
       h("section", { class: "panel", "aria-labelledby": "settings-h" }, h("h2", { id: "settings-h" }, "Settings"), form)),
     h("div", { class: "runbar" }, mark, status, actionBtn),
     results));
   bindDrop(main.querySelector(".ws-grid"), addFiles);
 
   renderForm();
+  refreshBatchLine();
   if (initialFiles.length) addFiles(initialFiles);
 
   // Files --------------------------------------------------------------------
@@ -91,9 +98,9 @@ export function renderWorkspace(main, tool, initialFiles = []) {
     const ok = incoming.filter((f) => accepts(tool.accept, f));
     const rejected = incoming.length - ok.length;
     if (!ok.length) { setStatus("That file type doesn't work here", "Choose a different file.", true); return; }
-    const chosen = tool.multiple ? ok : ok.slice(0, 1);
+    const chosen = many ? ok : ok.slice(0, 1);
     const probes = await Promise.all(chosen.map((f) => (isTimed(f) ? probe(f) : null)));
-    if (tool.multiple) { state.files.push(...chosen); state.probes.push(...probes); }
+    if (many) { state.files.push(...chosen); state.probes.push(...probes); }
     else { state.files = chosen; state.probes = probes; }
     clearResults();
     renderFiles();
@@ -105,8 +112,8 @@ export function renderWorkspace(main, tool, initialFiles = []) {
   function renderFiles() {
     drop.classList.toggle("is-compact", state.files.length > 0);
     drop.querySelector("strong").textContent = state.files.length
-      ? (tool.multiple ? "Drop more files here" : "Drop a different file here")
-      : (tool.multiple ? "Drop files here" : "Drop a file here");
+      ? (many ? "Drop more files here" : "Drop a different file here")
+      : (many ? "Drop files here" : "Drop a file here");
     fileList.replaceChildren(...state.files.map((file, i) => {
       const p = state.probes[i];
       const meta = [fmtBytes(file.size), p?.duration ? fmtTime(p.duration) : null, p?.width ? `${p.width}×${p.height}` : null].filter(Boolean).join(", ");
@@ -476,7 +483,7 @@ export function renderWorkspace(main, tool, initialFiles = []) {
     actionBtn.disabled = !!issue;
     mark.setAttribute("class", "mark");
     mark.style.removeProperty("--p");
-    if (issue) setStatus(issue, state.files.length ? "" : (tool.multiple ? "You can add several files." : ""));
+    if (issue) setStatus(issue, state.files.length ? "" : (many ? "You can add several files." : ""));
     else setStatus("Ready", "Everything runs on this device.");
   }
 
@@ -530,6 +537,8 @@ export function renderWorkspace(main, tool, initialFiles = []) {
     }
     const issue = problem();
     if (issue) { setStatus(issue, "", true); return; }
+    const batch = tool.batch && state.files.length > 1;
+    if (batch && !(await allowBatch(state.files.length))) { refreshBatchLine(); return; }
     state.busy = true;
     clearResults();
     actionBtn.textContent = usesFFmpeg() ? "Cancel" : tool.action;
@@ -544,7 +553,19 @@ export function renderWorkspace(main, tool, initialFiles = []) {
     };
     let cancelled = false;
     try {
-      const out = await tool.run({ files: state.files, values, meta, progress, status: engineStatus, prepare: prepareMask });
+      let out;
+      if (batch) {
+        out = [];
+        const n = state.files.length;
+        for (let i = 0; i < n; i++) {
+          const p = state.probes[i] || {};
+          const one = { ...meta, duration: p.duration || 0, width: p.width, height: p.height, durations: [p.duration || 0] };
+          out.push(...await tool.run({ files: [state.files[i]], values, meta: one,
+            progress: (x) => progress((i + x) / n), status: engineStatus, prepare: prepareMask }));
+        }
+      } else {
+        out = await tool.run({ files: state.files, values, meta, progress, status: engineStatus, prepare: prepareMask });
+      }
       state.results = out;
       mark.style.setProperty("--p", "1");
       mark.setAttribute("class", "mark is-progress is-done");
@@ -560,6 +581,7 @@ export function renderWorkspace(main, tool, initialFiles = []) {
       state.busy = false;
       actionBtn.textContent = tool.action;
       actionBtn.disabled = false;
+      refreshBatchLine();
     }
   }
 
