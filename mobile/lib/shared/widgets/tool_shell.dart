@@ -28,6 +28,7 @@ class ToolShell extends StatefulWidget {
     this.fileType = FileType.video,
     this.paramsBuilder,
     this.suffix = '',
+    this.validate,
   });
 
   final String title;
@@ -44,6 +45,8 @@ class ToolShell extends StatefulWidget {
   final FileType fileType;
   final Widget Function(BuildContext)? paramsBuilder;
   final String suffix; // appended to output basename, e.g. '_trim'
+  /// A reason the settings are not ready (shown instead of running), or null.
+  final String? Function()? validate;
 
   @override
   State<ToolShell> createState() => _ToolShellState();
@@ -55,6 +58,7 @@ class _ToolShellState extends State<ToolShell> {
   double _pct = 0;
   String _status = 'Pick a file to begin';
   String? _outPath;
+  int _counted = 0;   // bumps FreeRunsHint's key so it re-reads the count
 
   Future<bool> _ensureStorage() async {
     if (await Permission.manageExternalStorage.isGranted) return true;
@@ -80,11 +84,17 @@ class _ToolShellState extends State<ToolShell> {
 
   Future<void> _run() async {
     if (_inputs.isEmpty) return;
+    final notReady = widget.validate?.call();
+    if (notReady != null) {
+      setState(() => _status = notReady);
+      return;
+    }
     final each = widget.batch ? List.of(_inputs) : [_inputs.join(';')];
     if (each.length > 1 &&
         !await proAllows(context, () => Pro.gate('batch', files: each.length))) {
       return;
     }
+    if (each.length > 1) setState(() => _counted++);
     if (!await _ensureStorage()) {
       setState(() => _status = 'Storage permission required');
       return;
@@ -158,7 +168,7 @@ class _ToolShellState extends State<ToolShell> {
             onPick: _pick,
             multi: widget.allowMulti || widget.batch,
           ),
-          if (widget.batch) const FreeRunsHint(),
+          if (widget.batch) FreeRunsHint(key: ValueKey(_counted)),
           if (widget.paramsBuilder != null) ...[
             const SizedBox(height: 12),
             Container(

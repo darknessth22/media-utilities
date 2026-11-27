@@ -27,10 +27,10 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 ; recursesubdirs covers runtime\ and manifests\ shipped under dist\Videl\_internal\.
 ; AI packages are installed at runtime into %LOCALAPPDATA%\Videl\ai_packages — no Dirs entry needed.
+; This includes browser_extension\ at the install root (copied into dist\Videl by
+; build_executable.py), where users load it unpacked; being inside dist\Videl puts
+; it in the delta-update manifest, so in-app updates refresh it too.
 Source: "dist\Videl\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; Browser extension shipped at the install root so users can find it next to
-; Videl.exe and load it unpacked in their browser.
-Source: "browser_extension\*"; DestDir: "{app}\browser_extension"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\Videl"; Filename: "{app}\Videl.exe"; IconFilename: "{app}\Videl.exe"

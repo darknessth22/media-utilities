@@ -47,6 +47,9 @@ The user preference behind several of these: **enrich the feature that was named
 
 ## Build & packaging
 
+- **Everything an update must refresh has to be inside `dist/Videl`.** In-app updates copy only the files in `videl-files.manifest.json`, which `tools/gen_manifest.py` builds from `dist/Videl`. Files the installer adds from elsewhere are never updated: the browser extension beside `Videl.exe` stayed at 1.0.0 after the 5.3.0 update while `_internal/browser_extension` had 1.0.1. `build_executable.py` now copies `browser_extension/` into `dist/Videl`, and `installer.iss` no longer adds it separately.
+- **Never `const` a widget that shows changing data (Flutter).** A `const FreeRunsHint()` was never rebuilt, so the phone's free-runs line kept its first number after each batch. Give such a widget a key that changes when the data does (`ValueKey(_counted)`).
+
 - Bundled asset paths always go through `core.paths.resource_path(...)`. Never `os.path.dirname(__file__)` + `..`: Windows collapses `..` lexically, but Linux walks real directories, so icons vanish in the AppImage.
 - Anything imported at startup must be in **both** `requirements.txt` and `requirements-build.txt`. AI libraries go in `manifests/`, never the app requirements.
 - Release builds are pinned by `constraints-build.txt` (plus `python-version: "3.12.10"` for the Windows job; Linux stays on `"3.12"` because its update is a full AppImage anyway). Before this, `>=` requirements let each CI build pull the newest PySide6, PyMuPDF and Playwright, and the v5.0.8 delta update was about 740 MB of the app's 1 GB for a few MB of real changes. yt-dlp stays unpinned on purpose: it breaks often, and each release should bundle the newest.

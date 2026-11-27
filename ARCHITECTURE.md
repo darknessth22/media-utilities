@@ -207,7 +207,7 @@ All path lookups go through `utils/paths.py` and `core/paths.resource_path()`.
 
 ## 11. Companion projects
 
-- **Browser extension** (`browser_extension/`, Manifest V3): adds "Download with Videl" to `<video>` elements and posts the URL to the local bridge.
+- **Browser extension** (`browser_extension/`, Manifest V3): adds "Download with Videl" to `<video>` elements and posts the URL to the local bridge. On Windows it is installed beside `Videl.exe`, where users load it unpacked; `build_executable.py` copies it into `dist/Videl` so the delta-update manifest covers it and in-app updates refresh it.
 - **Android app** (`mobile/`, Flutter, package `videl_mobile`): downloader with time-range trim and preview, convert, compress, extract audio, watermark, metadata scrubber, history, self-update, bug reporter. Its version is tracked separately in `pubspec.yaml` and `kAppVersion` (`core/update_checker.dart`).
   - **What's new on Android** (`lib/features/whats_new/whats_new.dart`): the phone's own notes in `mobile/assets/changelog.json` (`version`, `date`, `en`; separate from the desktop's file because the features differ). The sparkles in the top bar show this version's notes with See more for every version; the side menu opens the full list. After an update the notes show once (SharedPreferences `seen_version`); a fresh install records the version before onboarding, so it never gets the popup.
   - **The version shows only in What's new**, on desktop and phone: not in the title bar, the side menu or the update prompts.

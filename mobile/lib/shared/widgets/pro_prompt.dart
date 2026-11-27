@@ -30,12 +30,21 @@ Future<bool> proAllows(BuildContext context, Future<void> Function() check) asyn
 }
 
 /// "Pro: 3 of 5 free runs left today" under a batch picker; nothing with Pro.
-class FreeRunsHint extends StatelessWidget {
+/// Reads the count once; give it a new key after a counted run to read it again
+/// (a const or same-key hint would keep showing the old number).
+class FreeRunsHint extends StatefulWidget {
   const FreeRunsHint({super.key});
+  @override
+  State<FreeRunsHint> createState() => _FreeRunsHintState();
+}
+
+class _FreeRunsHintState extends State<FreeRunsHint> {
+  late final Future<String?> _label = Pro.freeRunsLabel();
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<String?>(
-      future: Pro.freeRunsLabel(),
+      future: _label,
       builder: (ctx, snap) => snap.data == null
           ? const SizedBox.shrink()
           : Padding(

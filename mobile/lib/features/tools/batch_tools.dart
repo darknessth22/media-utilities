@@ -97,16 +97,35 @@ class WatermarkPage extends StatefulWidget {
   State<WatermarkPage> createState() => _WatermarkPageState();
 }
 
+// Text or a logo, like the desktop's Batch Watermark (core/watermarker.py).
+// Sizes follow the picture, so a phone-sized and a 4K file look alike: text is
+// a share of the shorter side, a logo a share of the width (the desktop's 15%
+// default). Expressions that hold a comma are in single quotes, which FFmpeg
+// reads as one value inside the filter.
 class _WatermarkPageState extends State<WatermarkPage> {
   final _text = TextEditingController(text: '© ');
+  bool _logoMode = false;
+  String? _logo;
   String _corner = 'br';
+  double _textSize = 4;     // % of the shorter side
+  double _logoSize = 15;    // % of the width
+  double _opacity = 80;     // %
+  bool _white = true;
 
-  static const _pos = {
-    'br': 'x=w-tw-h/30:y=h-th-h/30',
-    'bl': 'x=h/30:y=h-th-h/30',
-    'tr': 'x=w-tw-h/30:y=h/30',
-    'tl': 'x=h/30:y=h/30',
-    'c': 'x=(w-tw)/2:y=(h-th)/2',
+  // x, y for drawtext (w, h, tw, th) and for overlay (W, H, w, h).
+  static const _textPos = {
+    'br': ("w-tw-min(w,h)/30", "h-th-min(w,h)/30"),
+    'bl': ("min(w,h)/30", "h-th-min(w,h)/30"),
+    'tr': ("w-tw-min(w,h)/30", "min(w,h)/30"),
+    'tl': ("min(w,h)/30", "min(w,h)/30"),
+    'c': ("(w-tw)/2", "(h-th)/2"),
+  };
+  static const _logoPos = {
+    'br': ("W-w-min(W,H)/30", "H-h-min(W,H)/30"),
+    'bl': ("min(W,H)/30", "H-h-min(W,H)/30"),
+    'tr': ("W-w-min(W,H)/30", "min(W,H)/30"),
+    'tl': ("min(W,H)/30", "min(W,H)/30"),
+    'c': ("(W-w)/2", "(H-h)/2"),
   };
 
   // The text sits in single quotes inside the -vf "..." argument: quotes would
@@ -119,12 +138,48 @@ class _WatermarkPageState extends State<WatermarkPage> {
       .replaceAll('%', r'\%');
 
   String _cmd(String i, String o) {
-    final draw = "drawtext=fontfile=/system/fonts/Roboto-Regular.ttf:text='${_esc(_text.text.trim())}'"
-        ':fontcolor=white@0.85:fontsize=h/18:borderw=2:bordercolor=black@0.45:${_pos[_corner]}';
+    final a = (_opacity / 100).toStringAsFixed(2);
+    final String args;
+    if (_logoMode) {
+      final (x, y) = _logoPos[_corner]!;
+      // scale2ref: iw is the picture's width, mdar the logo's shape. The logo is
+      // looped so every video frame has it; shortest=1 ends with the video.
+      final fc = "[1:v][0:v]scale2ref=w='iw*${(_logoSize / 100).toStringAsFixed(3)}':h='ow/mdar'[wm][base];"
+          "[wm]format=rgba,colorchannelmixer=aa=$a[wm2];[base][wm2]overlay=x='$x':y='$y':shortest=1";
+      args = '-y -i "$i" -loop 1 -i "$_logo" -filter_complex "$fc"';
+    } else {
+      final (x, y) = _textPos[_corner]!;
+      final ink = _white ? 'white' : 'black';
+      final edge = _white ? 'black' : 'white';
+      final draw = "drawtext=fontfile=/system/fonts/Roboto-Regular.ttf:text='${_esc(_text.text.trim())}'"
+          ":fontcolor=$ink@$a:fontsize='min(w,h)*${(_textSize / 100).toStringAsFixed(3)}'"
+          ":borderw=2:bordercolor=$edge@${(_opacity / 250).toStringAsFixed(2)}:x='$x':y='$y'";
+      args = '-y -i "$i" -vf "$draw"';
+    }
     return _isImage(i)
-        ? '-y -i "$i" -vf "$draw" -q:v 2 "$o"'
-        : '-y -i "$i" -vf "$draw" -c:v libx264 -crf 22 -preset veryfast -c:a copy "$o"';
+        ? '$args -frames:v 1 -q:v 2 "$o"'
+        : '$args -c:v libx264 -crf 22 -preset veryfast -c:a copy "$o"';
   }
+
+  String? _check() {
+    if (_logoMode && _logo == null) return 'Pick a logo image first.';
+    if (!_logoMode && _text.text.trim().isEmpty) return 'Type the watermark text first.';
+    return null;
+  }
+
+  Future<void> _pickLogo(void Function(void Function()) set) async {
+    final r = await FilePicker.platform.pickFiles(type: FileType.image);
+    final path = r?.files.single.path;
+    if (path != null) set(() => _logo = path);
+  }
+
+  Widget _slider(String label, double value, double min, double max, String unit,
+          ValueChanged<double> onChanged) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const SizedBox(height: 12),
+        Text('$label: ${value.round()}$unit', style: const TextStyle(fontWeight: FontWeight.w600)),
+        Slider(value: value, min: min, max: max, divisions: (max - min).round(), onChanged: onChanged),
+      ]);
 
   @override
   void dispose() {
@@ -144,21 +199,39 @@ class _WatermarkPageState extends State<WatermarkPage> {
       batch: true,
       fileType: FileType.media,
       buildCommand: _cmd,
-      paramsBuilder: (ctx) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        TextField(
-          controller: _text,
-          decoration: const InputDecoration(labelText: 'Watermark text'),
-          maxLength: 60,
-        ),
-        const Text('Position', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        StatefulBuilder(
-          builder: (ctx, set) => _chips<String>(
+      validate: _check,
+      paramsBuilder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _chips<bool>(const [(false, 'Text'), (true, 'Logo')], _logoMode, (v) => set(() => _logoMode = v)),
+          const SizedBox(height: 12),
+          if (_logoMode) ...[
+            OutlinedButton.icon(
+              onPressed: () => _pickLogo(set),
+              icon: const Icon(Icons.image_rounded, size: 18),
+              label: Text(_logo == null ? 'Pick a logo (PNG with a clear background works best)' : p.basename(_logo!),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            _slider('Logo size', _logoSize, 5, 50, '% of the width', (v) => set(() => _logoSize = v)),
+          ] else ...[
+            TextField(
+              controller: _text,
+              decoration: const InputDecoration(labelText: 'Watermark text'),
+              maxLength: 60,
+            ),
+            _slider('Text size', _textSize, 2, 12, '%', (v) => set(() => _textSize = v)),
+            const Text('Colour', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            _chips<bool>(const [(true, 'White'), (false, 'Black')], _white, (v) => set(() => _white = v)),
+          ],
+          _slider('Opacity', _opacity, 10, 100, '%', (v) => set(() => _opacity = v)),
+          const Text('Position', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          _chips<String>(
               const [('br', 'Bottom right'), ('bl', 'Bottom left'), ('tr', 'Top right'),
                 ('tl', 'Top left'), ('c', 'Centre')],
               _corner, (v) => set(() => _corner = v)),
-        ),
-      ]),
+        ]),
+      ),
     );
   }
 }

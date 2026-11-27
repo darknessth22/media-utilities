@@ -198,8 +198,14 @@ def watermark_logo(
         return _watermark_image_logo(file_path, logo_path, position, opacity, scale, output_path)
 
     overlay_pos = _OVERLAY_POS.get(position, _OVERLAY_POS["bottom-right"])
+    # The logo is a share of the video's width, as on images (not of the logo's
+    # own size, which made a large logo file huge on video). Probing first keeps
+    # this independent of scale2ref, which newer FFmpeg builds deprecate.
+    from core.subtitles import probe_resolution
+    video_w, _ = probe_resolution(file_path)
+    size = f"scale={max(2, int(video_w * scale) // 2 * 2)}:-2" if video_w else f"scale=iw*{scale}:-1"
     vf = (
-        f"[1:v]scale=iw*{scale}:-1,format=rgba,"
+        f"[1:v]{size},format=rgba,"
         f"colorchannelmixer=aa={opacity:.2f}[wm];"
         f"[0:v][wm]overlay={overlay_pos}"
     )

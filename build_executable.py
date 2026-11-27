@@ -451,6 +451,11 @@ def main():
     if not build_executable(build_python):
         sys.exit(1)
 
+    # Step 4a: the browser extension beside Videl.exe, where users load it from.
+    # It goes inside dist/Videl (not added by the installer separately) so the
+    # delta-update manifest covers it: an in-app update then refreshes it too.
+    shutil.copytree("browser_extension", os.path.join("dist", "Videl", "browser_extension"), dirs_exist_ok=True)
+
     # Step 4b: Verify excludes (no AI packages leaked into dist/Videl/)
     run_exclude_test(build_python)
 

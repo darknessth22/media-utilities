@@ -939,6 +939,7 @@ class _ConvertPageState extends State<ConvertPage> {
   bool _busy = false;
   double _pct = 0;
   String _status = 'Pick a file to begin';
+  int _counted = 0;   // bumps FreeRunsHint's key so it re-reads the count
 
   Future<bool> _ensureStorage() async {
     if (await Permission.manageExternalStorage.isGranted) return true;
@@ -980,6 +981,7 @@ class _ConvertPageState extends State<ConvertPage> {
         !await proAllows(context, () => Pro.gate('batch', files: _inputs.length))) {
       return;
     }
+    if (_inputs.length > 1) setState(() => _counted++);
     if (!await _ensureStorage()) {
       setState(() => _status = 'Storage permission required');
       return;
@@ -1152,6 +1154,7 @@ class _ConvertPageState extends State<ConvertPage> {
               ]),
             ),
           ),
+          FreeRunsHint(key: ValueKey(_counted)),
           // Format chips (shown only after file picked)
           if (_formats.isNotEmpty) ...[
             const SizedBox(height: 12),
