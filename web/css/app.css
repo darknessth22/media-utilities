@@ -658,3 +658,37 @@ p { margin: 0; }
 .acct-sheet .hint { color: var(--muted); font-size: var(--t-sm); margin-bottom: 14px; }
 .acct-sheet .field input { width: 100%; }
 .acct-close { position: absolute; top: 10px; right: 10px; }
+
+/* Motion: panels rise in once on the first visit; a new panel (Buy) rises in on its
+   own; the sheets ease in. Later refreshes cross-fade (account.js, swap). */
+@keyframes panel-in { from { opacity: 0; transform: translateY(10px); } }
+@keyframes fade-in { from { opacity: 0; } }
+.acct.is-entering > * { animation: panel-in .45s var(--ease-out) both; }
+.acct.is-entering > :nth-child(2) { animation-delay: .07s; }
+.acct.is-entering > :nth-child(n+3) { animation-delay: .14s; }
+.buy-panel { animation: panel-in .4s var(--ease-out) both; scroll-margin-top: 90px; }
+.acct-sheet[open] { animation: panel-in .3s var(--ease-out); }
+.acct-sheet[open]::backdrop { animation: fade-in .3s ease-out; }
+
+/* Plan and payment choices as cards (radio buttons underneath). */
+.choice-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 10px; border: 0; padding: 0; margin: 0; }
+.choice-cards legend { font-weight: 600; font-size: var(--t-sm); margin-bottom: 8px; padding: 0; }
+.choice {
+  position: relative; display: grid; gap: 4px; align-content: start; padding: 14px 16px; cursor: pointer;
+  border-radius: var(--r-control); border: 1px solid var(--line); background: var(--panel-2);
+  transition: border-color .2s, background-color .2s, box-shadow .2s;
+}
+.choice:hover { border-color: color-mix(in srgb, var(--ribbon-light) 60%, var(--line)); }
+.choice input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.choice:has(input:checked) {
+  border-color: var(--ribbon); background: color-mix(in srgb, var(--ribbon) 12%, var(--panel-2));
+  box-shadow: 0 0 0 1px var(--ribbon) inset;
+}
+.choice:has(input:focus-visible) { outline: 2px solid var(--ribbon-light); outline-offset: 2px; }
+.choice-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 600; }
+.choice-detail { color: var(--muted); font-size: var(--t-sm); }
+.choice:has(input:checked) .choice-detail { color: var(--paper); }
+.choice-badge {
+  padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent);
+}

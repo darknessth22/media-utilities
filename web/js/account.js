@@ -151,19 +151,32 @@ const day = (ts) => new Date(ts * 1000).toLocaleDateString(undefined, { day: "nu
 const PLAN = { monthly: "Monthly", yearly: "Yearly", lifetime: "Permanent", trial: "Trial" };
 
 // The account page, /#/account --------------------------------------------------------------
+// The first visit fades the panels in; later refreshes (after an action) keep the
+// current panels until the new ones are ready, then cross-fade, so the page never
+// drops back to "Loading…".
+const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const swap = (body, nodes) => {
+  const kids = nodes.filter(Boolean);   // replaceChildren would print false/null as text
+  if (!body.querySelector(".panel") || !document.startViewTransition || reducedMotion()) body.replaceChildren(...kids);
+  else document.startViewTransition(() => body.replaceChildren(...kids));
+};
+
 export async function renderAccount(main) {
-  const body = h("div", { class: "acct" }, h("p", { class: "hint" }, "Loading…"));
-  main.replaceChildren(h("div", { class: "wrap report" },
-    h("h1", {}, "Videl Pro"),
-    h("p", { class: "cat-lede" }, "Every tool here is free one file at a time, with no account. Videl Pro adds batches of many files at once. One license works in the web app, the desktop app and the Android app."),
-    body));
-  const acc = await getMe(true);
+  let body = main.querySelector(".acct");
+  if (!body) {
+    body = h("div", { class: "acct is-entering" }, h("p", { class: "hint" }, "Loading…"));
+    main.replaceChildren(h("div", { class: "wrap report" },
+      h("h1", {}, "Videl Pro"),
+      h("p", { class: "cat-lede" }, "Every tool here is free one file at a time, with no account. Videl Pro adds batches of many files at once. One license works in the web app, the desktop app and the Android app."),
+      body));
+  }
+  let acc = await getMe(true);
   if (!acc) {
-    body.replaceChildren(h("section", { class: "panel" },
+    swap(body, [h("section", { class: "panel" },
       h("h2", {}, "Sign in"),
       h("p", {}, "A free account gives you 5 batches a day, up to 10 files each. No password: we email you a code."),
       h("div", { class: "acct-actions" },
-        h("button", { class: "btn btn-primary", type: "button", onclick: async () => { if (await signIn()) renderAccount(main); } }, "Sign in with email"))));
+        h("button", { class: "btn btn-primary", type: "button", onclick: async () => { if (await signIn()) renderAccount(main); } }, "Sign in with email")))]);
     return;
   }
   const err = errorLine();
@@ -176,9 +189,12 @@ export async function renderAccount(main) {
       : acc.plan === "lifetime" ? "Pro, permanent license." : `Pro ${PLAN[acc.plan] || ""}, paid until ${day(acc.paid_until)}.`)
     : `Free: ${acc.runs_left} of ${acc.runs_per_day} batches left today, up to ${acc.batch_files} files each. They come back at midnight (Cairo time).`;
   const key = h("input", { id: "acct-key", type: "text", autocomplete: "off", placeholder: "VL-XXXX-XXXX-XXXX-XXXX" });
-  const pending = localStorage.getItem(ORDER_KEY);
+  let pending = null;
+  try { pending = JSON.parse(localStorage.getItem(ORDER_KEY)); } catch { /* none */ }
+  // The order may have been approved while the page was closed: ask before showing it.
+  if (pending && await orderSettled(pending.code)) { pending = null; acc = await getMe(true) || acc; }
 
-  body.replaceChildren(
+  swap(body, [
     h("section", { class: "panel" },
       h("h2", {}, acc.pro ? "Pro is active" : "Free account"),
       h("p", {}, status),
@@ -189,77 +205,111 @@ export async function renderAccount(main) {
         acc.trial_available && h("button", { class: "btn btn-primary", type: "button", onclick: act(() => call("/me/trial", {})) }, "Start 7-day trial"),
         acc.plan !== "lifetime" && !pending && h("button", { class: "btn", type: "button", onclick: () => buyPanel(main, body) }, acc.pro && acc.plan !== "trial" ? "Renew" : "Buy Pro"),
         h("button", { class: "btn btn-quiet", type: "button", onclick: act(async () => { await call("/auth/signout", {}); me = null; }) }, "Sign out"))),
-    pending ? orderPanel(main, JSON.parse(pending)) : null,
+    pending && orderPanel(main, pending),
     !acc.pro && h("section", { class: "panel" },
       h("h2", {}, "Already bought Pro?"),
       h("form", { class: "acct-form", onsubmit: (e) => { e.preventDefault(); act(() => call("/me/license", { key: key.value }))(); } },
         field("License key", key, "From the License page of the desktop or Android app, or your receipt."),
         h("button", { class: "btn btn-primary", type: "submit" }, "Use it here"))),
-    err);
+    err,
+  ]);
+  setTimeout(() => body.classList.remove("is-entering"), 700);
+}
+
+/** Radio buttons drawn as cards: [{ value, title, detail, badge }]. */
+function choiceCards(name, label, options, chosen) {
+  return h("fieldset", { class: "choice-cards" },
+    h("legend", {}, label),
+    options.map((o) => h("label", { class: "choice" },
+      h("input", { type: "radio", name, value: o.value, checked: o.value === chosen }),
+      h("span", { class: "choice-title" }, o.title, o.badge && h("span", { class: "choice-badge" }, o.badge)),
+      o.detail && h("span", { class: "choice-detail" }, o.detail))));
 }
 
 async function buyPanel(main, body) {
+  const open = body.querySelector(".buy-panel");
+  if (open) { open.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "nearest" }); return; }
   let plans;
   try { plans = await call("/plans"); } catch (e) { body.append(h("p", { class: "acct-error" }, e.message)); return; }
   const err = errorLine();
   const name = h("input", { id: "b-name", type: "text", maxlength: 80, autocomplete: "name" });
   const contact = h("input", { id: "b-contact", type: "text", maxlength: 120, autocomplete: "email" });
-  const plan = h("select", { id: "b-plan" },
-    Object.entries(plans.prices).map(([id, price]) => h("option", { value: id, selected: id === "yearly" },
-      `${PLAN[id]}: ${price} ${plans.currency}${id === "yearly" ? ", 2 months free" : " a month"}`)));
-  const method = h("select", { id: "b-method" }, plans.methods.map((m) => h("option", { value: m.id }, m.label)));
-  body.append(h("section", { class: "panel" },
+  const cur = plans.currency;
+  const p = plans.prices;
+  const per = { monthly: "a month", yearly: "a year" };
+  const planCards = choiceCards("plan", "Plan", Object.keys(p).map((id) => ({
+    value: id,
+    title: PLAN[id] || id,
+    detail: `${p[id]} ${cur}${per[id] ? ` ${per[id]}` : ""}`,
+    badge: id === "yearly" && p.monthly ? "2 months free" : "",
+  })), p.yearly ? "yearly" : Object.keys(p)[0]);
+  const methodCards = choiceCards("method", "Pay with", plans.methods.map((m) => ({ value: m.id, title: m.label })), plans.methods[0]?.id);
+  const panel = h("section", { class: "panel buy-panel" },
     h("h2", {}, "Buy Videl Pro"),
     h("form", { class: "acct-form", onsubmit: async (e) => {
       e.preventDefault();
       err.textContent = "";
+      const f = new FormData(e.target);
       try {
-        const order = await call("/me/orders", { plan: plan.value, method: method.value, name: name.value, contact: contact.value });
+        const order = await call("/me/orders", { plan: f.get("plan"), method: f.get("method"), name: name.value, contact: contact.value });
         localStorage.setItem(ORDER_KEY, JSON.stringify(order));
         renderAccount(main);
       } catch (x) { err.textContent = x.message; }
     } },
-      field("Plan", plan), field("Pay with", method),
+      planCards, methodCards,
       field("Your name", name, "Shown as \"Licensed to\" in the apps."),
       field("Email or phone", contact, "For your receipt and help."),
-      h("button", { class: "btn btn-primary", type: "submit" }, "Continue")),
-    err));
+      h("div", { class: "acct-actions" },
+        h("button", { class: "btn btn-primary", type: "submit" }, "Continue"),
+        h("button", { class: "btn btn-quiet", type: "button", onclick: () => panel.remove() }, "Close"))),
+    err);
+  body.firstElementChild.after(panel);
+  panel.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "nearest" });
 }
 
 function orderPanel(main, order) {
   const err = errorLine();
   const ref = h("input", { id: "o-ref", type: "text", maxlength: 60, autocomplete: "off" });
-  const state = h("p", { class: "hint" }, order.reference
-    ? "Waiting for the payment to be confirmed, usually within 12 hours (10:00 to 22:00 Cairo time). This page checks by itself."
-    : "Waiting for your payment. This page checks every 30 seconds.");
+  const sent = !!order.reference;
   const panel = h("section", { class: "panel" },
     h("h2", {}, `Order ${order.code}`),
     h("p", {}, `Send ${order.amount} ${order.currency} by ${order.pay_to.label} to `, h("strong", {}, order.pay_to.number), "."),
-    h("p", {}, `Write ${order.code} in the transfer note. When it is sent, enter the transaction reference here.`),
-    h("form", { class: "acct-form", onsubmit: async (e) => {
+    sent
+      ? h("p", {}, "Reference sent: ", h("code", {}, order.reference), ". Waiting for the payment to be confirmed, usually within 12 hours (10:00 to 22:00 Cairo time). This page checks by itself.")
+      : h("p", {}, `Write ${order.code} in the transfer note. When it is sent, enter the transaction reference here.`),
+    !sent && h("form", { class: "acct-form", onsubmit: async (e) => {
       e.preventDefault();
       err.textContent = "";
       try {
         await call(`/me/orders/${order.code}/reference`, { reference: ref.value });
-        localStorage.setItem(ORDER_KEY, JSON.stringify({ ...order, reference: ref.value }));
+        localStorage.setItem(ORDER_KEY, JSON.stringify({ ...order, reference: ref.value.trim() }));
         renderAccount(main);
       } catch (x) { err.textContent = x.message; }
     } }, field("Transaction reference", ref), h("button", { class: "btn btn-primary", type: "submit" }, "Send reference")),
-    order.whatsapp && h("p", {}, h("a", { href: `https://wa.me/${order.whatsapp}?text=${encodeURIComponent(`Videl Pro order ${order.code}: payment receipt attached.`)}`, target: "_blank", rel: "noopener" }, "Send the receipt on WhatsApp")),
-    state,
-    h("button", { class: "btn btn-quiet", type: "button", onclick: () => { localStorage.removeItem(ORDER_KEY); renderAccount(main); } }, "Cancel order"),
+    !sent && h("p", { class: "hint" }, "Waiting for your payment. This page checks every 30 seconds."),
+    h("div", { class: "acct-actions" },
+      order.whatsapp && h("a", { class: "btn", href: `https://wa.me/${order.whatsapp}?text=${encodeURIComponent(`Videl Pro order ${order.code}: payment receipt attached.`)}`, target: "_blank", rel: "noopener" }, "Send the receipt on WhatsApp"),
+      h("button", { class: "btn btn-quiet", type: "button", onclick: () => { localStorage.removeItem(ORDER_KEY); renderAccount(main); } }, "Cancel order")),
     err);
+  let seen = false;
   const timer = setInterval(async () => {
-    if (!panel.isConnected) return clearInterval(timer);
-    try {
-      const r = await call(`/me/orders/${order.code}`);
-      if (r.status === "paid" || r.status === "rejected") {
-        clearInterval(timer);
-        localStorage.removeItem(ORDER_KEY);
-        if (r.status === "rejected") alert("This payment could not be confirmed. Contact us on WhatsApp with your order code.");
-        renderAccount(main);
-      }
-    } catch { /* offline: try again next time */ }
+    if (panel.isConnected) seen = true;
+    else { if (seen) clearInterval(timer); return; }
+    if (await orderSettled(order.code)) { clearInterval(timer); renderAccount(main); }
   }, 30000);
   return panel;
+}
+
+/** True when the order is no longer pending (paid, rejected, or not this account's); forgets it. */
+async function orderSettled(code) {
+  let r;
+  try { r = await call(`/me/orders/${code}`); } catch (e) {
+    if (e.code !== "no_such_order") return false;   // offline: try again later
+    r = { status: "gone" };
+  }
+  if (r.status === "pending") return false;
+  localStorage.removeItem(ORDER_KEY);
+  if (r.status === "paid") announce("Payment confirmed. Videl Pro is active.");
+  if (r.status === "rejected") alert("This payment could not be confirmed. Contact us on WhatsApp with your order code.");
+  return true;
 }
