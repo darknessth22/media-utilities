@@ -27,6 +27,9 @@ const MESSAGES = {
   lifetime_license: "Your license is permanent, so it never needs renewing.",
   rate_limited: "Too many requests. Wait a minute and try again.",
   bad_input: "Check your name, contact and reference: one is missing or too long.",
+  preset_limit: "A free account keeps 3 saved presets. Delete one, or get Videl Pro to save any number.",
+  preset_limit_pro: "An account keeps up to 100 saved presets. Delete one to save another.",
+  bad_preset: "Give the preset a name of up to 40 characters.",
 };
 
 async function call(path, body) {
@@ -90,6 +93,7 @@ export function signIn(why = "") {
       verify.disabled = true;
       try {
         me = await call("/auth/verify", { email: email.value, code: code.value });
+        presetCache = undefined;
         announce("Signed in.");
         dlg.close("ok");
       } catch (x) { err.textContent = x.message; }
@@ -147,6 +151,73 @@ export async function batchNote() {
   return acc.pro ? "Videl Pro: batches with no limit." : `Batches: ${acc.runs_left} of ${acc.runs_per_day} free runs left today, up to ${acc.batch_files} files each.`;
 }
 
+// Saved presets ---------------------------------------------------------------------------
+// A tool's settings under a name, kept on the account (license server, /me/presets), so
+// every browser signed in sees them: 3 on a free account, any number with Videl Pro.
+let presetCache;   // { presets, limit } once loaded; signed out: never loaded
+async function loadPresets(force = false) {
+  if (!(await getMe())) return null;
+  if (presetCache === undefined || force) {
+    try { presetCache = await call("/me/presets"); } catch { return null; }
+  }
+  return presetCache;
+}
+
+/**
+ * The saved-presets row in a tool's Settings panel. `read()` gives the settings to
+ * save (null while one is invalid); `apply(values)` puts a preset's into the form.
+ */
+export function presetBar(tool, read, apply) {
+  const chips = h("div", { class: "preset-chips" });
+  const note = h("p", { class: "hint preset-note" });
+  const err = errorLine();
+  const name = h("input", { type: "text", maxlength: 40, autocomplete: "off", "aria-label": "Preset name",
+    placeholder: "Name, such as Small for WhatsApp" });
+  const saveBtn = h("button", { class: "btn btn-sm", type: "button", onclick: async () => {
+    err.textContent = "";
+    if (!read()) { err.textContent = "Fix the setting marked in red first."; return; }
+    if (!(await getMe()) && !(await signIn("Saved presets need a free Videl account: 3 presets free, any number with Videl Pro."))) return;
+    paint(await loadPresets(true));
+    saveBtn.hidden = true;
+    saveForm.hidden = false;
+    name.focus();
+  } }, "Save these settings");
+  const closeForm = () => { saveForm.hidden = true; saveBtn.hidden = false; name.value = ""; };
+  const saveForm = h("form", { class: "preset-save", hidden: true, onsubmit: async (e) => {
+    e.preventDefault();
+    err.textContent = "";
+    const values = read();
+    if (!values) { err.textContent = "Fix the setting marked in red first."; return; }
+    try {
+      paint(presetCache = await call("/me/presets", { tool: tool.id, name: name.value, values }));
+      closeForm();
+      announce("Preset saved.");
+    } catch (x) {
+      if (x.code === "preset_limit") limitSheet(x.message); else err.textContent = x.message;
+    }
+  } }, name,
+    h("button", { class: "btn btn-sm btn-primary", type: "submit" }, "Save"),
+    h("button", { class: "btn btn-sm btn-quiet", type: "button", onclick: closeForm }, "Cancel"));
+
+  function paint(data) {
+    const mine = data ? data.presets.filter((p) => p.tool === tool.id) : [];
+    chips.replaceChildren(...mine.map((p) => h("span", { class: "preset-chip" },
+      h("button", { class: "preset-apply", type: "button", title: "Use these settings",
+        onclick: () => { apply(p.values); announce(`Settings from ${p.name}.`); } }, p.name),
+      h("button", { class: "preset-del", type: "button", "aria-label": `Delete the preset ${p.name}`, onclick: async () => {
+        if (!confirm(`Delete the preset "${p.name}"?`)) return;
+        try { paint(presetCache = await call(`/me/presets/${p.id}/delete`, {})); } catch (x) { err.textContent = x.message; }
+      } }, "×"))));
+    note.textContent = !data ? "Save settings you use often and pick them again in one tap, with a free account."
+      : data.limit == null ? ""
+      : `${data.presets.length} of ${data.limit} saved presets on a free account, across all tools. Videl Pro saves any number.`;
+  }
+
+  paint(null);
+  loadPresets().then((d) => d && paint(d));
+  return h("div", { class: "presets", "aria-label": "Saved presets", role: "group" }, chips, saveBtn, saveForm, note, err);
+}
+
 const day = (ts) => new Date(ts * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 const PLAN = { monthly: "Monthly", yearly: "Yearly", lifetime: "Permanent", trial: "Trial" };
 
@@ -167,7 +238,7 @@ export async function renderAccount(main) {
     body = h("div", { class: "acct is-entering" }, h("p", { class: "hint" }, "Loading…"));
     main.replaceChildren(h("div", { class: "wrap report" },
       h("h1", {}, "Videl Pro"),
-      h("p", { class: "cat-lede" }, "Every tool here is free one file at a time, with no account. Videl Pro adds batches of many files at once. One license works in the web app, the desktop app and the Android app."),
+      h("p", { class: "cat-lede" }, "Every tool here is free one file at a time, with no account. Videl Pro adds batches of many files at once and any number of saved presets. One license works in the web app, the desktop app and the Android app."),
       body));
   }
   let acc = await getMe(true);
@@ -204,7 +275,7 @@ export async function renderAccount(main) {
       h("div", { class: "acct-actions" },
         acc.trial_available && h("button", { class: "btn btn-primary", type: "button", onclick: act(() => call("/me/trial", {})) }, "Start 7-day trial"),
         acc.plan !== "lifetime" && !pending && h("button", { class: "btn", type: "button", onclick: () => buyPanel(main, body) }, acc.pro && acc.plan !== "trial" ? "Renew" : "Buy Pro"),
-        h("button", { class: "btn btn-quiet", type: "button", onclick: act(async () => { await call("/auth/signout", {}); me = null; }) }, "Sign out"))),
+        h("button", { class: "btn btn-quiet", type: "button", onclick: act(async () => { await call("/auth/signout", {}); me = null; presetCache = undefined; }) }, "Sign out"))),
     pending && orderPanel(main, pending),
     !acc.pro && h("section", { class: "panel" },
       h("h2", {}, "Already bought Pro?"),

@@ -670,6 +670,36 @@ p { margin: 0; }
 .acct-sheet[open] { animation: panel-in .3s var(--ease-out); }
 .acct-sheet[open]::backdrop { animation: fade-in .3s ease-out; }
 
+/* Saved presets, at the top of a tool's Settings (account.js, presetBar). */
+.presets {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: -4px 0 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line);
+}
+.preset-chips { display: contents; }
+.preset-chip {
+  display: inline-flex; align-items: center; max-width: 100%;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2);
+  transition: border-color .2s, background-color .2s;
+}
+.preset-chip:hover { border-color: var(--ribbon-light); }
+.preset-apply, .preset-del { border: 0; background: none; color: inherit; font: inherit; cursor: pointer; min-height: 36px; }
+.preset-apply {
+  padding: 0 4px 0 14px; font-size: var(--t-sm); font-weight: 600; color: var(--paper);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.preset-del { width: 32px; flex: none; border-radius: 999px; color: var(--muted); font-size: 17px; line-height: 1; }
+.preset-del:hover { color: var(--danger); }
+.preset-chip:active { background: color-mix(in srgb, var(--ribbon) 14%, var(--panel-2)); }
+.preset-save { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+.preset-save[hidden], .presets [hidden] { display: none; }
+.preset-save input {
+  flex: 1 1 200px; min-height: 40px; padding: 0 12px; border-radius: var(--r-control);
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--paper); font: inherit;
+}
+.presets .hint, .presets .acct-error { width: 100%; margin: 0; font-size: var(--t-sm); }
+.presets .acct-error:empty, .preset-note:empty { display: none; }
+@media (pointer: coarse) { .preset-apply, .preset-del { min-height: 44px; } .preset-del { width: 40px; } }
+
 /* Plan and payment choices as cards (radio buttons underneath). */
 .choice-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 10px; border: 0; padding: 0; margin: 0; }
 .choice-cards legend { font-weight: 600; font-size: var(--t-sm); margin-bottom: 8px; padding: 0; }

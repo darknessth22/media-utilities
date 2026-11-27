@@ -1,7 +1,7 @@
 // The shared tool workspace: files, preview, settings, run, results.
 import { h, icon, mark as logoMark, dropArea, bindDrop, accepts, fmtBytes, fmtTime, saveBlob, announce } from "./ui.js";
 import { cancelFFmpeg, zipBlobs } from "./engines.js";
-import { allowBatch, batchNote } from "./account.js";
+import { allowBatch, batchNote, presetBar } from "./account.js";
 import { loadBitmap } from "./tools/image.js";
 import { segment } from "./engines.js";
 import { noteProblem } from "./report.js";
@@ -83,7 +83,8 @@ export function renderWorkspace(main, tool, initialFiles = []) {
       steps),
     h("div", { class: "ws-grid" },
       h("section", { class: "panel", "aria-label": "Files" }, drop, batchLine, fileList, previewBox),
-      h("section", { class: "panel", "aria-labelledby": "settings-h" }, h("h2", { id: "settings-h" }, "Settings"), form)),
+      h("section", { class: "panel", "aria-labelledby": "settings-h" }, h("h2", { id: "settings-h" }, "Settings"),
+        tool.fields.length ? presetBar(tool, readSettings, applyPreset) : null, form)),
     h("div", { class: "runbar" }, mark, status, actionBtn),
     results));
   bindDrop(main.querySelector(".ws-grid"), addFiles);
@@ -435,6 +436,29 @@ export function renderWorkspace(main, tool, initialFiles = []) {
       h("input", { id, type: "text", value: values[f.key], placeholder: f.placeholder, "aria-describedby": describedBy, autocomplete: "off",
         oninput: (e) => { values[f.key] = e.target.value; clearResults(); } }),
       hint);
+  }
+
+  // Saved presets (account.js, presetBar): the settings to save, and putting a saved
+  // preset back. A value that no longer fits the field (the tool changed since) is skipped.
+  function readSettings() {
+    return badCustom.size ? null : Object.fromEntries(tool.fields.map((f) => [f.key, values[f.key]]));
+  }
+  function fits(f, x) {
+    if (f.type === "seg" || f.type === "select") {
+      return f.options.some(([v]) => v === x) || (!!f.custom && customValue(f.custom, String(x)) !== null);
+    }
+    if (f.type === "range") return typeof x === "number" && x >= f.min && x <= f.max;
+    if (f.type === "color") return /^#[0-9A-F]{6}$/i.test(x);
+    return typeof x === "string";
+  }
+  function applyPreset(saved) {
+    for (const f of tool.fields) if (f.key in saved && fits(f, saved[f.key])) values[f.key] = saved[f.key];
+    customOn.clear();
+    for (const f of tool.fields) if (f.custom && !f.options.some(([v]) => v === values[f.key])) customOn.add(f.key);
+    badCustom.clear();
+    renderForm();
+    clearResults();
+    scheduleLive();
   }
 
   // A typed value for a choice field: a number from custom.min to custom.max (whole
