@@ -31,6 +31,8 @@ Related documents: [ARCHITECTURE.md](ARCHITECTURE.md) covers how Videl works, an
 
 - **No Turnstile on web sign-in, for now.** The web app sends `Cross-Origin-Embedder-Policy: credentialless` (multi-threaded WebAssembly), which is likely to block Turnstile's cross-origin iframe. Sign-in is bounded instead by the per-IP limiter, 3 codes per address an hour and 60 codes a day in all (Resend's free 100 a day is shared with the bug reporter). If abuse shows up, put Turnstile on a separate sign-in page served without COEP. Decided 2026-11-27.
 
+- **Version numbers never restart.** Both apps offer an update only when the latest GitHub release is newer than themselves (`core/updater.py`, `mobile/lib/core/update_checker.dart`), so a tag like `v1.0.0` after `v5.x` would silently strand every installed copy. 5.3.0 is the "first official release" in wording only. The version shows only in What's new, so the number itself does not need to look fresh. User decision 2026-11-27, after weighing a reset to 1.0.0.
+
 ## Removed or rejected — don't rebuild from old notes
 
 - 2D-to-3D Deconstructor
