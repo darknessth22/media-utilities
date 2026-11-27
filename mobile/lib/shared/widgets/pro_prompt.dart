@@ -29,9 +29,19 @@ Future<bool> proAllows(BuildContext context, Future<void> Function() check) asyn
   }
 }
 
-/// "Pro: 3 of 5 free runs left today" under a batch picker; nothing with Pro.
-/// Reads the count once; give it a new key after a counted run to read it again
-/// (a const or same-key hint would keep showing the old number).
+/// Bumped after every counted job, so each FreeRunsHint reads the count again.
+final jobsCounted = ValueNotifier<int>(0);
+
+/// Before every job (the Downloader excepted): one of today's free jobs, or no
+/// limit with Pro. [files] is how many a batch has. False when it must not start.
+Future<bool> jobAllowed(BuildContext context, {int files = 1}) async {
+  final ok = await proAllows(context, () => Pro.gate('job', files: files));
+  if (ok) jobsCounted.value++;
+  return ok;
+}
+
+/// "Free: 7 of 10 jobs left today" under a tool's button; nothing with Pro.
+/// Reads the count again whenever a job is counted (jobsCounted).
 class FreeRunsHint extends StatefulWidget {
   const FreeRunsHint({super.key});
   @override
@@ -39,7 +49,21 @@ class FreeRunsHint extends StatefulWidget {
 }
 
 class _FreeRunsHintState extends State<FreeRunsHint> {
-  late final Future<String?> _label = Pro.freeRunsLabel();
+  late Future<String?> _label = Pro.freeRunsLabel();
+
+  void _reread() => setState(() => _label = Pro.freeRunsLabel());
+
+  @override
+  void initState() {
+    super.initState();
+    jobsCounted.addListener(_reread);
+  }
+
+  @override
+  void dispose() {
+    jobsCounted.removeListener(_reread);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

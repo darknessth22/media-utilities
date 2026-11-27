@@ -10,7 +10,6 @@ import '../../core/native_bridges/python_runner.dart';
 import '../../core/recent_jobs.dart';
 import '../../core/theme/videl_theme.dart';
 import 'pro_prompt.dart';
-import 'package:videl_pro_mobile/videl_pro_mobile.dart';
 
 typedef CommandBuilder = String Function(String input, String output);
 
@@ -39,8 +38,8 @@ class ToolShell extends StatefulWidget {
   final CommandBuilder buildCommand;
   /// Several inputs into one output (Merge).
   final bool allowMulti;
-  /// Several inputs, each to its own output. More than one file is a batch:
-  /// Pro, or one of the free daily runs (videl_pro_mobile).
+  /// Several inputs, each to its own output. A batch of up to 10 files is one
+  /// free daily job, like a single file (jobAllowed); Pro takes any number.
   final bool batch;
   final FileType fileType;
   final Widget Function(BuildContext)? paramsBuilder;
@@ -58,7 +57,6 @@ class _ToolShellState extends State<ToolShell> {
   double _pct = 0;
   String _status = 'Pick a file to begin';
   String? _outPath;
-  int _counted = 0;   // bumps FreeRunsHint's key so it re-reads the count
 
   Future<bool> _ensureStorage() async {
     if (await Permission.manageExternalStorage.isGranted) return true;
@@ -90,11 +88,7 @@ class _ToolShellState extends State<ToolShell> {
       return;
     }
     final each = widget.batch ? List.of(_inputs) : [_inputs.join(';')];
-    if (each.length > 1 &&
-        !await proAllows(context, () => Pro.gate('batch', files: each.length))) {
-      return;
-    }
-    if (each.length > 1) setState(() => _counted++);
+    if (!await jobAllowed(context, files: each.length)) return;
     if (!await _ensureStorage()) {
       setState(() => _status = 'Storage permission required');
       return;
@@ -168,7 +162,6 @@ class _ToolShellState extends State<ToolShell> {
             onPick: _pick,
             multi: widget.allowMulti || widget.batch,
           ),
-          if (widget.batch) FreeRunsHint(key: ValueKey(_counted)),
           if (widget.paramsBuilder != null) ...[
             const SizedBox(height: 12),
             Container(
@@ -187,6 +180,7 @@ class _ToolShellState extends State<ToolShell> {
             icon: const Icon(Icons.play_arrow_rounded),
             label: const Text('Run'),
           ),
+          const FreeRunsHint(),
           const SizedBox(height: 14),
           if (_busy)
             ClipRRect(

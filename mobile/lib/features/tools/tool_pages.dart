@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
-import 'package:videl_pro_mobile/videl_pro_mobile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
@@ -402,6 +401,7 @@ class _TrimPageState extends State<TrimPage> {
       setState(() => _status = 'Storage permission required');
       return;
     }
+    if (!await jobAllowed(context)) return;
     final ext = _isAudio
         ? p.extension(_input!).toLowerCase().replaceFirst('.', '')
         : 'mp4';
@@ -579,6 +579,7 @@ class _TrimPageState extends State<TrimPage> {
             icon: const Icon(Icons.content_cut_rounded),
             label: const Text('Trim'),
           ),
+          const FreeRunsHint(),
           const SizedBox(height: 12),
           if (_busy)
             LinearProgressIndicator(
@@ -738,6 +739,7 @@ class _CropPageState extends State<CropPage> {
       setState(() => _status = 'Storage permission required');
       return;
     }
+    if (!await jobAllowed(context)) return;
     final c = _computeCrop();
     final outDir = '/storage/emulated/0/Movies/Videl';
     await Directory(outDir).create(recursive: true);
@@ -871,6 +873,7 @@ class _CropPageState extends State<CropPage> {
             icon: const Icon(Icons.crop_rounded),
             label: const Text('Crop'),
           ),
+          const FreeRunsHint(),
           const SizedBox(height: 12),
           if (_busy)
             LinearProgressIndicator(value: _pct == 0 ? null : _pct / 100),
@@ -931,7 +934,7 @@ class ConvertPage extends StatefulWidget {
 }
 
 class _ConvertPageState extends State<ConvertPage> {
-  // More than one file is a batch: Pro, or one of the free daily runs.
+  // Each run, one file or a batch of up to 10, is one free daily job (jobAllowed).
   List<String> _inputs = [];
   String? get _input => _inputs.isEmpty ? null : _inputs.first;
   String _mediaType = 'unknown';
@@ -939,7 +942,6 @@ class _ConvertPageState extends State<ConvertPage> {
   bool _busy = false;
   double _pct = 0;
   String _status = 'Pick a file to begin';
-  int _counted = 0;   // bumps FreeRunsHint's key so it re-reads the count
 
   Future<bool> _ensureStorage() async {
     if (await Permission.manageExternalStorage.isGranted) return true;
@@ -977,11 +979,7 @@ class _ConvertPageState extends State<ConvertPage> {
       setState(() => _status = 'Unsupported file type');
       return;
     }
-    if (_inputs.length > 1 &&
-        !await proAllows(context, () => Pro.gate('batch', files: _inputs.length))) {
-      return;
-    }
-    if (_inputs.length > 1) setState(() => _counted++);
+    if (!await jobAllowed(context, files: _inputs.length)) return;
     if (!await _ensureStorage()) {
       setState(() => _status = 'Storage permission required');
       return;
@@ -1154,7 +1152,6 @@ class _ConvertPageState extends State<ConvertPage> {
               ]),
             ),
           ),
-          FreeRunsHint(key: ValueKey(_counted)),
           // Format chips (shown only after file picked)
           if (_formats.isNotEmpty) ...[
             const SizedBox(height: 12),
@@ -1199,6 +1196,7 @@ class _ConvertPageState extends State<ConvertPage> {
             icon: const Icon(Icons.swap_horiz_rounded),
             label: const Text('Convert'),
           ),
+          const FreeRunsHint(),
           const SizedBox(height: 14),
           if (_busy)
             ClipRRect(
@@ -1244,6 +1242,7 @@ class _MergePageState extends State<MergePage> {
 
   Future<void> _merge() async {
     if (_inputs.length < 2) return;
+    if (!await jobAllowed(context)) return;   // a merge is one job, however many clips
     final outDir = '/storage/emulated/0/Movies/Videl';
     await Directory(outDir).create(recursive: true);
     final listPath = p.join(
@@ -1324,6 +1323,7 @@ class _MergePageState extends State<MergePage> {
             icon: const Icon(Icons.merge_rounded),
             label: const Text('Merge'),
           ),
+          const FreeRunsHint(),
           const SizedBox(height: 12),
           if (_busy) LinearProgressIndicator(value: _pct == 0 ? null : _pct / 100),
           const SizedBox(height: 6),
@@ -1436,6 +1436,7 @@ class _GifPageState extends State<GifPage> {
       setState(() => _status = 'Storage permission required');
       return;
     }
+    if (!await jobAllowed(context)) return;
     final outDir = '/storage/emulated/0/DCIM/Videl';
     await Directory(outDir).create(recursive: true);
     final out =
@@ -1572,6 +1573,7 @@ class _GifPageState extends State<GifPage> {
             icon: const Icon(Icons.gif_box_rounded),
             label: const Text('Create GIF'),
           ),
+          const FreeRunsHint(),
           const SizedBox(height: 12),
           if (_busy) LinearProgressIndicator(value: _pct == 0 ? null : _pct / 100),
           const SizedBox(height: 6),
@@ -1622,6 +1624,7 @@ class _FrameGrabPageState extends State<FrameGrabPage> {
       setState(() => _status = 'Storage permission required');
       return;
     }
+    if (!await jobAllowed(context)) return;
     final outDir = '/storage/emulated/0/DCIM/Videl';
     await Directory(outDir).create(recursive: true);
     final out = p.join(outDir,
@@ -1696,6 +1699,7 @@ class _FrameGrabPageState extends State<FrameGrabPage> {
             icon: const Icon(Icons.camera_alt_rounded),
             label: const Text('Grab frame'),
           ),
+          const FreeRunsHint(),
           const SizedBox(height: 12),
           Text(_status,
               style: const TextStyle(color: VidelColors.textSecondary)),
@@ -1723,6 +1727,7 @@ class _PalettePageState extends State<PalettePage> {
   Future<void> _pickThenExtract() async {
     final r = await FilePicker.platform.pickFiles(type: FileType.image);
     if (r == null) return;
+    if (!mounted || !await jobAllowed(context)) return;   // one job per image, not per slider move
     setState(() => _imgPath = r.files.single.path);
     await _extract();
   }
@@ -1880,6 +1885,7 @@ class _PalettePageState extends State<PalettePage> {
             icon: const Icon(Icons.image_search_rounded),
             label: const Text('Pick image'),
           ),
+          const FreeRunsHint(),
           if (_imgPath != null) ...[
             const SizedBox(height: 12),
             ClipRRect(

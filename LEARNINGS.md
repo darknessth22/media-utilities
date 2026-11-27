@@ -24,6 +24,7 @@ Related documents: [ARCHITECTURE.md](ARCHITECTURE.md) covers how Videl works, an
 - **Browser bridge accepts unauthenticated loopback POSTs.** A token was added once and reverted by the user, because the extension expects plain POST. Don't re-add one without asking.
 - **Settings folder on Windows/macOS stays `media-utilities`** (`core/settings.py`). Renaming it breaks existing installs. Linux uses `Videl`.
 
+- **Android and the web count every job, 10 a day (user decision 2026-11-27).** Counting only batches meant almost nobody, doing one file at a time, ever met the limit. The desktop is unchanged: its free tools stay unlimited one file at a time and only AI runs and batches count. On the web no account is needed: signed out, the server counts per network, a hash of the day and the IP (an IPv6 address by its /64, which one home keeps), so private windows and cleared site data don't reset it.
 - **Free tools' Pro gates sit in their core batch function, and in public code.** The free tools are MIT, so `core.edition.pro_gate()` calls `videl_pro.quota` only when it is present; a build from the public source has no gate, which is the honest open-source result. One file is never counted; a batch of up to 10 is one of the 3 daily runs. There is no batch Background Eraser to gate. User decision 2026-11-26.
 - **A revoke reaches a device only at its next check-in.** Until 5.3.0 the app checked in only at startup and at most daily, so a revoked license kept working in an app left open. Now it re-runs the check-in hourly with a 6-hour throttle. An offline device still keeps Pro until `chk` plus 7 days of grace; that is the cost of working offline.
 
@@ -48,7 +49,7 @@ The user preference behind several of these: **enrich the feature that was named
 ## Build & packaging
 
 - **Everything an update must refresh has to be inside `dist/Videl`.** In-app updates copy only the files in `videl-files.manifest.json`, which `tools/gen_manifest.py` builds from `dist/Videl`. Files the installer adds from elsewhere are never updated: the browser extension beside `Videl.exe` stayed at 1.0.0 after the 5.3.0 update while `_internal/browser_extension` had 1.0.1. `build_executable.py` now copies `browser_extension/` into `dist/Videl`, and `installer.iss` no longer adds it separately.
-- **Never `const` a widget that shows changing data (Flutter).** A `const FreeRunsHint()` was never rebuilt, so the phone's free-runs line kept its first number after each batch. Give such a widget a key that changes when the data does (`ValueKey(_counted)`).
+- **Never `const` a widget that shows changing data (Flutter), unless it listens for the change itself.** A `const FreeRunsHint()` was never rebuilt, so the phone's free-runs line kept its first number after each batch. It now listens to `jobsCounted`, which `jobAllowed` bumps, so it can stay `const` on every page.
 
 - Bundled asset paths always go through `core.paths.resource_path(...)`. Never `os.path.dirname(__file__)` + `..`: Windows collapses `..` lexically, but Linux walks real directories, so icons vanish in the AppImage.
 - Anything imported at startup must be in **both** `requirements.txt` and `requirements-build.txt`. AI libraries go in `manifests/`, never the app requirements.

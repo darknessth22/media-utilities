@@ -1,5 +1,5 @@
-// Compress, Metadata Scrubber and Watermark: free for one file, and Pro (or a
-// free daily run) for a batch, through ToolShell(batch: true).
+// Compress, Metadata Scrubber and Watermark: each run, one file or a batch of
+// several, is one free daily job (or no limit with Pro), through ToolShell(batch: true).
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
