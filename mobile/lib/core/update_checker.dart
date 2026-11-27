@@ -7,12 +7,15 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// Every recent release, not only "latest": an Android-only release (an
+// android-* tag) is never marked latest, so the desktop app and the site's
+// download links keep pointing at the last full release (newestApk).
 const _apiUrl =
-    'https://api.github.com/repos/darknessth22/media-utilities/releases/latest';
+    'https://api.github.com/repos/darknessth22/media-utilities/releases?per_page=20';
 const _apkAssetName = 'videl-android-arm64-v8a.apk';
 
 // Current build version — must stay in sync with pubspec.yaml version field.
-const kAppVersion = '5.3.1';
+const kAppVersion = '5.3.2';
 
 const _prefSkipKey = 'update_skip_version';
 
@@ -87,30 +90,9 @@ class UpdateNotifier extends Notifier<UpdateState> {
 
       if (resp.statusCode != 200) return;
 
-      final json = jsonDecode(resp.body) as Map<String, dynamic>;
-      final tag = (json['tag_name'] as String? ?? '').replaceAll(RegExp(r'^v'), '');
-      if (tag.isEmpty) return;
-
-      if (!_isNewer(tag, kAppVersion)) return;
-      if (tag == skipped) return;
-
-      final assets = (json['assets'] as List? ?? []);
-      final asset = assets.cast<Map<String, dynamic>>().firstWhere(
-            (a) => (a['name'] as String?) == _apkAssetName,
-            orElse: () => {},
-          );
-      final apkUrl = asset['browser_download_url'] as String? ?? '';
-      if (apkUrl.isEmpty) return;
-
-      final body = json['body'] as String? ?? '';
-      state = state.copyWith(
-        checking: false,
-        info: UpdateInfo(
-          latestVersion: tag,
-          apkUrl: apkUrl,
-          releaseNotes: body.length > 300 ? '${body.substring(0, 300)}…' : body,
-        ),
-      );
+      final info = newestApk(jsonDecode(resp.body) as List, kAppVersion);
+      if (info == null || info.latestVersion == skipped) return;
+      state = state.copyWith(checking: false, info: info);
     } catch (_) {
       // silent fail — update check is non-critical
     } finally {
@@ -187,6 +169,30 @@ class UpdateNotifier extends Notifier<UpdateState> {
     }
     state = state.copyWith(dismissed: true);
   }
+}
+
+/// The newest published release with an APK that is newer than [local], from
+/// GitHub's release list, or null. Tags are v5.3.2 (full) or android-v5.3.3.
+UpdateInfo? newestApk(List releases, String local) {
+  UpdateInfo? best;
+  for (final r in releases.cast<Map<String, dynamic>>()) {
+    if (r['draft'] == true || r['prerelease'] == true) continue;
+    final version = (r['tag_name'] as String? ?? '').replaceFirst(RegExp(r'^(android-)?v?'), '');
+    if (!_isNewer(version, best?.latestVersion ?? local)) continue;
+    final apk = (r['assets'] as List? ?? []).cast<Map<String, dynamic>>().firstWhere(
+          (a) => a['name'] == _apkAssetName,
+          orElse: () => const {},
+        );
+    final url = apk['browser_download_url'] as String? ?? '';
+    if (url.isEmpty) continue;
+    final body = r['body'] as String? ?? '';
+    best = UpdateInfo(
+      latestVersion: version,
+      apkUrl: url,
+      releaseNotes: body.length > 300 ? '${body.substring(0, 300)}…' : body,
+    );
+  }
+  return best;
 }
 
 bool _isNewer(String remote, String local) {

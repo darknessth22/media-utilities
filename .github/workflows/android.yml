@@ -2,7 +2,9 @@ name: Build Android APK
 
 on:
   # v* tags: build alongside Windows/Linux in a full release.
-  # android-* tags: mobile-only build without triggering build.yml.
+  # android-* tags: mobile-only build without triggering build.yml, never
+  # marked latest (see makeLatest below). Bump mobile/pubspec.yaml and
+  # kAppVersion to the tag's version first.
   push:
     tags:
       - 'v*'
@@ -117,5 +119,9 @@ jobs:
           # On shared v* tags the Windows build already set the body; skip it.
           omitBody: ${{ !startsWith(github.ref_name, 'android-') }}
           omitName: ${{ !startsWith(github.ref_name, 'android-') }}
+          # Only a full v* release may be "latest": the desktop updater and the
+          # site's download links read releases/latest. Phones find Android-only
+          # releases through the release list (newestApk in update_checker.dart).
+          makeLatest: ${{ startsWith(github.ref_name, 'v') && 'legacy' || 'false' }}
           artifacts: out/videl-android-arm64-v8a.apk
           token: ${{ secrets.GITHUB_TOKEN }}

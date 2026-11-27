@@ -100,7 +100,7 @@ git push origin master
 git push origin vX.Y.Z
 ```
 
-**Mobile-only release**: bump `version:` in `mobile/pubspec.yaml` and `kAppVersion` in `mobile/lib/core/update_checker.dart`, and tag `android-vX.Y.Z`. That builds Android only.
+**Mobile-only release** (a change only for the phone or the web app): bump `version:` in `mobile/pubspec.yaml`, `kAppVersion` in `mobile/lib/core/update_checker.dart` and the top of `mobile/assets/changelog.json`, and tag `android-vX.Y.Z`. That builds Android only, and the release is never marked latest, so the desktop updater and the site's download links stay on the last full release. Phones find it anyway: they read the release list and take the newest release with an APK (`newestApk`). Phones from 5.3.1 or older only read latest, so they need one full release (5.3.2) before Android-only releases reach them. Leave `core/version.py` alone; the next full release must still be higher than any android tag.
 
 **Pro on Android, locally**: with `videl_pro/` checked out, create `mobile/pubspec_overrides.yaml` (git-ignored) with `dependency_overrides: videl_pro_mobile: path: ../videl_pro/mobile`, then `flutter pub get`. Without it the app builds against the free stand-in, `mobile/pro_stub`. The private package's tests: `flutter test` in `videl_pro/mobile`.
 
