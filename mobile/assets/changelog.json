@@ -1,5 +1,14 @@
 [
   {
+    "version": "5.3.1",
+    "date": "2026-11-27",
+    "en": [
+      "Watermark puts text or a logo on photos and videos, with sliders for size and opacity, and white or black text.",
+      "Watermark text is sized to the picture, so it no longer covers a big part of it.",
+      "The free batch runs left today update right after each batch, and Convert shows them too."
+    ]
+  },
+  {
     "version": "5.3.0",
     "date": "2026-11-27",
     "en": [
