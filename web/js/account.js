@@ -1,8 +1,9 @@
-// Videl account on the web: only for Pro features (batches for now). One-file
-// tools never need it. Sign-in is an emailed 6-digit code, no password. The
-// license server (license.videl.app) keeps the session in an HttpOnly cookie
-// and counts the free batches per account per day, so clearing this site's
-// data or a private window does not reset them.
+// Videl account and the free daily jobs on the web. Every job is one of 10 free
+// jobs a day (a batch of up to 10 files is one); Videl Pro has no limit. The
+// license server (license.videl.app) counts them: per account when signed in,
+// else per network, so clearing this site's data or a private window does not
+// reset them. Sign-in is an emailed 6-digit code, no password, kept in an
+// HttpOnly cookie; it is needed for Pro and saved presets, not to use a tool.
 import { h, announce } from "./ui.js";
 
 const API = "https://license.videl.app";
@@ -19,7 +20,7 @@ const MESSAGES = {
   too_many_tries: "Too many wrong tries. Ask for a new code.",
   wrong_code: "That code is not right. Check the email and try again.",
   too_many_files: "A free batch goes up to 10 files. Use fewer files, or get Videl Pro for any number.",
-  limit_reached: "You have used today's 5 free batches. They come back at midnight (Cairo time), or get Videl Pro for no limit.",
+  limit_reached: "You have used today's 10 free jobs. They come back at midnight (Cairo time), or get Videl Pro for no limit.",
   trial_used: "This account has already had its free trial.",
   no_such_license: "That license key was not found. Check it for typos.",
   revoked: "That license has been cancelled. Contact us on WhatsApp if you think that is a mistake.",
@@ -112,7 +113,7 @@ export function signIn(why = "") {
   });
 }
 
-/** "Get Pro" sheet for a refused batch. */
+/** "Get Pro" sheet for a refused job. */
 function limitSheet(message) {
   const dlg = h("dialog", { class: "acct-sheet", "aria-labelledby": "lim-h" },
     h("h2", { id: "lim-h" }, "Videl Pro"),
@@ -126,32 +127,33 @@ function limitSheet(message) {
 }
 
 /**
- * Before a batch of n files (n > 1): sign in if needed, then ask the server for
- * one of today's free runs (Pro: no limit). False when the batch must not start.
+ * Before every job (files: how many a batch has, else 1): take one of today's free
+ * jobs from the server (Pro: no limit). False when the job must not start.
+ * ponytail: if the server can't be reached the job runs anyway, so an outage never
+ * stops the free tools; someone blocking license.videl.app was never going to pay.
  */
-export async function allowBatch(n) {
-  let acc = await getMe();
-  if (!acc) acc = await signIn("Batches of several files need a free Videl account: 5 free batches a day, or no limit with Videl Pro. One file at a time never needs an account.");
-  if (!acc) return false;
+export async function allowJob(files) {
   try {
-    const r = await call("/use", { kind: "batch", files: n });
-    me = { ...me, runs_left: r.runs_left };
+    const r = await call("/use", { files });
+    if (me) me = { ...me, runs_left: r.runs_left };
     return true;
   } catch (e) {
-    if (e.code === "signed_out") { me = null; return allowBatch(n); }
+    if (e.code !== "limit_reached" && e.code !== "too_many_files") return true;
     limitSheet(e.message);
     return false;
   }
 }
 
 /**
- * "Batches: 3 of 5 free runs left today", or a Pro note. Asks the server each time
- * (opening a tool, after a run), so a used run, a new license or a revoked one shows.
+ * "Free: 7 of 10 jobs left today", or a Pro note. Asks the server each time
+ * (opening a tool, after a job), so a used job, a new license or a revoked one shows.
  */
-export async function batchNote() {
-  const acc = await getMe(true);
-  if (!acc) return "Add several files for a batch: 5 free a day with a free account, no limit with Videl Pro.";
-  return acc.pro ? "Videl Pro: batches with no limit." : `Batches: ${acc.runs_left} of ${acc.runs_per_day} free runs left today, up to ${acc.batch_files} files each.`;
+export async function jobsNote(batch) {
+  let u;
+  try { u = await call("/use"); } catch { return ""; }
+  if (u.pro) return "Videl Pro: no daily limit.";
+  return `Free: ${u.runs_left} of ${u.runs_per_day} jobs left today.` +
+    (batch ? ` A batch of up to ${u.batch_files} files counts as one.` : "");
 }
 
 // Saved presets ---------------------------------------------------------------------------
@@ -241,14 +243,14 @@ export async function renderAccount(main) {
     body = h("div", { class: "acct is-entering" }, h("p", { class: "hint" }, "Loading…"));
     main.replaceChildren(h("div", { class: "wrap report" },
       h("h1", {}, "Videl Pro"),
-      h("p", { class: "cat-lede" }, "Every tool here is free one file at a time, with no account. Videl Pro adds batches of many files at once and any number of saved presets. One license works in the web app, the desktop app and the Android app."),
+      h("p", { class: "cat-lede" }, "Every tool here is free for 10 jobs a day, with no account; a batch of up to 10 files counts as one job. Videl Pro removes the daily limit, takes batches of any size and saves any number of presets. One license works in the web app, the desktop app and the Android app."),
       body));
   }
   let acc = await getMe(true);
   if (!acc) {
     swap(body, [h("section", { class: "panel" },
       h("h2", {}, "Sign in"),
-      h("p", {}, "A free account gives you 5 batches a day, up to 10 files each. No password: we email you a code."),
+      h("p", {}, "Signing in keeps your 10 free jobs a day on your account, wherever you sign in, and saves up to 3 presets. It is also where you get Videl Pro. No password: we email you a code."),
       h("div", { class: "acct-actions" },
         h("button", { class: "btn btn-primary", type: "button", onclick: async () => { if (await signIn()) renderAccount(main); } }, "Sign in with email")))]);
     return;
@@ -261,7 +263,7 @@ export async function renderAccount(main) {
   const status = acc.pro
     ? (acc.plan === "trial" ? `Pro trial, every Pro feature until ${day(acc.paid_until)}.`
       : acc.plan === "lifetime" ? "Pro, permanent license." : `Pro ${PLAN[acc.plan] || ""}, paid until ${day(acc.paid_until)}.`)
-    : `Free: ${acc.runs_left} of ${acc.runs_per_day} batches left today, up to ${acc.batch_files} files each. They come back at midnight (Cairo time).`;
+    : `Free: ${acc.runs_left} of ${acc.runs_per_day} jobs left today; a batch of up to ${acc.batch_files} files counts as one. They come back at midnight (Cairo time).`;
   const key = h("input", { id: "acct-key", type: "text", autocomplete: "off", placeholder: "VL-XXXX-XXXX-XXXX-XXXX" });
   let pending = null;
   try { pending = JSON.parse(localStorage.getItem(ORDER_KEY)); } catch { /* none */ }

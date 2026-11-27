@@ -190,7 +190,7 @@ PAGES = [
      ["Add one or more images.",
       "Choose the format, quality and longest side.",
       "Save the new images."],
-     [("Can I convert many images at once?", "Yes. Add as many as you like and they are all converted with the same settings.")]),
+     [("Can I convert many images at once?", "Yes. Add as many as you like and they are all converted with the same settings. That counts as one of your free jobs for the day.")]),
     ("compress-image", "image-convert", "image", "Compress images",
      "Compress Images Online: Make JPG, PNG and WebP Smaller | Videl",
      "Make photos smaller for email, upload forms and websites. Lower the quality or the size, for one image or many at once. Free, and your images never leave your device.",
@@ -279,7 +279,7 @@ def esc(s: str) -> str:
 
 def faq(engine: str, extra: list[tuple[str, str]]) -> list[tuple[str, str]]:
     return extra + [
-        ("Is it free?", "Yes. There is no sign-up, no watermark and no limit on how often you use it."),
+        ("Is it free?", "Yes. There is no sign-up and no watermark. You get 10 free jobs a day across all the tools, and a batch of up to 10 files counts as one. Videl Pro removes the limit."),
         ("Are my files uploaded?", f"No. {ENGINE[engine]}, so your files stay on your device."),
     ]
 

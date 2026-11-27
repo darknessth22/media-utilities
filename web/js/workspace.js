@@ -1,7 +1,7 @@
 // The shared tool workspace: files, preview, settings, run, results.
 import { h, icon, mark as logoMark, dropArea, bindDrop, accepts, fmtBytes, fmtTime, saveBlob, announce } from "./ui.js";
 import { cancelFFmpeg, zipBlobs } from "./engines.js";
-import { allowBatch, batchNote, presetBar } from "./account.js";
+import { allowJob, jobsNote, presetBar } from "./account.js";
 import { loadBitmap } from "./tools/image.js";
 import { segment } from "./engines.js";
 import { noteProblem } from "./report.js";
@@ -43,11 +43,11 @@ export function renderWorkspace(main, tool, initialFiles = []) {
   const customOn = new Set(tool.fields.filter((f) => f.custom && !f.options.some(([v]) => v === values[f.key])).map((f) => f.key));
   const badCustom = new Set();   // keys whose typed value is out of range
   const state = { files: [], probes: [], start: 0, end: 0, busy: false, results: [] };
-  // A batch tool runs once per file. More than one file is Videl Pro, or one of
-  // the free daily batches with a free account (account.js, allowBatch).
+  // A batch tool runs once per file. Every job, a batch included, is one of the
+  // free daily jobs, or unlimited with Videl Pro (account.js, allowJob).
   const many = !!(tool.multiple || tool.batch);
-  const batchLine = tool.batch ? h("p", { class: "hint batch-note" }) : null;
-  const refreshBatchLine = () => batchLine && batchNote().then((t) => { batchLine.textContent = t; });
+  const batchLine = h("p", { class: "hint batch-note" });
+  const refreshBatchLine = () => jobsNote(tool.batch).then((t) => { batchLine.textContent = t; });
 
   // Layout ------------------------------------------------------------------
   const fileList = h("ul", { class: "files", "aria-label": "Files" });
@@ -562,7 +562,7 @@ export function renderWorkspace(main, tool, initialFiles = []) {
     const issue = problem();
     if (issue) { setStatus(issue, "", true); return; }
     const batch = tool.batch && state.files.length > 1;
-    if (batch && !(await allowBatch(state.files.length))) { refreshBatchLine(); return; }
+    if (!(await allowJob(batch ? state.files.length : 1))) { refreshBatchLine(); return; }
     state.busy = true;
     clearResults();
     actionBtn.textContent = usesFFmpeg() ? "Cancel" : tool.action;
