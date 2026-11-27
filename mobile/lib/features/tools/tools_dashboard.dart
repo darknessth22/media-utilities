@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/videl_theme.dart';
 import '../downloader/downloader_page.dart';
+import 'batch_tools.dart';
 import 'tool_pages.dart';
 
 class _Tool {
@@ -24,6 +25,8 @@ final _tools = <_Tool>[
       (_) => const CropPage(), const Color(0xFFFB923C)),
   _Tool(Icons.swap_horiz_rounded, 'Convert', 'Video, audio or image to another format',
       (_) => const ConvertPage(), const Color(0xFF22D3EE)),
+  _Tool(Icons.compress_rounded, 'Compress', 'Make videos smaller to share',
+      (_) => const CompressPage(), const Color(0xFF22C55E)),
   _Tool(Icons.merge_rounded, 'Merge', 'Join clips into one video',
       (_) => const MergePage(), const Color(0xFFA855F7)),
   _Tool(Icons.volume_off_rounded, 'Mute', 'Remove the sound from a video',
@@ -36,6 +39,10 @@ final _tools = <_Tool>[
       (_) => const FrameGrabPage(), const Color(0xFF8B5CF6)),
   _Tool(Icons.palette_rounded, 'Colour Palette', 'The main colours of an image',
       (_) => const PalettePage(), const Color(0xFFF43F5E)),
+  _Tool(Icons.branding_watermark_rounded, 'Watermark', 'Your name or logo text on videos and photos',
+      (_) => const WatermarkPage(), const Color(0xFF0E7490)),
+  _Tool(Icons.privacy_tip_rounded, 'Metadata Scrubber', 'Remove location and hidden details',
+      (_) => const ScrubPage(), const Color(0xFF7C3AED)),
 ];
 
 class ToolsDashboard extends StatelessWidget {

@@ -100,7 +100,9 @@ git push origin master
 git push origin vX.Y.Z
 ```
 
-**Mobile-only release**: bump `version:` in `mobile/pubspec.yaml` and tag `android-vX.Y.Z`. That builds Android only.
+**Mobile-only release**: bump `version:` in `mobile/pubspec.yaml` and `kAppVersion` in `mobile/lib/core/update_checker.dart`, and tag `android-vX.Y.Z`. That builds Android only.
+
+**Pro on Android, locally**: with `videl_pro/` checked out, create `mobile/pubspec_overrides.yaml` (git-ignored) with `dependency_overrides: videl_pro_mobile: path: ../videl_pro/mobile`, then `flutter pub get`. Without it the app builds against the free stand-in, `mobile/pro_stub`. The private package's tests: `flutter test` in `videl_pro/mobile`.
 
 
 ## 7. CI (GitHub Actions)
@@ -109,7 +111,7 @@ git push origin vX.Y.Z
 - **`build.yml`**: runs on `v*` tags and manually.
   - **Windows job**: PyInstaller and Inno Setup produce `Videl_Setup.exe`, plus the delta-update manifest and blobs, a size check comparing a clean venv against an AI-polluted one, an Ed25519 signature, and the GitHub Release.
   - **Linux job**: runs in parallel with no dependency on the Windows job. Builds a signed AppImage into the same release.
-- **`android.yml`**: runs on `v*` and `android-*` tags and manually. Builds the Flutter APK from `mobile/`.
+- **`android.yml`**: runs on `v*` and `android-*` tags and manually. Checks out `videl-pro` (same `VIDEL_PRO_TOKEN`), writes `mobile/pubspec_overrides.yaml` pointing `videl_pro_mobile` at `videl_pro/mobile`, and builds the Flutter APK from `mobile/`.
 - **Pro module**: both build jobs check out the private `darknessth22/videl-pro` repo into `videl_pro/` with the `VIDEL_PRO_TOKEN` secret (a fine-grained token with read-only Contents access to that one repo). Without it the release fails on purpose, so no official build ships without the Pro tools. `ci.yml` tests the public, free-only build.
 - **Secrets**: `VIDEL_PRIV_KEY_PEM` (signing), `VIDEL_PRO_TOKEN` (Pro checkout).
 - **License server**: the private `videl-license` repo deploys separately (`npx wrangler deploy`, see its README). A release can only verify licenses signed by a key in `PUBLIC_KEYS` (`videl_pro/license.py`), so a new signing key ships in an app release before the server starts using it. The public key is in `core/_signing.py`. No mail-service key is used in builds any more.

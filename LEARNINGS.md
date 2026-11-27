@@ -27,6 +27,10 @@ Related documents: [ARCHITECTURE.md](ARCHITECTURE.md) covers how Videl works, an
 - **Free tools' Pro gates sit in their core batch function, and in public code.** The free tools are MIT, so `core.edition.pro_gate()` calls `videl_pro.quota` only when it is present; a build from the public source has no gate, which is the honest open-source result. One file is never counted; a batch of up to 10 is one of the 3 daily runs. There is no batch Background Eraser to gate. User decision 2026-11-26.
 - **A revoke reaches a device only at its next check-in.** Until 5.3.0 the app checked in only at startup and at most daily, so a revoked license kept working in an app left open. Now it re-runs the check-in hourly with a 6-hour throttle. An offline device still keeps Pro until `chk` plus 7 days of grace; that is the cost of working offline.
 
+- **Android open core uses `pubspec_overrides.yaml`, not a conditional import.** Dart cannot import a package only when it exists, so the public app depends on a stand-in with the same API (`mobile/pro_stub`, package `videl_pro_mobile`) and official builds override it with the private `videl_pro/mobile` through a git-ignored `pubspec_overrides.yaml`, which pub reads by itself. Keep the two APIs identical; the stand-in has no gate, so a public build is fully free. User decision 2026-11-27.
+
+- **No Turnstile on web sign-in, for now.** The web app sends `Cross-Origin-Embedder-Policy: credentialless` (multi-threaded WebAssembly), which is likely to block Turnstile's cross-origin iframe. Sign-in is bounded instead by the per-IP limiter, 3 codes per address an hour and 60 codes a day in all (Resend's free 100 a day is shared with the bug reporter). If abuse shows up, put Turnstile on a separate sign-in page served without COEP. Decided 2026-11-27.
+
 ## Removed or rejected — don't rebuild from old notes
 
 - 2D-to-3D Deconstructor

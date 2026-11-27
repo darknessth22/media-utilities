@@ -1,0 +1,12 @@
+name: videl_pro_mobile
+description: Public stand-in for Videl Pro on Android. Official builds replace it with the private package (pubspec_overrides.yaml).
+publish_to: 'none'
+version: 0.0.0
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: '>=3.19.0'
+
+dependencies:
+  flutter:
+    sdk: flutter

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:videl_pro_mobile/videl_pro_mobile.dart';
 
 import 'core/theme/videl_theme.dart';
 import 'core/native_bridges/python_runner.dart';
@@ -10,6 +11,8 @@ import 'shared/widgets/home_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Loads the license and checks in in the background; never blocks startup.
+  Pro.init(appVersion: kAppVersion);
   runApp(const ProviderScope(child: VidelApp()));
 }
 

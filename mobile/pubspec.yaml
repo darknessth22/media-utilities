@@ -25,6 +25,10 @@ dependencies:
   path: ^1.9.0
   http: ^1.2.0
   url_launcher: ^6.3.0
+  # Pro: a public stub; official builds override it with the private package
+  # (pubspec_overrides.yaml, written by CI; see pro_stub/lib/videl_pro_mobile.dart).
+  videl_pro_mobile:
+    path: pro_stub
 
 dev_dependencies:
   flutter_lints: ^3.0.2

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:videl_pro_mobile/videl_pro_mobile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
@@ -14,6 +15,7 @@ import '../../core/native_bridges/ffmpeg_runner.dart';
 import '../../core/native_bridges/python_runner.dart';
 import '../../core/recent_jobs.dart';
 import '../../core/theme/videl_theme.dart';
+import '../../shared/widgets/pro_prompt.dart';
 import '../../shared/widgets/tool_shell.dart';
 import '../../shared/widgets/video_scrubber.dart';
 
@@ -929,7 +931,9 @@ class ConvertPage extends StatefulWidget {
 }
 
 class _ConvertPageState extends State<ConvertPage> {
-  String? _input;
+  // More than one file is a batch: Pro, or one of the free daily runs.
+  List<String> _inputs = [];
+  String? get _input => _inputs.isEmpty ? null : _inputs.first;
   String _mediaType = 'unknown';
   String _target = '';
   bool _busy = false;
@@ -945,19 +949,24 @@ class _ConvertPageState extends State<ConvertPage> {
   }
 
   Future<void> _pick() async {
-    final r = await FilePicker.platform.pickFiles(type: FileType.any);
+    final r = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: true);
     if (r == null) return;
-    final path = r.files.first.path!;
+    final paths = r.files.map((f) => f.path!).toList();
+    final path = paths.first;
     final mt = _cvtDetectType(path);
+    if (paths.any((x) => _cvtDetectType(x) != mt)) {
+      setState(() => _status = 'Pick files of one kind: all videos, all audio or all images.');
+      return;
+    }
     String defaultTarget = '';
     if (mt == 'video') defaultTarget = 'mp4';
     if (mt == 'audio') defaultTarget = 'mp3';
     if (mt == 'image') defaultTarget = 'jpg';
     setState(() {
-      _input = path;
+      _inputs = paths;
       _mediaType = mt;
       _target = defaultTarget;
-      _status = p.basename(path);
+      _status = paths.length > 1 ? '${paths.length} files' : p.basename(path);
     });
   }
 
@@ -967,12 +976,15 @@ class _ConvertPageState extends State<ConvertPage> {
       setState(() => _status = 'Unsupported file type');
       return;
     }
+    if (_inputs.length > 1 &&
+        !await proAllows(context, () => Pro.gate('batch', files: _inputs.length))) {
+      return;
+    }
     if (!await _ensureStorage()) {
       setState(() => _status = 'Storage permission required');
       return;
     }
 
-    final base = p.basenameWithoutExtension(_input!);
     // video→audio conversion goes to Music, not Movies
     final isExtractAudio = _mediaType == 'video' && _cvtAudioFmts.contains(_target);
     final String outDir;
@@ -986,7 +998,7 @@ class _ConvertPageState extends State<ConvertPage> {
       outDir = '/storage/emulated/0/Pictures/Videl';
     }
     await Directory(outDir).create(recursive: true);
-    final out = p.join(outDir, '${base}_$_target.$_target');
+    String out = '';
 
     setState(() {
       _busy = true;
@@ -996,19 +1008,27 @@ class _ConvertPageState extends State<ConvertPage> {
     await PythonRunner.fgStart();
     String jobStatus = 'success';
     try {
-      if (_mediaType == 'image') {
-        await _convertImage(_input!, out, _target);
-      } else {
-        final cmd = _cvtFfmpegCmd(_input!, out, _target);
-        final dur = await FfmpegRunner.duration(_input!);
-        await FfmpegRunner.run(cmd, durationSec: dur, onProgress: (prog) {
-          if (!mounted) return;
-          setState(() => _pct = prog);
-          PythonRunner.fgUpdate(title: 'Convert', text: 'Converting', pct: prog.toInt());
-        });
+      final n = _inputs.length;
+      for (var i = 0; i < n; i++) {
+        final input = _inputs[i];
+        out = p.join(outDir, '${p.basenameWithoutExtension(input)}_$_target.$_target');
+        if (n > 1 && mounted) setState(() => _status = 'File ${i + 1} of $n: ${p.basename(input)}');
+        if (_mediaType == 'image') {
+          await _convertImage(input, out, _target);
+          if (mounted) setState(() => _pct = (i + 1) * 100 / n);
+        } else {
+          final cmd = _cvtFfmpegCmd(input, out, _target);
+          final dur = await FfmpegRunner.duration(input);
+          await FfmpegRunner.run(cmd, durationSec: dur, onProgress: (prog) {
+            if (!mounted) return;
+            final overall = (i * 100 + prog) / n;
+            setState(() => _pct = overall);
+            PythonRunner.fgUpdate(title: 'Convert', text: 'Converting', pct: overall.toInt());
+          });
+        }
+        await PythonRunner.mediaScan(out);
       }
-      await PythonRunner.mediaScan(out);
-      setState(() => _status = 'Saved · ${p.basename(out)}');
+      setState(() => _status = n > 1 ? 'Saved $n files' : 'Saved · ${p.basename(out)}');
     } catch (e) {
       jobStatus = 'failed';
       setState(() => _status = 'Failed: $e');
@@ -1016,7 +1036,7 @@ class _ConvertPageState extends State<ConvertPage> {
       await PythonRunner.fgStop();
       await RecentJobs.add(RecentJob(
         tool: 'convert',
-        input: _input!,
+        input: _inputs.join(' | '),
         output: jobStatus == 'success' ? out : '',
         status: jobStatus,
       ));
@@ -1119,7 +1139,11 @@ class _ConvertPageState extends State<ConvertPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    _input == null ? 'Tap to pick file' : p.basename(_input!),
+                    _input == null
+                        ? 'Tap to pick one file or more'
+                        : _inputs.length > 1
+                            ? '${_inputs.length} files selected'
+                            : p.basename(_input!),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w500),
@@ -1322,6 +1346,7 @@ class MutePage extends StatelessWidget {
       outputExt: 'mp4',
       outputDir: 'Movies/Videl',
       suffix: '_muted',
+      batch: true,
       buildCommand: (i, o) => '-y -i "$i" -c:v copy -an "$o"',
     );
   }
@@ -1351,6 +1376,7 @@ class _ExtractAudioPageState extends State<ExtractAudioPage> {
       outputExt: _fmt,
       outputDir: 'Music/Videl',
       suffix: '_audio',
+      batch: true,
       buildCommand: _ffmpegCmd,
       paramsBuilder: (ctx) => Wrap(
         spacing: 8,

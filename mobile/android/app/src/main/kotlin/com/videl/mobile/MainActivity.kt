@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
+import android.provider.Settings
 import androidx.core.content.FileProvider
 import java.io.File
 import io.flutter.embedding.android.FlutterActivity
@@ -133,6 +134,10 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, methodCh)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    // Pro: the license is bound to a hash of this (videl_pro_mobile).
+                    "android_id" -> result.success(
+                        Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+                    )
                     "fg_start" -> {
                         DownloadService.start(applicationContext)
                         result.success(true)

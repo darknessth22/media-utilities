@@ -9,6 +9,8 @@ import '../../core/native_bridges/ffmpeg_runner.dart';
 import '../../core/native_bridges/python_runner.dart';
 import '../../core/recent_jobs.dart';
 import '../../core/theme/videl_theme.dart';
+import 'pro_prompt.dart';
+import 'package:videl_pro_mobile/videl_pro_mobile.dart';
 
 typedef CommandBuilder = String Function(String input, String output);
 
@@ -22,6 +24,7 @@ class ToolShell extends StatefulWidget {
     required this.outputDir, // e.g. 'Movies/Videl' or 'Pictures/Videl'
     required this.buildCommand,
     this.allowMulti = false,
+    this.batch = false,
     this.fileType = FileType.video,
     this.paramsBuilder,
     this.suffix = '',
@@ -30,10 +33,14 @@ class ToolShell extends StatefulWidget {
   final String title;
   final IconData icon;
   final String toolKey;
-  final String outputExt; // e.g. 'mp4', 'gif', 'mp3'
+  final String outputExt; // e.g. 'mp4', 'gif', 'mp3'; '' keeps the input's
   final String outputDir; // relative under /storage/emulated/0/
   final CommandBuilder buildCommand;
+  /// Several inputs into one output (Merge).
   final bool allowMulti;
+  /// Several inputs, each to its own output. More than one file is a batch:
+  /// Pro, or one of the free daily runs (videl_pro_mobile).
+  final bool batch;
   final FileType fileType;
   final Widget Function(BuildContext)? paramsBuilder;
   final String suffix; // appended to output basename, e.g. '_trim'
@@ -60,12 +67,12 @@ class _ToolShellState extends State<ToolShell> {
   Future<void> _pick() async {
     final r = await FilePicker.platform.pickFiles(
       type: widget.fileType,
-      allowMultiple: widget.allowMulti,
+      allowMultiple: widget.allowMulti || widget.batch,
     );
     if (r == null) return;
     setState(() {
       _inputs = r.files.map((f) => f.path!).toList();
-      _status = widget.allowMulti
+      _status = _inputs.length > 1
           ? '${_inputs.length} files'
           : p.basename(_inputs.first);
     });
@@ -73,17 +80,18 @@ class _ToolShellState extends State<ToolShell> {
 
   Future<void> _run() async {
     if (_inputs.isEmpty) return;
+    final each = widget.batch ? List.of(_inputs) : [_inputs.join(';')];
+    if (each.length > 1 &&
+        !await proAllows(context, () => Pro.gate('batch', files: each.length))) {
+      return;
+    }
     if (!await _ensureStorage()) {
       setState(() => _status = 'Storage permission required');
       return;
     }
     await PythonRunner.fgStart();
-    final input = _inputs.first;
     final outDir = '/storage/emulated/0/${widget.outputDir}';
     await Directory(outDir).create(recursive: true);
-    final base = p.basenameWithoutExtension(input);
-    final out = p.join(outDir, '$base${widget.suffix}.${widget.outputExt}');
-    final cmd = widget.buildCommand(_inputs.join(';'), out);
 
     setState(() {
       _busy = true;
@@ -94,17 +102,32 @@ class _ToolShellState extends State<ToolShell> {
 
     String jobStatus = 'success';
     try {
-      final dur = await FfmpegRunner.duration(input);
-      await FfmpegRunner.run(cmd, durationSec: dur, onProgress: (p) {
-        if (!mounted) return;
-        setState(() => _pct = p);
-        PythonRunner.fgUpdate(
-            title: widget.title, text: 'Processing', pct: p.toInt());
-      });
-      await PythonRunner.mediaScan(out);
-      setState(() {
+      for (var n = 0; n < each.length; n++) {
+        final first = each[n].split(';').first;
+        final base = p.basenameWithoutExtension(first);
+        final ext = widget.outputExt.isEmpty
+            ? p.extension(first).replaceFirst('.', '')
+            : widget.outputExt;
+        final out = p.join(outDir, '$base${widget.suffix}.$ext');
+        final cmd = widget.buildCommand(each[n], out);
+        final dur = await FfmpegRunner.duration(first);
+        if (each.length > 1 && mounted) {
+          setState(() => _status = 'File ${n + 1} of ${each.length}: ${p.basename(first)}');
+        }
+        await FfmpegRunner.run(cmd, durationSec: dur, onProgress: (pct) {
+          if (!mounted) return;
+          final overall = (n * 100 + pct) / each.length;
+          setState(() => _pct = overall);
+          PythonRunner.fgUpdate(
+              title: widget.title, text: 'Processing', pct: overall.toInt());
+        });
+        await PythonRunner.mediaScan(out);
         _outPath = out;
-        _status = 'Saved · ${p.basename(out)}';
+      }
+      setState(() {
+        _status = each.length > 1
+            ? 'Saved ${each.length} files to ${widget.outputDir}'
+            : 'Saved · ${p.basename(_outPath!)}';
       });
     } catch (e) {
       jobStatus = 'failed';
@@ -133,8 +156,9 @@ class _ToolShellState extends State<ToolShell> {
           _PickerCard(
             inputs: _inputs,
             onPick: _pick,
-            multi: widget.allowMulti,
+            multi: widget.allowMulti || widget.batch,
           ),
+          if (widget.batch) const FreeRunsHint(),
           if (widget.paramsBuilder != null) ...[
             const SizedBox(height: 12),
             Container(

@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Official builds point videl_pro_mobile at the private package (CI writes it).
+pubspec_overrides.yaml

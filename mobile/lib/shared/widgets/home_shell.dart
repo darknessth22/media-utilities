@@ -1,3 +1,4 @@
+import 'package:videl_pro_mobile/videl_pro_mobile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -366,6 +367,17 @@ class _VidelDrawer extends ConsumerWidget {
               active: active == _Section.history,
               onTap: () => onPick(_Section.history),
             ),
+            if (hasPro)
+              _NavItem(
+                icon: Icons.workspace_premium_rounded,
+                label: 'Videl Pro',
+                active: false,
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => Pro.licensePage()!));
+                },
+              ),
             _NavItem(
               icon: Icons.bug_report_rounded,
               label: 'Report a Bug',

@@ -21,6 +21,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Pro on Android lives in the private videl-pro repo (videl_pro/mobile).
+      # The public app builds against mobile/pro_stub; this override swaps in
+      # the real package. Official builds must include it, so a missing token
+      # fails the release, as on the desktop.
+      - name: Checkout Pro module
+        uses: actions/checkout@v4
+        with:
+          repository: darknessth22/videl-pro
+          token: ${{ secrets.VIDEL_PRO_TOKEN }}
+          path: videl_pro
+
+      - name: Use the Pro package
+        working-directory: mobile
+        run: |
+          test -f ../videl_pro/mobile/pubspec.yaml
+          printf 'dependency_overrides:\n  videl_pro_mobile:\n    path: ../videl_pro/mobile\n' > pubspec_overrides.yaml
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
