@@ -144,9 +144,12 @@ export async function allowBatch(n) {
   }
 }
 
-/** "Batches: 3 of 5 free runs left today", or a Pro note; empty when signed out. */
+/**
+ * "Batches: 3 of 5 free runs left today", or a Pro note. Asks the server each time
+ * (opening a tool, after a run), so a used run, a new license or a revoked one shows.
+ */
 export async function batchNote() {
-  const acc = await getMe();
+  const acc = await getMe(true);
   if (!acc) return "Add several files for a batch: 5 free a day with a free account, no limit with Videl Pro.";
   return acc.pro ? "Videl Pro: batches with no limit." : `Batches: ${acc.runs_left} of ${acc.runs_per_day} free runs left today, up to ${acc.batch_files} files each.`;
 }
